@@ -109,36 +109,6 @@ export default function SubscriptionPage() {
           prefill: {
             name: user?.name ?? "",
             email: user?.email ?? "",
-            contact: ""   // optional: add phone number field if you collect it
-          },
-          method: {
-            upi: true,          // GPay, PhonePe, Paytm, BHIM etc.
-            card: true,         // Credit / Debit cards
-            netbanking: true,   // Net banking
-            wallet: true,       // Paytm wallet, Mobikwik etc.
-            emi: false,         // EMI (disable for small amounts)
-          },
-          config: {
-            display: {
-              blocks: {
-                upi: {
-                  name: "Pay via UPI",
-                  instruments: [
-                    { method: "upi", flows: ["collect", "intent", "qr"] }
-                  ]
-                },
-                other: {
-                  name: "Other Payment Methods",
-                  instruments: [
-                    { method: "card" },
-                    { method: "netbanking" },
-                    { method: "wallet" }
-                  ]
-                }
-              },
-              sequence: ["block.upi", "block.other"],   // UPI shown first
-              preferences: { show_default_blocks: false }
-            }
           },
           theme: { color: "#2d5a3d" },
           handler: async (response: any) => {
@@ -188,7 +158,7 @@ export default function SubscriptionPage() {
   )
 
   return (
-    <div className="container mx-auto px-4 py-16 max-w-7xl">
+    <div className="container mx-auto px-4 py-6 md:py-16 max-w-7xl">
       {/* Header */}
       <div className="text-center mb-12">
         <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 text-sm px-4 py-1">Premium Plans</Badge>
@@ -228,7 +198,7 @@ export default function SubscriptionPage() {
       </div>
 
       {/* Pricing cards */}
-      <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-6xl mx-auto">
         {plans.map((plan) => {
           const isBest = !!plan.badge?.includes("Best")
           const isPopular = !!plan.badge?.includes("Popular")
@@ -313,7 +283,7 @@ export default function SubscriptionPage() {
       </div>
 
       {/* Trust badges */}
-      <div className="flex flex-wrap justify-center gap-8 mt-12 text-sm text-muted-foreground">
+      <div className="flex flex-wrap justify-center gap-4 md:gap-8 mt-8 md:mt-12 text-xs md:text-sm text-muted-foreground">
         <div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /><span>Secure payments via Razorpay</span></div>
         <div className="flex items-center gap-2"><RefreshCw className="w-5 h-5 text-primary" /><span>7-day money-back guarantee</span></div>
         <div className="flex items-center gap-2"><Check className="w-5 h-5 text-primary" /><span>Cancel anytime</span></div>
@@ -323,7 +293,7 @@ export default function SubscriptionPage() {
       <div className="max-w-4xl mx-auto mt-16">
         <h2 className="text-2xl font-bold text-center mb-8">What's Included</h2>
         <Card><CardContent className="pt-6">
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h3 className="font-semibold mb-3 flex items-center gap-2"><Crown className="w-5 h-5 text-primary" />Premium Features</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">

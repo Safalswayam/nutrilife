@@ -1,13 +1,12 @@
 "use client"
 
 import React from "react"
-
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { SidebarNav, MobileNav } from "@/components/sidebar-nav"
-import { Loader2, Leaf } from "lucide-react"
+import { SidebarNav, MobileNav, MobileHeader } from "@/components/sidebar-nav"
+import { Loader2 } from "lucide-react"
 
-// Pages that don't require authentication and shouldn't show the sidebar
 const AUTH_PAGES = ["/login", "/signup"]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -16,14 +15,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isAuthPage = AUTH_PAGES.includes(pathname)
 
-  // Show loading screen while checking auth status
   if (isLoading && !isAuthPage) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center animate-pulse">
-            <Leaf className="h-9 w-9 text-primary-foreground" />
-          </div>
+          <Image
+            src="/nutrilife-icon.png"
+            alt="NutriLife"
+            width={64}
+            height={64}
+            className="rounded-2xl animate-pulse"
+          />
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Loading NutriLife...</span>
@@ -33,16 +35,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Auth pages (login/signup) - no sidebar
   if (isAuthPage) {
     return <>{children}</>
   }
 
-  // Main app layout with sidebar
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-background">
+      {/* Desktop sidebar */}
       <SidebarNav />
-      <main className="flex-1 md:ml-64 pb-20 md:pb-0">{children}</main>
+
+      {/* Mobile top header */}
+      <MobileHeader />
+
+      {/* Main content */}
+      <main className="flex-1 md:ml-64 pt-[56px] md:pt-0 pb-20 md:pb-0 min-w-0">
+        {children}
+      </main>
+
+      {/* Mobile bottom tab bar */}
       <MobileNav />
     </div>
   )
