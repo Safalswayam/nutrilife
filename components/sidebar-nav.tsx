@@ -29,6 +29,7 @@ import {
   ClipboardList,
   Menu,
   X,
+  Moon,
 } from "lucide-react"
 
 const navItems = [
@@ -37,6 +38,7 @@ const navItems = [
   { title: "Food Analysis",   href: "/food-analysis",   icon: Camera       },
   { title: "Health Assistant",href: "/health-assistant",icon: MessageCircle},
   { title: "Diet Planner",    href: "/diet-planner",    icon: Calculator   },
+  { title: "Fasting Tracker", href: "/fasting-tracker", icon: Moon         },
   { title: "Subscription",    href: "/subscription",    icon: Crown        },
   { title: "Profile",         href: "/profile",         icon: User         },
 ]

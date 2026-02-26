@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { getApiUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,8 @@ import {
   ChevronUp,
   Zap,
   Save,
+  Clock,
+  Moon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -78,6 +81,20 @@ interface DietPlanResult {
   warnings: string[]
 }
 
+interface FastingPlan {
+  id: string
+  name: string
+  emoji: string
+  fast_hours: number
+  eat_hours: number
+  category: string
+  difficulty: string
+  description: string
+  suitable_for: string
+  benefits: string[]
+  tips: string[]
+}
+
 const getBMIColor = (bmi: number) => {
   if (bmi < 18.5) return "text-blue-600"
   if (bmi < 25) return "text-primary"
@@ -92,6 +109,15 @@ const getBMIBgColor = (bmi: number) => {
   return "bg-destructive/10"
 }
 
+const difficultyColor: Record<string, string> = {
+  None: "bg-gray-100 text-gray-600",
+  Easy: "bg-green-100 text-green-700",
+  Moderate: "bg-yellow-100 text-yellow-700",
+  Hard: "bg-orange-100 text-orange-700",
+  "Very Hard": "bg-red-100 text-red-700",
+  Extreme: "bg-purple-100 text-purple-700",
+}
+
 export default function DietPlannerPage() {
   const { token } = useAuth()
   const [formData, setFormData] = useState({
@@ -103,6 +129,7 @@ export default function DietPlannerPage() {
     metabolismType: "",
     goal: "",
     dietType: "non_veg",
+    fastingPlan: "none",
   })
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<DietPlanResult | null>(null)
@@ -112,9 +139,41 @@ export default function DietPlannerPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
+  // Fasting plans state
+  const [fastingPlans, setFastingPlans] = useState<FastingPlan[]>([])
+  const [selectedFastingPlan, setSelectedFastingPlan] = useState<FastingPlan | null>(null)
+  const [loadingFasting, setLoadingFasting] = useState(false)
+
+  // Load fasting plans on mount
+  useEffect(() => {
+    const loadFastingPlans = async () => {
+      setLoadingFasting(true)
+      try {
+        const res = await fetch(getApiUrl("/api/fasting/plans"))
+        if (res.ok) {
+          const data = await res.json()
+          setFastingPlans(data.plans || [])
+        }
+      } catch (err) {
+        console.error("Failed to load fasting plans:", err)
+      } finally {
+        setLoadingFasting(false)
+      }
+    }
+    loadFastingPlans()
+  }, [])
+
+  // Update selected fasting plan details when selection changes
+  useEffect(() => {
+    if (formData.fastingPlan && fastingPlans.length > 0) {
+      const plan = fastingPlans.find(p => p.id === formData.fastingPlan)
+      setSelectedFastingPlan(plan || null)
+    }
+  }, [formData.fastingPlan, fastingPlans])
+
   const saveDietPlan = async () => {
     if (!result || !token) return
-    
+
     setIsSaving(true)
     try {
       const response = await fetch(getApiUrl("/api/diet-plan/save"), {
@@ -129,10 +188,25 @@ export default function DietPlannerPage() {
           weekly_plan: result.weeklyPlan
         })
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
+        // Also save fasting plan preference to backend if user chose one
+        if (formData.fastingPlan !== "none" && token) {
+          try {
+            await fetch(getApiUrl("/api/fasting/set-plan"), {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ plan_id: formData.fastingPlan }),
+            })
+          } catch {
+            // Non-fatal
+          }
+        }
         setSaveSuccess(true)
         setTimeout(() => {
           setShowConfirmDialog(false)
@@ -165,6 +239,7 @@ export default function DietPlannerPage() {
           goal: formData.goal,
           diet_type: formData.dietType,
           dietary_restrictions: [],
+          fasting_plan: formData.fastingPlan,
         }),
       })
 
@@ -243,454 +318,502 @@ export default function DietPlannerPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Form Section */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="w-5 h-5 text-primary" />
-              Your Profile
-            </CardTitle>
-            <CardDescription>
-              Enter your details to calculate BMI and generate a personalized diet plan
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Gender */}
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender</Label>
-                <Select
-                  value={formData.gender}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, gender: value }))
-                  }
-                >
-                  <SelectTrigger id="gender">
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calculator className="w-5 h-5 text-primary" />
+                Your Profile
+              </CardTitle>
+              <CardDescription>
+                Enter your details to calculate BMI and generate a personalized diet plan
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Gender */}
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Gender</Label>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
+                  >
+                    <SelectTrigger id="gender">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Age */}
-              <div className="space-y-2">
-                <Label htmlFor="age">Age (years)</Label>
-                <Input
-                  id="age"
-                  type="number"
-                  placeholder="e.g., 25"
-                  min="10"
-                  max="100"
-                  value={formData.age}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, age: e.target.value }))
-                  }
-                />
-              </div>
+                {/* Age */}
+                <div className="space-y-2">
+                  <Label htmlFor="age">Age (years)</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    placeholder="e.g., 25"
+                    min="10"
+                    max="100"
+                    value={formData.age}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, age: e.target.value }))}
+                  />
+                </div>
 
-              {/* Height */}
-              <div className="space-y-2">
-                <Label htmlFor="height" className="flex items-center gap-2">
-                  <Ruler className="w-4 h-4" />
-                  Height (cm)
-                </Label>
-                <Input
-                  id="height"
-                  type="number"
-                  placeholder="e.g., 170"
-                  min="100"
-                  max="250"
-                  value={formData.height}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, height: e.target.value }))
-                  }
-                />
-              </div>
+                {/* Height */}
+                <div className="space-y-2">
+                  <Label htmlFor="height" className="flex items-center gap-2">
+                    <Ruler className="w-4 h-4" />
+                    Height (cm)
+                  </Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    placeholder="e.g., 170"
+                    min="100"
+                    max="250"
+                    value={formData.height}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, height: e.target.value }))}
+                  />
+                </div>
 
-              {/* Weight */}
-              <div className="space-y-2">
-                <Label htmlFor="weight" className="flex items-center gap-2">
-                  <Scale className="w-4 h-4" />
-                  Weight (kg)
-                </Label>
-                <Input
-                  id="weight"
-                  type="number"
-                  placeholder="e.g., 70"
-                  min="25"
-                  max="300"
-                  value={formData.weight}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, weight: e.target.value }))
-                  }
-                />
-              </div>
+                {/* Weight */}
+                <div className="space-y-2">
+                  <Label htmlFor="weight" className="flex items-center gap-2">
+                    <Scale className="w-4 h-4" />
+                    Weight (kg)
+                  </Label>
+                  <Input
+                    id="weight"
+                    type="number"
+                    placeholder="e.g., 70"
+                    min="25"
+                    max="300"
+                    value={formData.weight}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, weight: e.target.value }))}
+                  />
+                </div>
 
-              {/* Activity Level */}
-              <div className="space-y-2">
-                <Label htmlFor="activity" className="flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Activity Level
-                </Label>
-                <Select
-                  value={formData.activityLevel}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, activityLevel: value }))
-                  }
-                >
-                  <SelectTrigger id="activity">
-                    <SelectValue placeholder="Select activity level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sedentary">Sedentary (little exercise)</SelectItem>
-                    <SelectItem value="light">Light (1-3 days/week)</SelectItem>
-                    <SelectItem value="moderate">Moderate (3-5 days/week)</SelectItem>
-                    <SelectItem value="active">Active (6-7 days/week)</SelectItem>
-                    <SelectItem value="very_active">Very Active (intense daily)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {/* Activity Level */}
+                <div className="space-y-2">
+                  <Label htmlFor="activity" className="flex items-center gap-2">
+                    <Activity className="w-4 h-4" />
+                    Activity Level
+                  </Label>
+                  <Select
+                    value={formData.activityLevel}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, activityLevel: value }))}
+                  >
+                    <SelectTrigger id="activity">
+                      <SelectValue placeholder="Select activity level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sedentary">Sedentary (little exercise)</SelectItem>
+                      <SelectItem value="light">Light (1-3 days/week)</SelectItem>
+                      <SelectItem value="moderate">Moderate (3-5 days/week)</SelectItem>
+                      <SelectItem value="active">Active (6-7 days/week)</SelectItem>
+                      <SelectItem value="very_active">Very Active (intense daily)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Metabolism Type */}
-              <div className="space-y-2">
-                <Label htmlFor="metabolism" className="flex items-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  Metabolism Type
-                </Label>
-                <Select
-                  value={formData.metabolismType}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, metabolismType: value }))
-                  }
-                >
-                  <SelectTrigger id="metabolism">
-                    <SelectValue placeholder="How easily do you gain weight?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fast">Fast (gain weight slowly)</SelectItem>
-                    <SelectItem value="normal">Normal (balanced)</SelectItem>
-                    <SelectItem value="slow">Slow (gain weight easily)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Do you gain weight quickly or only after prolonged overeating?
-                </p>
-              </div>
+                {/* Metabolism Type */}
+                <div className="space-y-2">
+                  <Label htmlFor="metabolism" className="flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    Metabolism Type
+                  </Label>
+                  <Select
+                    value={formData.metabolismType}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, metabolismType: value }))}
+                  >
+                    <SelectTrigger id="metabolism">
+                      <SelectValue placeholder="How easily do you gain weight?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fast">Fast (gain weight slowly)</SelectItem>
+                      <SelectItem value="normal">Normal (balanced)</SelectItem>
+                      <SelectItem value="slow">Slow (gain weight easily)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Do you gain weight quickly or only after prolonged overeating?
+                  </p>
+                </div>
 
-              {/* Goal */}
-              <div className="space-y-2">
-                <Label htmlFor="goal" className="flex items-center gap-2">
-                  <Target className="w-4 h-4" />
-                  Your Goal
-                </Label>
-                <Select
-                  value={formData.goal}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, goal: value }))
-                  }
-                >
-                  <SelectTrigger id="goal">
-                    <SelectValue placeholder="Select your goal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lose">Lose Weight</SelectItem>
-                    <SelectItem value="maintain">Maintain Weight</SelectItem>
-                    <SelectItem value="gain">Gain Muscle</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {/* Goal */}
+                <div className="space-y-2">
+                  <Label htmlFor="goal" className="flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    Your Goal
+                  </Label>
+                  <Select
+                    value={formData.goal}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, goal: value }))}
+                  >
+                    <SelectTrigger id="goal">
+                      <SelectValue placeholder="Select your goal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lose">Lose Weight</SelectItem>
+                      <SelectItem value="maintain">Maintain Weight</SelectItem>
+                      <SelectItem value="gain">Gain Muscle</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Diet Type */}
-              <div className="space-y-2">
-                <Label htmlFor="diet-type" className="flex items-center gap-2">
-                  <Utensils className="w-4 h-4" />
-                  Diet Preference
-                </Label>
-                <Select
-                  value={formData.dietType}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, dietType: value }))
-                  }
-                >
-                  <SelectTrigger id="diet-type">
-                    <SelectValue placeholder="Select diet type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="non_veg">
-                      🍗 Non-Vegetarian
-                    </SelectItem>
-                    <SelectItem value="veg">
-                      🥦 Vegetarian
-                    </SelectItem>
-                    <SelectItem value="vegan">
-                      🌱 Vegan
-                    </SelectItem>
-                    <SelectItem value="jain">
-                      🙏 Jain
-                    </SelectItem>
-                    <SelectItem value="indian_non_veg">
-                      🇮🇳 Indian Non-Veg (No Beef)
-                    </SelectItem>
-                    <SelectItem value="halal">
-                      ☪️ Halal / Muslim (No Pork)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {formData.dietType === "veg"     && "No meat, fish, or eggs. Dairy products allowed."}
-                  {formData.dietType === "non_veg" && "Includes chicken, fish, eggs, and dairy."}
-                  {formData.dietType === "vegan"   && "No animal products — no meat, dairy, eggs, or honey."}
-                  {formData.dietType === "jain"          && "No meat, no root vegetables (onion, garlic, potato, carrot). Dairy allowed."}
-                  {formData.dietType === "indian_non_veg" && "No beef or buffalo meat. Chicken, mutton, fish, eggs & dairy with Indian flavours."}
-                  {formData.dietType === "halal"          && "No pork or pork products. Halal chicken, beef, mutton, fish & dairy only."}
-                </p>
-              </div>
+                {/* Diet Type */}
+                <div className="space-y-2">
+                  <Label htmlFor="diet-type" className="flex items-center gap-2">
+                    <Utensils className="w-4 h-4" />
+                    Diet Preference
+                  </Label>
+                  <Select
+                    value={formData.dietType}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, dietType: value }))}
+                  >
+                    <SelectTrigger id="diet-type">
+                      <SelectValue placeholder="Select diet type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="non_veg">🍗 Non-Vegetarian</SelectItem>
+                      <SelectItem value="veg">🥦 Vegetarian</SelectItem>
+                      <SelectItem value="vegan">🌱 Vegan</SelectItem>
+                      <SelectItem value="jain">🙏 Jain</SelectItem>
+                      <SelectItem value="indian_non_veg">🇮🇳 Indian Non-Veg (No Beef)</SelectItem>
+                      <SelectItem value="halal">☪️ Halal / Muslim (No Pork)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.dietType === "veg" && "No meat, fish, or eggs. Dairy products allowed."}
+                    {formData.dietType === "non_veg" && "Includes chicken, fish, eggs, and dairy."}
+                    {formData.dietType === "vegan" && "No animal products — no meat, dairy, eggs, or honey."}
+                    {formData.dietType === "jain" && "No meat, no root vegetables (onion, garlic, potato, carrot). Dairy allowed."}
+                    {formData.dietType === "indian_non_veg" && "No beef or buffalo meat. Chicken, mutton, fish, eggs & dairy with Indian flavours."}
+                    {formData.dietType === "halal" && "No pork or pork products. Halal chicken, beef, mutton, fish & dairy only."}
+                  </p>
+                </div>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="w-4 h-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+                {/* ── FASTING PLAN ──────────────────────────────────────────── */}
+                <div className="space-y-2 border-t pt-4">
+                  <Label htmlFor="fasting-plan" className="flex items-center gap-2 font-semibold">
+                    <Moon className="w-4 h-4 text-indigo-500" />
+                    Fasting Protocol (Optional)
+                  </Label>
+                  <Select
+                    value={formData.fastingPlan}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, fastingPlan: value }))}
+                  >
+                    <SelectTrigger id="fasting-plan">
+                      <SelectValue placeholder="No fasting (default)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {loadingFasting ? (
+                        <SelectItem value="none" disabled>Loading plans...</SelectItem>
+                      ) : fastingPlans.length > 0 ? (
+                        fastingPlans.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.emoji} {plan.name}
+                            {plan.fast_hours > 0 && (
+                              <span className="text-muted-foreground ml-1 text-xs">
+                                ({plan.fast_hours}h fast)
+                              </span>
+                            )}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="none">🍽️ No Fasting</SelectItem>
+                          <SelectItem value="12:12">🌙 12:12 Beginner (12h fast)</SelectItem>
+                          <SelectItem value="14:10">🕑 14:10 Beginner+ (14h fast)</SelectItem>
+                          <SelectItem value="16:8">⏰ 16:8 Leangains (16h fast)</SelectItem>
+                          <SelectItem value="18:6">🔥 18:6 Advanced (18h fast)</SelectItem>
+                          <SelectItem value="20:4">⚔️ 20:4 Warrior Diet (20h fast)</SelectItem>
+                          <SelectItem value="omad">🥗 OMAD (23h fast)</SelectItem>
+                          <SelectItem value="5:2">📅 5:2 Diet (2 low-cal days/week)</SelectItem>
+                          <SelectItem value="alternate">🔄 Alternate Day Fasting</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
 
-              <Button
-                type="submit"
-                disabled={!isFormValid || isLoading}
-                className="w-full"
-                size="lg"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Calculator className="w-4 h-4 mr-2" />
-                    Generate Diet Plan
-                  </>
+                  {/* Fasting plan details card */}
+                  {selectedFastingPlan && selectedFastingPlan.id !== "none" && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/30 dark:border-indigo-800 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm text-indigo-800 dark:text-indigo-200">
+                          {selectedFastingPlan.emoji} {selectedFastingPlan.name}
+                        </span>
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded-full font-medium",
+                          difficultyColor[selectedFastingPlan.difficulty] || "bg-gray-100 text-gray-600"
+                        )}>
+                          {selectedFastingPlan.difficulty}
+                        </span>
+                      </div>
+                      <p className="text-xs text-indigo-700 dark:text-indigo-300">{selectedFastingPlan.description}</p>
+                      {selectedFastingPlan.fast_hours > 0 && (
+                        <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            Fast: <strong>{selectedFastingPlan.fast_hours}h</strong> &nbsp;|&nbsp;
+                            Eat: <strong>{selectedFastingPlan.eat_hours}h</strong>
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        <strong>Best for:</strong> {selectedFastingPlan.suitable_for}
+                      </p>
+                      {selectedFastingPlan.benefits.length > 0 && (
+                        <ul className="text-xs space-y-1 text-indigo-700 dark:text-indigo-300">
+                          {selectedFastingPlan.benefits.slice(0, 3).map((b, i) => (
+                            <li key={i} className="flex items-start gap-1">
+                              <CheckCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              {b}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    If selected, the diet plan will be adjusted to fit your fasting window.
+                  </p>
+                </div>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
                 )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
 
-        {/* Results Section */}
-        <div className="lg:col-span-2 space-y-6">
-          {result ? (
-            <>
-              {/* BMI and Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className={cn("relative overflow-hidden", getBMIBgColor(result.bmi))}>
-                  <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Your BMI</p>
-                    <p className={cn("text-3xl font-bold", getBMIColor(result.bmi))}>
-                      {result.bmi}
-                    </p>
-                    <p className={cn("text-sm font-medium", getBMIColor(result.bmi))}>
-                      {result.bmiCategory}
-                    </p>
-                  </CardContent>
-                </Card>
+                <Button
+                  type="submit"
+                  disabled={!isFormValid || isLoading}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Calculator className="w-4 h-4 mr-2" />
+                      Generate Diet Plan
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
+          {/* Results Section */}
+          <div className="lg:col-span-2 space-y-6">
+            {result ? (
+              <>
+                {/* Fasting protocol badge (if active) */}
+                {formData.fastingPlan !== "none" && selectedFastingPlan && (
+                  <Alert className="bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800">
+                    <Moon className="w-4 h-4 text-indigo-600" />
+                    <AlertTitle className="text-indigo-800 dark:text-indigo-200">
+                      Fasting Protocol Active: {selectedFastingPlan.emoji} {selectedFastingPlan.name}
+                    </AlertTitle>
+                    <AlertDescription className="text-indigo-700 dark:text-indigo-300">
+                      This meal plan has been generated to fit your{" "}
+                      {selectedFastingPlan.fast_hours > 0
+                        ? `${selectedFastingPlan.fast_hours}-hour fasting window`
+                        : "fasting schedule"}
+                      .
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* BMI and Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card className={cn("relative overflow-hidden", getBMIBgColor(result.bmi))}>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-muted-foreground mb-1">Your BMI</p>
+                      <p className={cn("text-3xl font-bold", getBMIColor(result.bmi))}>{result.bmi}</p>
+                      <p className={cn("text-sm font-medium", getBMIColor(result.bmi))}>{result.bmiCategory}</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-muted-foreground mb-1">BMR</p>
+                      <p className="text-3xl font-bold text-foreground">{result.bmr}</p>
+                      <p className="text-sm text-muted-foreground">kcal/day</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-sm text-muted-foreground mb-1">TDEE</p>
+                      <p className="text-3xl font-bold text-foreground">{result.tdee}</p>
+                      <p className="text-sm text-muted-foreground">kcal/day</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-primary text-primary-foreground">
+                    <CardContent className="p-4">
+                      <p className="text-sm opacity-80 mb-1">Target</p>
+                      <p className="text-3xl font-bold">{result.targetCalories}</p>
+                      <p className="text-sm opacity-80">kcal/day</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Macros */}
                 <Card>
-                  <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground mb-1">BMR</p>
-                    <p className="text-3xl font-bold text-foreground">{result.bmr}</p>
-                    <p className="text-sm text-muted-foreground">kcal/day</p>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Flame className="w-5 h-5 text-primary" />
+                      Daily Macronutrient Targets
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center p-4 rounded-xl bg-chart-1/10">
+                        <p className="text-3xl font-bold text-chart-1">{result.macros.protein}g</p>
+                        <p className="text-sm text-muted-foreground">Protein</p>
+                      </div>
+                      <div className="text-center p-4 rounded-xl bg-chart-2/10">
+                        <p className="text-3xl font-bold text-chart-2">{result.macros.carbs}g</p>
+                        <p className="text-sm text-muted-foreground">Carbohydrates</p>
+                      </div>
+                      <div className="text-center p-4 rounded-xl bg-chart-3/10">
+                        <p className="text-3xl font-bold text-chart-3">{result.macros.fat}g</p>
+                        <p className="text-sm text-muted-foreground">Fat</p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
+                {/* Warnings */}
+                {result.warnings.length > 0 && (
+                  <Alert className="bg-accent/10 border-accent/30">
+                    <AlertTriangle className="w-4 h-4 text-accent" />
+                    <AlertTitle className="text-accent-foreground">Important Notes</AlertTitle>
+                    <AlertDescription>
+                      <ul className="mt-2 space-y-1">
+                        {result.warnings.map((warning, index) => (
+                          <li key={index} className="text-sm text-foreground">{warning}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Weekly Meal Plan */}
                 <Card>
-                  <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground mb-1">TDEE</p>
-                    <p className="text-3xl font-bold text-foreground">{result.tdee}</p>
-                    <p className="text-sm text-muted-foreground">kcal/day</p>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Utensils className="w-5 h-5 text-primary" />
+                      7-Day Meal Plan
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {result.weeklyPlan.map((day) => (
+                      <div key={day.day} className="border border-border rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
+                          className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <span className="font-bold text-primary">{day.day.charAt(0)}</span>
+                            </div>
+                            <div className="text-left">
+                              <p className="font-medium text-foreground">{day.day}</p>
+                              <p className="text-sm text-muted-foreground">{day.meals.length} meals</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="font-semibold text-foreground">{day.totalCalories}</p>
+                              <p className="text-xs text-muted-foreground">kcal</p>
+                            </div>
+                            {expandedDay === day.day ? (
+                              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </div>
+                        </button>
+
+                        {expandedDay === day.day && (
+                          <div className="border-t border-border p-4 space-y-4 bg-muted/30">
+                            {day.meals.map((meal, mealIndex) => (
+                              <div key={mealIndex} className="bg-card p-4 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-semibold text-foreground">{meal.meal}</h4>
+                                  <span className="text-sm text-muted-foreground">{meal.time}</span>
+                                </div>
+                                <ul className="text-sm text-muted-foreground mb-3 space-y-1">
+                                  {meal.foods.map((food, foodIndex) => (
+                                    <li key={foodIndex} className="flex items-center gap-2">
+                                      <CheckCircle className="w-3 h-3 text-primary" />
+                                      {food}
+                                    </li>
+                                  ))}
+                                </ul>
+                                <div className="flex flex-wrap gap-2">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-1/20 text-chart-1">{meal.calories} kcal</span>
+                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-2/20 text-chart-2">{meal.protein}g protein</span>
+                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-3/20 text-chart-3">{meal.carbs}g carbs</span>
+                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-4/20 text-chart-4">{meal.fat}g fat</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
 
-                <Card className="bg-primary text-primary-foreground">
-                  <CardContent className="p-4">
-                    <p className="text-sm opacity-80 mb-1">Target</p>
-                    <p className="text-3xl font-bold">{result.targetCalories}</p>
-                    <p className="text-sm opacity-80">kcal/day</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Macros */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Flame className="w-5 h-5 text-primary" />
-                    Daily Macronutrient Targets
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center p-4 rounded-xl bg-chart-1/10">
-                      <p className="text-3xl font-bold text-chart-1">{result.macros.protein}g</p>
-                      <p className="text-sm text-muted-foreground">Protein</p>
-                    </div>
-                    <div className="text-center p-4 rounded-xl bg-chart-2/10">
-                      <p className="text-3xl font-bold text-chart-2">{result.macros.carbs}g</p>
-                      <p className="text-sm text-muted-foreground">Carbohydrates</p>
-                    </div>
-                    <div className="text-center p-4 rounded-xl bg-chart-3/10">
-                      <p className="text-3xl font-bold text-chart-3">{result.macros.fat}g</p>
-                      <p className="text-sm text-muted-foreground">Fat</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Warnings */}
-              {result.warnings.length > 0 && (
-                <Alert className="bg-accent/10 border-accent/30">
-                  <AlertTriangle className="w-4 h-4 text-accent" />
-                  <AlertTitle className="text-accent-foreground">Important Notes</AlertTitle>
-                  <AlertDescription>
-                    <ul className="mt-2 space-y-1">
-                      {result.warnings.map((warning, index) => (
-                        <li key={index} className="text-sm text-foreground">
-                          {warning}
+                {/* Tips */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Lightbulb className="w-5 h-5 text-accent" />
+                      Personalized Tips
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {result.tips.map((tip, index) => (
+                        <li key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                          <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                          <span className="text-sm text-foreground">{tip}</span>
                         </li>
                       ))}
                     </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Weekly Meal Plan */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Utensils className="w-5 h-5 text-primary" />
-                    7-Day Meal Plan
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {result.weeklyPlan.map((day) => (
-                    <div
-                      key={day.day}
-                      className="border border-border rounded-xl overflow-hidden"
-                    >
-                      <button
-                        onClick={() =>
-                          setExpandedDay(expandedDay === day.day ? null : day.day)
-                        }
-                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <span className="font-bold text-primary">{day.day.charAt(0)}</span>
-                          </div>
-                          <div className="text-left">
-                            <p className="font-medium text-foreground">{day.day}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {day.meals.length} meals
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">{day.totalCalories}</p>
-                            <p className="text-xs text-muted-foreground">kcal</p>
-                          </div>
-                          {expandedDay === day.day ? (
-                            <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                          )}
-                        </div>
-                      </button>
-
-                      {expandedDay === day.day && (
-                        <div className="border-t border-border p-4 space-y-4 bg-muted/30">
-                          {day.meals.map((meal, mealIndex) => (
-                            <div
-                              key={mealIndex}
-                              className="bg-card p-4 rounded-lg"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-foreground">{meal.meal}</h4>
-                                <span className="text-sm text-muted-foreground">{meal.time}</span>
-                              </div>
-                              <ul className="text-sm text-muted-foreground mb-3 space-y-1">
-                                {meal.foods.map((food, foodIndex) => (
-                                  <li key={foodIndex} className="flex items-center gap-2">
-                                    <CheckCircle className="w-3 h-3 text-primary" />
-                                    {food}
-                                  </li>
-                                ))}
-                              </ul>
-                              <div className="flex flex-wrap gap-2">
-                                <span className="px-2 py-1 text-xs rounded-full bg-chart-1/20 text-chart-1">
-                                  {meal.calories} kcal
-                                </span>
-                                <span className="px-2 py-1 text-xs rounded-full bg-chart-2/20 text-chart-2">
-                                  {meal.protein}g protein
-                                </span>
-                                <span className="px-2 py-1 text-xs rounded-full bg-chart-3/20 text-chart-3">
-                                  {meal.carbs}g carbs
-                                </span>
-                                <span className="px-2 py-1 text-xs rounded-full bg-chart-4/20 text-chart-4">
-                                  {meal.fat}g fat
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card className="flex items-center justify-center min-h-[500px]">
+                <CardContent className="text-center py-12">
+                  <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-6">
+                    <Calculator className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2">Get Your Personalized Diet Plan</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Fill in your details on the left to calculate your BMI and receive a customized 7-day meal plan
+                    tailored to your goals and metabolism type.
+                  </p>
                 </CardContent>
               </Card>
-
-              {/* Tips */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Lightbulb className="w-5 h-5 text-accent" />
-                    Personalized Tips
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {result.tips.map((tip, index) => (
-                      <li
-                        key={index}
-                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
-                      >
-                        <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                        <span className="text-sm text-foreground">{tip}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <Card className="flex items-center justify-center min-h-[500px]">
-              <CardContent className="text-center py-12">
-                <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-6">
-                  <Calculator className="w-10 h-10 text-muted-foreground" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">
-                  Get Your Personalized Diet Plan
-                </h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  Fill in your details on the left to calculate your BMI and receive a customized 7-day meal plan tailored to your goals and metabolism type.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+            )}
+          </div>
         </div>
-      </div>
       </div>
 
       {/* ✅ Confirmation Dialog for Diet Plan Integration */}
@@ -704,9 +827,14 @@ export default function DietPlannerPage() {
             <DialogDescription>
               Do you want to integrate this diet plan into your dashboard?
               This will make your meal suggestions available on the home screen.
+              {formData.fastingPlan !== "none" && selectedFastingPlan && (
+                <span className="block mt-1 text-indigo-600 font-medium">
+                  Your {selectedFastingPlan.name} fasting protocol will also be saved.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          
+
           {saveSuccess ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <CheckCircle className="w-12 h-12 text-green-600" />
@@ -723,7 +851,7 @@ export default function DietPlannerPage() {
               </Alert>
             </div>
           )}
-          
+
           <DialogFooter className="flex gap-2">
             <Button
               variant="outline"
@@ -733,11 +861,7 @@ export default function DietPlannerPage() {
               {saveSuccess ? "Close" : "Cancel"}
             </Button>
             {!saveSuccess && (
-              <Button
-                onClick={saveDietPlan}
-                disabled={isSaving}
-                className="gap-2"
-              >
+              <Button onClick={saveDietPlan} disabled={isSaving} className="gap-2">
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />

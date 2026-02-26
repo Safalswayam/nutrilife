@@ -558,6 +558,8 @@ def init_database():
             ("auth_provider",               "VARCHAR(50) DEFAULT 'email'"),
             ("is_premium",                  "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("subscription_expires_at",     "DATETIME"),
+            ("fasting_plan",               "VARCHAR(50) DEFAULT 'none'"),
+            ("daily_water_goal",            "INT DEFAULT 8"),
         ]
         for col_name, col_def in new_user_columns:
             try:
@@ -574,6 +576,24 @@ def init_database():
             payload JSON NOT NULL,
             processed BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+
+        # ── Fasting sessions table ───────────────────────────────────────────
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS fasting_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            plan_type VARCHAR(50) NOT NULL DEFAULT 'none',
+            start_time DATETIME NOT NULL,
+            end_time DATETIME,
+            target_end_time DATETIME,
+            completed BOOLEAN DEFAULT FALSE,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_user_fasting (user_id, start_time)
         )
         """)
 
@@ -845,6 +865,12 @@ class DietPlanRequest(BaseModel):
     goal: str
     diet_type: str = "non_veg"   # veg | non_veg | vegan | jain
     dietary_restrictions: List[str] = []
+    fasting_plan: Optional[str] = "none"  # none | 12:12 | 14:10 | 16:8 | 18:6 | 20:4 | omad | 5:2 | alternate
+
+class BatchLogRequest(BaseModel):
+    items: List[dict]          # [{name, calories, portion}]
+    nutrition: dict            # {protein, carbs, fat, fiber}
+    meal_type: str = "meal"
 
 class Meal(BaseModel):
     name: str
@@ -946,6 +972,94 @@ HEALTHIER_ALTERNATIVES = {
     "french fries": ["Baked sweet potato fries", "Air-fried potatoes", "Roasted vegetables"],
     "pasta": ["Whole wheat pasta", "Zucchini noodles", "Chickpea pasta"],
     "rice": ["Brown rice", "Cauliflower rice", "Quinoa"],
+}
+
+
+# =========================
+# FASTING PLANS REGISTRY
+# =========================
+FASTING_PLANS = {
+    "none": {
+        "id": "none", "name": "No Fasting", "emoji": "🍽️",
+        "fast_hours": 0, "eat_hours": 24,
+        "category": "No Restriction", "difficulty": "None",
+        "description": "No fasting — eat freely throughout the day.",
+        "suitable_for": "Everyone, especially beginners",
+        "benefits": ["No restrictions", "Flexible eating"],
+        "tips": ["Focus on balanced nutrition", "Stay hydrated"],
+    },
+    "12:12": {
+        "id": "12:12", "name": "12:12 Beginner Fast", "emoji": "🌙",
+        "fast_hours": 12, "eat_hours": 12,
+        "category": "Beginner", "difficulty": "Easy",
+        "description": "Fast for 12 hours, eat within a 12-hour window. Great starting point.",
+        "suitable_for": "Absolute beginners, people with busy schedules",
+        "benefits": ["Improves sleep quality", "Regulates blood sugar", "Easy to maintain"],
+        "tips": ["Skip late-night snacking", "Align fast with sleep hours"],
+    },
+    "14:10": {
+        "id": "14:10", "name": "14:10 Beginner+", "emoji": "🕑",
+        "fast_hours": 14, "eat_hours": 10,
+        "category": "Beginner", "difficulty": "Easy",
+        "description": "14-hour fast with a 10-hour eating window.",
+        "suitable_for": "Beginners ready to progress",
+        "benefits": ["Fat burning begins", "Mental clarity", "Better digestion"],
+        "tips": ["Drink water during fast", "Break fast with protein"],
+    },
+    "16:8": {
+        "id": "16:8", "name": "16:8 Leangains", "emoji": "⏰",
+        "fast_hours": 16, "eat_hours": 8,
+        "category": "Intermediate", "difficulty": "Moderate",
+        "description": "16-hour fast, 8-hour eating window. The most popular IF protocol.",
+        "suitable_for": "Most adults, weight loss, muscle gain",
+        "benefits": ["Significant fat loss", "Improved insulin sensitivity", "Muscle preservation"],
+        "tips": ["Eat noon to 8pm", "Include protein at every meal", "Black coffee/tea is fine during fast"],
+    },
+    "18:6": {
+        "id": "18:6", "name": "18:6 Advanced", "emoji": "🔥",
+        "fast_hours": 18, "eat_hours": 6,
+        "category": "Advanced", "difficulty": "Hard",
+        "description": "18-hour fast with a 6-hour eating window.",
+        "suitable_for": "Experienced IF practitioners",
+        "benefits": ["Deep ketosis", "Enhanced autophagy", "Rapid fat loss"],
+        "tips": ["Eat 2-3 meals in window", "High protein intake essential", "Electrolytes are important"],
+    },
+    "20:4": {
+        "id": "20:4", "name": "20:4 Warrior Diet", "emoji": "⚔️",
+        "fast_hours": 20, "eat_hours": 4,
+        "category": "Advanced", "difficulty": "Very Hard",
+        "description": "20-hour fast, 4-hour eating window based on the Warrior Diet.",
+        "suitable_for": "Advanced practitioners only",
+        "benefits": ["Maximum fat oxidation", "Hormonal optimization", "Discipline building"],
+        "tips": ["One large meal + small snack", "Very high protein needed", "Not for beginners"],
+    },
+    "omad": {
+        "id": "omad", "name": "OMAD (One Meal a Day)", "emoji": "🥗",
+        "fast_hours": 23, "eat_hours": 1,
+        "category": "Extreme", "difficulty": "Extreme",
+        "description": "Eat one large meal per day within a 1-hour window.",
+        "suitable_for": "Experienced IF practitioners only",
+        "benefits": ["Maximum caloric restriction", "Simplicity", "Insulin reset"],
+        "tips": ["Nutrient-dense single meal", "Avoid if diabetic", "Consult a doctor first"],
+    },
+    "5:2": {
+        "id": "5:2", "name": "5:2 Diet", "emoji": "📅",
+        "fast_hours": 0, "eat_hours": 24,
+        "category": "Weekly", "difficulty": "Moderate",
+        "description": "Eat normally 5 days, restrict to 500-600 kcal on 2 non-consecutive days.",
+        "suitable_for": "People who prefer occasional fasting",
+        "benefits": ["Flexible", "Sustainable long-term", "Good for metabolic health"],
+        "tips": ["Fast on Mon & Thu", "High-protein on fast days", "Drink plenty of water"],
+    },
+    "alternate": {
+        "id": "alternate", "name": "Alternate Day Fasting", "emoji": "🔄",
+        "fast_hours": 0, "eat_hours": 24,
+        "category": "Weekly", "difficulty": "Hard",
+        "description": "Alternate between full fasting days (~500 kcal) and normal eating days.",
+        "suitable_for": "Intermediate to advanced practitioners",
+        "benefits": ["Rapid weight loss", "Metabolic flexibility", "Autophagy benefits"],
+        "tips": ["Stay very hydrated on fast days", "Do not exercise intensely on fast days", "Track carefully"],
+    },
 }
 
 SYMPTOM_DATABASE = {
@@ -1618,11 +1732,49 @@ def generate_diet_plan(req: DietPlanRequest):
             "You are a professional dietitian. Return ONLY valid compact JSON, no markdown, no extra text, no trailing commas."
         )
         # Compact single-line example keeps prompt short; max 3 ingredients per meal prevents truncation
+        # ── Fasting plan context ──────────────────────────────────────────────
+        fasting_context = ""
+        if req.fasting_plan and req.fasting_plan != "none":
+            fasting_meta = FASTING_PLANS.get(req.fasting_plan, {})
+            fast_h = fasting_meta.get("fast_hours", 0)
+            eat_h  = fasting_meta.get("eat_hours", 24)
+            fname  = fasting_meta.get("name", req.fasting_plan)
+            if req.fasting_plan in ("5:2",):
+                fasting_context = (
+                    f"\nFASTING PROTOCOL: {fname} — the user fasts 2 days per week (500-600 kcal only on Mon & Thu) "
+                    f"and eats normally the other 5 days. Reflect this in the meal plan accordingly.\n"
+                )
+            elif req.fasting_plan == "alternate":
+                fasting_context = (
+                    f"\nFASTING PROTOCOL: {fname} — the user alternates between fasting days (~500 kcal) "
+                    f"and normal eating days. Adjust odd/even days accordingly.\n"
+                )
+            else:
+                # Time-restricted eating: calculate eating window times
+                # Assume eating window starts at 12:00 PM for 16:8, adjusted for others
+                if fast_h >= 20:
+                    eat_start = "2:00 PM"
+                elif fast_h >= 18:
+                    eat_start = "12:00 PM"
+                elif fast_h >= 16:
+                    eat_start = "12:00 PM"
+                elif fast_h >= 14:
+                    eat_start = "10:00 AM"
+                else:
+                    eat_start = "8:00 AM"
+                fasting_context = (
+                    f"\nFASTING PROTOCOL: {fname} ({fast_h}h fast / {eat_h}h eating window). "
+                    f"All meals MUST fit within the {eat_h}-hour eating window starting at {eat_start}. "
+                    f"Do NOT include breakfast outside this window. "
+                    f"Adjust meal names and times to fit the eating window. "
+                    f"If the eating window is very short (<=4h), consolidate to 1-2 meals + a snack only.\n"
+                )
+
         ai_user_prompt = (
             f"Create a 7-day meal plan for: {req.gender}, age {req.age}, {req.weight}kg, "
             f"{req.height}cm, goal={req.goal}, activity={req.activity_level}, "
             f"metabolism={req.metabolism_type}, target={target_cal}kcal/day, restrictions={restrictions}.\n"
-            f"DIET TYPE: {diet_instruction}\n\n"
+            f"DIET TYPE: {diet_instruction}{fasting_context}\n"
             'Return ONLY this JSON shape (all 7 days Monday-Sunday, no extra fields):\n'
             '{"days":[{"day":"Monday","breakfast":{"name":"...","ingredients":["a","b","c"]},'
             '"morning_snack":{"name":"...","ingredients":["a","b"]},'
@@ -3325,6 +3477,331 @@ async def get_water_history(days: int = 7, user: dict = Depends(require_auth)):
         
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# =========================
+# MEAL LOG BATCH ENDPOINT
+# =========================
+
+@app.post("/api/meals/log-batch")
+async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
+    """Log multiple food items from analysis to the food diary at once."""
+    conn = None
+    cur = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Log to food_analysis_history
+        cur.execute("""
+            INSERT INTO food_analysis_history
+            (user_id, food_items, total_calories, total_protein, total_carbs, total_fat, total_fiber)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            user["id"],
+            json.dumps(req.items),
+            req.nutrition.get("calories", 0),
+            req.nutrition.get("protein", 0),
+            req.nutrition.get("carbs", 0),
+            req.nutrition.get("fat", 0),
+            req.nutrition.get("fiber", 0),
+        ))
+
+        # Log each item to meal_logs
+        items_logged = 0
+        for item in req.items:
+            cur.execute("""
+                INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                user["id"],
+                sanitize_input(item.get("name", "Unknown Food"), 200),
+                item.get("calories", 0),
+                req.nutrition.get("protein", 0),
+                req.nutrition.get("carbs", 0),
+                req.nutrition.get("fat", 0),
+                sanitize_input(req.meal_type, 50),
+            ))
+            items_logged += 1
+
+        conn.commit()
+
+        total_calories = req.nutrition.get("calories", 0)
+        return {
+            "success": True,
+            "logged": True,
+            "items_logged": items_logged,
+            "total_calories": total_calories,
+            "message": f"Successfully logged {items_logged} item(s) ({total_calories} kcal) to your diary."
+        }
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Batch log error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to log food items")
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+# =========================
+# FASTING TRACKER ENDPOINTS
+# =========================
+
+@app.get("/api/fasting/plans")
+def get_fasting_plans():
+    """Return all available fasting plans."""
+    return {"success": True, "plans": list(FASTING_PLANS.values())}
+
+
+@app.get("/api/fasting/my-plan")
+def get_my_fasting_plan(user=Depends(require_auth)):
+    """Get the current user's saved fasting plan."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT fasting_plan FROM users WHERE id = %s", (user["id"],))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        plan_id = (row["fasting_plan"] or "none") if row else "none"
+        plan = FASTING_PLANS.get(plan_id, FASTING_PLANS["none"])
+        return {"success": True, "plan_id": plan_id, "plan": plan}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fasting/set-plan")
+async def set_fasting_plan(request: dict, user=Depends(require_auth)):
+    """Save the user's chosen fasting plan."""
+    plan_id = request.get("plan_id", "none")
+    if plan_id not in FASTING_PLANS:
+        raise HTTPException(status_code=400, detail=f"Unknown plan: {plan_id}")
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET fasting_plan = %s WHERE id = %s", (plan_id, user["id"]))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"success": True, "plan_id": plan_id, "plan": FASTING_PLANS[plan_id]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fasting/start")
+async def start_fasting_session(request: dict, user=Depends(require_auth)):
+    """Start a fasting session for the user."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        # Check for already-active session
+        cur.execute("""
+            SELECT id FROM fasting_sessions
+            WHERE user_id = %s AND end_time IS NULL
+        """, (user["id"],))
+        active = cur.fetchone()
+        if active:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=400, detail="You already have an active fasting session.")
+
+        # Get user's fasting plan
+        cur.execute("SELECT fasting_plan FROM users WHERE id = %s", (user["id"],))
+        row = cur.fetchone()
+        plan_id = (row["fasting_plan"] or "none") if row else "none"
+        plan = FASTING_PLANS.get(plan_id, FASTING_PLANS["none"])
+
+        now = datetime.now()
+        fast_hours = plan.get("fast_hours", 0)
+        target_end = now + timedelta(hours=fast_hours) if fast_hours > 0 else None
+
+        cur.execute("""
+            INSERT INTO fasting_sessions
+            (user_id, plan_type, start_time, target_end_time, completed)
+            VALUES (%s, %s, %s, %s, FALSE)
+        """, (user["id"], plan_id, now, target_end))
+        conn.commit()
+        session_id = cur.lastrowid
+        cur.close()
+        conn.close()
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "plan": plan,
+            "start_time": now.isoformat(),
+            "target_end_time": target_end.isoformat() if target_end else None,
+            "message": f"Fasting session started ({plan['name']})."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fasting/end")
+async def end_fasting_session(request: dict, user=Depends(require_auth)):
+    """End the current fasting session."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("""
+            SELECT * FROM fasting_sessions
+            WHERE user_id = %s AND end_time IS NULL
+            ORDER BY start_time DESC LIMIT 1
+        """, (user["id"],))
+        session = cur.fetchone()
+
+        if not session:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="No active fasting session found.")
+
+        now = datetime.now()
+        elapsed = (now - session["start_time"]).total_seconds() / 3600
+        goal_h = FASTING_PLANS.get(session["plan_type"], {}).get("fast_hours", 0)
+        completed = goal_h > 0 and elapsed >= goal_h
+
+        cur.execute("""
+            UPDATE fasting_sessions
+            SET end_time = %s, completed = %s
+            WHERE id = %s
+        """, (now, completed, session["id"]))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {
+            "success": True,
+            "session_id": session["id"],
+            "elapsed_hours": round(elapsed, 2),
+            "goal_hours": goal_h,
+            "completed": completed,
+            "message": "Well done! Goal reached!" if completed else f"Session ended after {round(elapsed, 1)}h."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fasting/status")
+def get_fasting_status(user=Depends(require_auth)):
+    """Get current fasting session status with elapsed/remaining time."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("""
+            SELECT * FROM fasting_sessions
+            WHERE user_id = %s AND end_time IS NULL
+            ORDER BY start_time DESC LIMIT 1
+        """, (user["id"],))
+        session = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not session:
+            return {"success": True, "active": False, "session": None}
+
+        now = datetime.now()
+        elapsed_sec = (now - session["start_time"]).total_seconds()
+        elapsed_h = elapsed_sec / 3600
+        plan = FASTING_PLANS.get(session["plan_type"], FASTING_PLANS["none"])
+        goal_h = plan.get("fast_hours", 0)
+
+        if goal_h > 0:
+            progress = min(100, (elapsed_h / goal_h) * 100)
+            remaining_sec = max(0, goal_h * 3600 - elapsed_sec)
+        else:
+            progress = 0
+            remaining_sec = 0
+
+        return {
+            "success": True,
+            "active": True,
+            "session": {
+                "id": session["id"],
+                "plan_type": session["plan_type"],
+                "plan": plan,
+                "start_time": session["start_time"].isoformat(),
+                "target_end_time": session["target_end_time"].isoformat() if session["target_end_time"] else None,
+                "elapsed_seconds": int(elapsed_sec),
+                "remaining_seconds": int(remaining_sec),
+                "elapsed_hours": round(elapsed_h, 2),
+                "goal_hours": goal_h,
+                "progress_percent": round(progress, 1),
+                "goal_reached": elapsed_h >= goal_h if goal_h > 0 else False,
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fasting/history")
+def get_fasting_history(days: int = 30, user=Depends(require_auth)):
+    """Get fasting session history for the past N days."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""
+            SELECT id, plan_type, start_time, end_time, target_end_time, completed, created_at
+            FROM fasting_sessions
+            WHERE user_id = %s
+              AND start_time >= DATE_SUB(NOW(), INTERVAL %s DAY)
+            ORDER BY start_time DESC
+            LIMIT 50
+        """, (user["id"], days))
+        sessions = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        result = []
+        total = len(sessions)
+        completed_count = 0
+        total_hours = 0.0
+
+        for s in sessions:
+            plan = FASTING_PLANS.get(s["plan_type"], FASTING_PLANS["none"])
+            dur_h = 0.0
+            if s["start_time"] and s["end_time"]:
+                dur_h = (s["end_time"] - s["start_time"]).total_seconds() / 3600
+            total_hours += dur_h
+            if s["completed"]:
+                completed_count += 1
+            result.append({
+                "id": s["id"],
+                "plan_type": s["plan_type"],
+                "plan_name": plan.get("name", s["plan_type"]),
+                "plan_emoji": plan.get("emoji", "⏱"),
+                "start_time": s["start_time"].isoformat() if s["start_time"] else None,
+                "end_time": s["end_time"].isoformat() if s["end_time"] else None,
+                "duration_hours": round(dur_h, 2),
+                "completed": bool(s["completed"]),
+            })
+
+        avg_h = round(total_hours / total, 2) if total > 0 else 0
+        success_rate = round((completed_count / total) * 100) if total > 0 else 0
+
+        return {
+            "success": True,
+            "sessions": result,
+            "stats": {
+                "total_sessions": total,
+                "completed_sessions": completed_count,
+                "avg_duration_hours": avg_h,
+                "success_rate_percent": success_rate,
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
