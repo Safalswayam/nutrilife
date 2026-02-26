@@ -1729,7 +1729,10 @@ def generate_diet_plan(req: DietPlanRequest):
         diet_instruction = diet_type_map.get(req.diet_type, diet_type_map["non_veg"])
 
         ai_system_prompt = (
-            "You are a professional dietitian. Return ONLY valid compact JSON, no markdown, no extra text, no trailing commas."
+            "You are a certified clinical dietitian and meal planner with expertise in Indian and global diets. "
+            "You must return ONLY valid, minified JSON. "
+            "No markdown, no explanations, no comments, no extra keys, no trailing commas. "
+            "Follow the requested JSON schema exactly."
         )
         # Compact single-line example keeps prompt short; max 3 ingredients per meal prevents truncation
         # ── Fasting plan context ──────────────────────────────────────────────
@@ -1771,19 +1774,68 @@ def generate_diet_plan(req: DietPlanRequest):
                 )
 
         ai_user_prompt = (
-            f"Create a 7-day meal plan for: {req.gender}, age {req.age}, {req.weight}kg, "
-            f"{req.height}cm, goal={req.goal}, activity={req.activity_level}, "
-            f"metabolism={req.metabolism_type}, target={target_cal}kcal/day, restrictions={restrictions}.\n"
-            f"DIET TYPE: {diet_instruction}{fasting_context}\n"
-            'Return ONLY this JSON shape (all 7 days Monday-Sunday, no extra fields):\n'
-            '{"days":[{"day":"Monday","breakfast":{"name":"...","ingredients":["a","b","c"]},'
-            '"morning_snack":{"name":"...","ingredients":["a","b"]},'
-            '"lunch":{"name":"...","ingredients":["a","b","c"]},'
-            '"afternoon_snack":{"name":"...","ingredients":["a","b"]},'
-            '"dinner":{"name":"...","ingredients":["a","b","c"]}}],'
+            f"Create a 7-day meal plan STRICTLY BASED ON BMI CATEGORY.\n\n"
+            f"USER PROFILE:\n"
+            f"Gender: {req.gender}\n"
+           f"Age: {req.age}\n"
+            f"Height: {req.height} cm\n"
+           f"Weight: {req.weight} kg\n"
+                   f"BMI: {bmi}\n"
+           f"BMI CATEGORY: {category}\n"
+            f"Goal: {req.goal}\n"
+            f"Activity Level: {req.activity_level}\n"
+            f"Metabolism Type: {req.metabolism_type}\n"
+            f"Target Calories: {target_cal} kcal/day\n"
+            f"Dietary Restrictions: {restrictions}\n\n"
+           f"DIET TYPE (MANDATORY): {diet_instruction}\n"
+            f"{fasting_context}\n\n"
+
+            "BMI-BASED DIET RULES (STRICT – MUST FOLLOW):\n"
+            "- If BMI CATEGORY is 'Underweight':\n"
+            "  • Focus on calorie-dense but healthy foods\n"
+            "  • Include complex carbs, healthy fats, and sufficient protein\n"
+            "  • Do NOT include low-calorie or restrictive meals\n\n"
+
+            "- If BMI CATEGORY is 'Normal weight':\n"
+            "  • Provide balanced meals with carbs, protein, and fats\n"
+           "  • Maintain weight stability and nutrition quality\n\n"
+
+            "- If BMI CATEGORY is 'Overweight' or 'Obese':\n"
+            "  • PRIORITIZE high-protein, high-fiber meals\n"
+            "  • LIMIT refined carbs, sugars, fried foods\n"
+            "  • Emphasize vegetables, lean protein, and low-GI carbs\n"
+            "  • Avoid calorie-dense or indulgent meals\n\n"
+            "BMI-BASED VARIATION RULE:"
+            "- Underweight meals should sound calorie-dense and hearty"
+            "- Normal BMI meals should sound balanced and neutral"
+            "- Overweight/Obese meals should sound light, grilled, steamed, or bowl-based"
+            "- Dish names MUST reflect this difference in wording"
+
+            "MEAL STRUCTURE RULES:\n"
+            "- Each meal MUST have:\n"
+            "  • ONE clear MAIN DISH name\n"
+            "  • EXACTLY TWO supporting ingredients\n"
+            "- Ingredients must naturally complement the dish\n"
+            "- Snacks must follow the same structure\n"
+           "- Keep names short and realistic\n"
+            "- No calories, macros, or cooking instructions in names\n\n"
+
+            "OUTPUT FORMAT (STRICT JSON ONLY):\n"
+           '{"days":[{"day":"Monday",'
+            '"breakfast":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
+            '"morning_snack":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
+            '"lunch":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
+            '"afternoon_snack":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
+            '"dinner":{"name":"MAIN DISH","ingredients":["item1","item2"]}'
+            '}],'
             '"tips":["tip1","tip2","tip3","tip4","tip5","tip6"]}\n\n'
-            "Rules: max 3 ingredients per meal, max 2 for snacks, short names, all 7 days, valid JSON only."
-        )
+
+            "VALIDATION RULES:\n"
+            "- Exactly 7 days (Monday–Sunday)\n"
+            "- Exactly 2 ingredients per meal\n"
+            "- BMI rules must override goal if conflicts arise\n"
+            "- Output must be valid JSON only"
+        )       
 
         weekly_plan = []
         tips = [
@@ -1795,7 +1847,7 @@ def generate_diet_plan(req: DietPlanRequest):
             "Track your progress weekly, not daily",
         ]
 
-        ai_raw = ask_openai(ai_system_prompt, ai_user_prompt, max_tokens=1500, temperature=0.5)
+        ai_raw = ask_openai(ai_system_prompt, ai_user_prompt, max_tokens=1500, temperature=0.7)
 
         ai_plan = None
         if ai_raw and not ai_raw.startswith("Error:"):

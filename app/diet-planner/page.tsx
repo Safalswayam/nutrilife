@@ -50,7 +50,8 @@ import {
 import { cn } from "@/lib/utils"
 
 interface MealPlan {
-  meal: string
+  meal: string        // Breakfast / Lunch
+  dish: string        // Main dish name
   time: string
   foods: string[]
   calories: number
@@ -267,16 +268,61 @@ export default function DietPlannerPage() {
           carbs: data.macro_targets.carbs,
           fat: data.macro_targets.fat,
         },
-        weeklyPlan: data.weekly_plan.map((day: any) => ({
+                weeklyPlan: data.weekly_plan.map((day: any) => ({
           day: day.day,
           meals: [
-            { meal: "Breakfast", time: "7:00 AM", foods: day.breakfast.ingredients, calories: day.breakfast.calories, protein: day.breakfast.protein, carbs: day.breakfast.carbs, fat: day.breakfast.fat },
-            { meal: "Morning Snack", time: "10:00 AM", foods: day.morning_snack.ingredients, calories: day.morning_snack.calories, protein: day.morning_snack.protein, carbs: day.morning_snack.carbs, fat: day.morning_snack.fat },
-            { meal: "Lunch", time: "12:30 PM", foods: day.lunch.ingredients, calories: day.lunch.calories, protein: day.lunch.protein, carbs: day.lunch.carbs, fat: day.lunch.fat },
-            { meal: "Afternoon Snack", time: "3:30 PM", foods: day.afternoon_snack.ingredients, calories: day.afternoon_snack.calories, protein: day.afternoon_snack.protein, carbs: day.afternoon_snack.carbs, fat: day.afternoon_snack.fat },
-            { meal: "Dinner", time: "7:00 PM", foods: day.dinner.ingredients, calories: day.dinner.calories, protein: day.dinner.protein, carbs: day.dinner.carbs, fat: day.dinner.fat },
+            {
+              meal: "Breakfast",
+             dish: day.breakfast.name,
+              time: "7:00 AM",
+             foods: day.breakfast.ingredients,
+              calories: day.breakfast.calories,
+              protein: day.breakfast.protein,
+              carbs: day.breakfast.carbs,
+              fat: day.breakfast.fat,
+            },
+            {
+      meal: "Morning Snack",
+      dish: day.morning_snack.name,
+      time: "10:00 AM",
+      foods: day.morning_snack.ingredients,
+      calories: day.morning_snack.calories,
+      protein: day.morning_snack.protein,
+      carbs: day.morning_snack.carbs,
+      fat: day.morning_snack.fat,
+            },
+            {
+      meal: "Lunch",
+      dish: day.lunch.name,
+      time: "12:30 PM",
+      foods: day.lunch.ingredients,
+      calories: day.lunch.calories,
+      protein: day.lunch.protein,
+      carbs: day.lunch.carbs,
+      fat: day.lunch.fat,
+            },
+            {
+      meal: "Afternoon Snack",
+      dish: day.afternoon_snack.name,
+      time: "3:30 PM",
+      foods: day.afternoon_snack.ingredients,
+      calories: day.afternoon_snack.calories,
+      protein: day.afternoon_snack.protein,
+      carbs: day.afternoon_snack.carbs,
+      fat: day.afternoon_snack.fat,
+            },
+            {
+      meal: "Dinner",
+      dish: day.dinner.name,
+      time: "7:00 PM",
+      foods: day.dinner.ingredients,
+      calories: day.dinner.calories,
+      protein: day.dinner.protein,
+      carbs: day.dinner.carbs,
+      fat: day.dinner.fat,
+            },
           ],
-          totalCalories: day.total_calories,
+         totalCalories: day.total_calories,
         })),
         tips: data.tips,
         warnings: [],
@@ -751,10 +797,13 @@ export default function DietPlannerPage() {
                           <div className="border-t border-border p-4 space-y-4 bg-muted/30">
                             {day.meals.map((meal, mealIndex) => (
                               <div key={mealIndex} className="bg-card p-4 rounded-lg">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-semibold text-foreground">{meal.meal}</h4>
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <h4 className="font-semibold text-foreground">{meal.meal}</h4>
+                                    <p className="text-sm font-medium text-primary">{meal.dish}</p>
+                                  </div>
                                   <span className="text-sm text-muted-foreground">{meal.time}</span>
-                                </div>
+                                </div>                                
                                 <ul className="text-sm text-muted-foreground mb-3 space-y-1">
                                   {meal.foods.map((food, foodIndex) => (
                                     <li key={foodIndex} className="flex items-center gap-2">
