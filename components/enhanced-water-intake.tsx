@@ -42,9 +42,9 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
 
       if (response.ok) {
         const data = await response.json()
-        setCurrent(Number(data.current ?? 0))
-        setGoal(Number(data.goal ?? 8))
-        setNewGoal(Number(data.goal ?? 8))
+        setCurrent(Number(data.current ?? data.glasses ?? 0))
+        setGoal(Number(data.goal ?? data.target ?? 8))
+        setNewGoal(Number(data.goal ?? data.target ?? 8))
 
       }
     } catch (error) {
@@ -94,7 +94,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
             : `Removed 1 glass (${data.current}/${data.goal})`
         )
         
-        //onUpdate?.(data.current)
+        onUpdate?.(data.current)
       } else {
         // Revert on failure
         setCurrent(previousCurrent)

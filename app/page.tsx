@@ -28,6 +28,9 @@ interface DashboardStats {
     protein: number
     carbs: number
     fat: number
+    target_protein: number
+    target_carbs: number
+    target_fat: number
   }
   recent_meals: Array<{
     food_name: string
@@ -35,6 +38,7 @@ interface DashboardStats {
     meal_type: string
     logged_at: string
   }>
+  weekly_plan?: any
 }
 
 // ── Time helpers ──────────────────────────────────────────────────────────
@@ -342,13 +346,17 @@ export default function DashboardPage() {
           />
           
           {/* What to Eat Next */}
-          <WhatToEatNext />
-          
+          <WhatToEatNext/>
+
           <QuickActions />
-          <MacroBreakdown 
-            protein={stats.macros.protein} 
-            carbs={stats.macros.carbs} 
-            fat={stats.macros.fat} 
+          <MacroBreakdown
+            protein={stats.macros.protein}
+            carbs={stats.macros.carbs}
+            fat={stats.macros.fat}
+            targetProtein={stats.macros.target_protein}
+            targetCarbs={stats.macros.target_carbs}
+            targetFat={stats.macros.target_fat}
+            targetCalories={stats.target_calories}
           />
           <HealthTips />
         </div>

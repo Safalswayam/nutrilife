@@ -16,8 +16,6 @@ import math
 import razorpay
 
 # ── Ensure the api/ directory is on sys.path ────────────────────────────────
-# This lets Python find google_auth_service.py, subscription_service.py etc.
-# regardless of whether uvicorn is run from the project root or from api/.
 _API_DIR = os.path.dirname(os.path.abspath(__file__))
 if _API_DIR not in sys.path:
     sys.path.insert(0, _API_DIR)
@@ -43,9 +41,6 @@ import mysql.connector
 from mysql.connector import pooling
 from openai import OpenAI
 
-# =========================
-# APP SETUP
-# =========================
 app = FastAPI(title="NutriLife API", version="1.0.0")
 
 app.add_middleware(
@@ -63,12 +58,9 @@ razorpay_client = razorpay.Client(
         os.getenv("RAZORPAY_KEY_SECRET")
     )
 )
-# =========================
-# HEALTH CHECK ENDPOINT
-# =========================
+
 @app.get("/")
 def health_check():
-    """Health check endpoint to verify API is running"""
     return {
         "message": "NutriLife API is running",
         "version": "2.0",
@@ -84,7 +76,6 @@ def health_check():
 
 @app.get("/health")
 def detailed_health():
-    """Detailed health check with database connectivity"""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -101,10 +92,6 @@ def detailed_health():
         "openai": "configured" if os.getenv("OPENROUTER_API_KEY") else "not configured"
     }
 
-
-# =========================
-# OPENROUTER CLIENT
-# =========================
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key= os.getenv("OPENAI_API_KEY"),
@@ -114,10 +101,6 @@ client = OpenAI(
     }
 )
 
-# =========================
-# BASIC TEXT PROMPT
-# =========================
-
 def ask_openai(
     system_prompt: str,
     user_prompt: str,
@@ -126,7 +109,7 @@ def ask_openai(
 ):
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-4o-mini",   # ✅ OpenRouter-compatible
+            model="openai/gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -134,16 +117,10 @@ def ask_openai(
             max_tokens=max_tokens,
             temperature=temperature
         )
-
         return response.choices[0].message.content
-
     except Exception as e:
         return f"Error: {str(e)}"
 
-
-# =========================
-# CHAT WITH HISTORY
-# =========================
 
 def ask_openai_with_history(
     system_prompt: str,
@@ -151,27 +128,19 @@ def ask_openai_with_history(
     max_tokens: int = 1000,
     temperature: float = 0.4
 ) -> str:
-    """Sends a conversation with history to OpenAI"""
     try:
         full_messages = [{"role": "system", "content": system_prompt}] + messages
-
         response = client.chat.completions.create(
-            model="openai/gpt-4o-mini",   # ✅ FIXED (was invalid before)
+            model="openai/gpt-4o-mini",
             messages=full_messages,
             temperature=temperature,
             max_tokens=max_tokens
         )
-
         return response.choices[0].message.content
-
     except Exception as e:
         print(f"OpenRouter API error: {e}")
         return None
 
-
-# =========================
-# IMAGE / VISION PROMPT
-# =========================
 
 def ask_openai_with_image(
     system_prompt: str,
@@ -180,10 +149,9 @@ def ask_openai_with_image(
     max_tokens: int = 900,
     detail: str = "high"
 ) -> str:
-    """Sends a prompt with an image to OpenAI Vision for accurate food detection"""
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-4o",   # ✅ Vision-supported on OpenRouter
+            model="openai/gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -203,16 +171,11 @@ def ask_openai_with_image(
             temperature=0.2,
             max_tokens=max_tokens
         )
-
         return response.choices[0].message.content
-
     except Exception as e:
         print(f"OpenRouter Vision API error: {e}")
         return None
 
-# =========================
-# DATABASE (MYSQL)
-# =========================
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "localhost"),
     "user": os.getenv("MYSQL_USER", "root"),
@@ -225,7 +188,6 @@ db_pool = None
 db_initialized = False
 
 def init_db_pool():
-    """Initialize the database connection pool"""
     global db_pool, db_initialized
     if db_initialized and db_pool is not None:
         return True
@@ -245,7 +207,6 @@ def init_db_pool():
         return False
 
 def get_db():
-    """Get a database connection from the pool"""
     global db_pool, db_initialized
     if not db_initialized or db_pool is None:
         if not init_db_pool():
@@ -255,7 +216,6 @@ def get_db():
         return conn
     except mysql.connector.Error as e:
         print(f"Database connection error: {e}")
-        # Try to reinitialize pool on connection error
         db_initialized = False
         if init_db_pool():
             try:
@@ -268,12 +228,10 @@ def get_db():
         raise HTTPException(status_code=500, detail="Database connection failed")
 
 def init_database():
-    """Initialize database tables"""
     try:
         conn = get_db()
         cur = conn.cursor()
 
-        # Users table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -295,7 +253,6 @@ def init_database():
         )
         """)
 
-        # Sessions table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -310,7 +267,6 @@ def init_database():
         )
         """)
 
-        # Meal logs table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS meal_logs (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -327,7 +283,6 @@ def init_database():
         )
         """)
 
-        # Chat history table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS chat_history (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -339,7 +294,6 @@ def init_database():
         )
         """)
 
-        # Saved diet plans table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS saved_diet_plans (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -351,7 +305,6 @@ def init_database():
         )
         """)
 
-        # Water intake tracking table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS water_logs (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -364,7 +317,6 @@ def init_database():
         )
         """)
 
-        # Daily stats tracking table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS daily_stats (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -383,7 +335,6 @@ def init_database():
         )
         """)
 
-        # Food analysis history table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS food_analysis_history (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -400,7 +351,6 @@ def init_database():
         )
         """)
 
-        # ── Subscription plans table ─────────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS subscription_plans (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -418,7 +368,6 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
-        # Seed default plans if table is empty
         cur.execute("SELECT COUNT(*) as cnt FROM subscription_plans")
         row = cur.fetchone()
         count = row['cnt'] if isinstance(row, dict) else row[0]
@@ -437,7 +386,6 @@ def init_database():
             """)
             print("  ✓ Seeded default subscription plans")
 
-        # ── User subscriptions table ─────────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS user_subscriptions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -457,7 +405,6 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
-        # ── Payment transactions table ───────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS payment_transactions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -482,7 +429,6 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
-        # ── Feature access table ─────────────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS feature_access (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -494,7 +440,6 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
-        # Seed feature access rules if empty
         cur.execute("SELECT COUNT(*) as cnt FROM feature_access")
         row = cur.fetchone()
         count = row['cnt'] if isinstance(row, dict) else row[0]
@@ -509,11 +454,9 @@ def init_database():
                 ('dashboard',           FALSE, 'Basic dashboard view')
             ON DUPLICATE KEY UPDATE requires_premium = VALUES(requires_premium)
             """)
-            # Ensure diet_planner is always free even if row already existed
             cur.execute("UPDATE feature_access SET requires_premium = FALSE WHERE feature_name = 'diet_planner'")
             print("  ✓ Seeded feature access rules")
 
-        # ── Subscription audit log ───────────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS subscription_audit_log (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -530,8 +473,6 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
-        # ── NEW: Safely add columns one-by-one using INFORMATION_SCHEMA ────────
-        # This works on ALL MySQL versions (5.6, 5.7, 8.x) unlike IF NOT EXISTS
         def _add_column_if_missing(table, column, definition):
             cur.execute("""
                 SELECT COUNT(*) as cnt
@@ -567,7 +508,6 @@ def init_database():
             except Exception as col_err:
                 print(f"  ⚠ Could not add column users.{col_name}: {col_err}")
 
-        # ── NEW: Webhook event dedup log ─────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -579,8 +519,6 @@ def init_database():
         )
         """)
 
-
-        # ── Fasting sessions table ───────────────────────────────────────────
         cur.execute("""
         CREATE TABLE IF NOT EXISTS fasting_sessions (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -609,9 +547,7 @@ def init_database():
         print(f"Database initialization error: {e}")
         return False
 
-# Initialize database on startup (graceful - won't crash if DB unavailable)
 def startup_init():
-    """Initialize database connection and tables on startup"""
     if init_db_pool():
         init_database()
     else:
@@ -619,9 +555,6 @@ def startup_init():
 
 startup_init()
 
-# =========================
-# INITIALIZE NEW SERVICES (Subscription & Google Auth)
-# =========================
 google_auth_service = None
 subscription_service = None
 subscription_middleware = None
@@ -640,42 +573,32 @@ except ImportError as e:
 except Exception as e:
     print(f"⚠ Service initialization warning: {e}")
 
-# =========================
-# SECURITY HELPERS
-# =========================
 def hash_password(password: str) -> str:
-    """Hash password using bcrypt"""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Verify password against bcrypt hash"""
     try:
         return bcrypt.checkpw(password.encode(), password_hash.encode())
     except Exception:
         return False
 
 def generate_token() -> str:
-    """Generate a secure random session token"""
     return secrets.token_urlsafe(64)
 
 def hash_token(token: str) -> str:
-    """Hash session token for storage"""
     return hashlib.sha256(token.encode()).hexdigest()
 
 def sanitize_input(value: str, max_length: int = 500) -> str:
-    """Sanitize user input"""
     if not value:
         return ""
     value = value.replace('\x00', '')
     return value[:max_length].strip()
 
 def validate_email(email: str) -> bool:
-    """Validate email format"""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email)) and len(email) <= 254
 
 def validate_password_strength(password: str) -> tuple:
-    """Check password meets security requirements"""
     if len(password) < 8:
         return False, "Password must be at least 8 characters long"
     if len(password) > 128:
@@ -688,11 +611,7 @@ def validate_password_strength(password: str) -> tuple:
         return False, "Password must contain at least one number"
     return True, "Password is strong"
 
-# =========================
-# AUTH DEPENDENCY
-# =========================
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Get current authenticated user from token"""
     if not credentials:
         return None
     
@@ -729,7 +648,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         return None
 
 def require_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Require authentication - raises exception if not authenticated"""
     if not credentials:
         raise HTTPException(status_code=401, detail="Authentication required")
     
@@ -742,15 +660,9 @@ def require_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 
 def require_premium(user: dict = Depends(require_auth)):
-    """
-    Require both authentication AND an active subscription.
-    Returns 403 if the user is authenticated but not subscribed.
-    Does NOT break existing require_auth usage.
-    """
     sub_status = user.get("subscription_status", "inactive")
     is_premium = user.get("is_premium", False)
 
-    # Also honour legacy is_premium flag (existing subscriptions activated before this migration)
     if sub_status != "active" and not is_premium:
         raise HTTPException(
             status_code=403,
@@ -758,9 +670,6 @@ def require_premium(user: dict = Depends(require_auth)):
         )
     return user
 
-# =========================
-# MODELS
-# =========================
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -863,13 +772,13 @@ class DietPlanRequest(BaseModel):
     activity_level: str
     metabolism_type: str
     goal: str
-    diet_type: str = "non_veg"   # veg | non_veg | vegan | jain
+    diet_type: str = "non_veg"
     dietary_restrictions: List[str] = []
-    fasting_plan: Optional[str] = "none"  # none | 12:12 | 14:10 | 16:8 | 18:6 | 20:4 | omad | 5:2 | alternate
+    fasting_plan: Optional[str] = "none"
 
 class BatchLogRequest(BaseModel):
-    items: List[dict]          # [{name, calories, portion}]
-    nutrition: dict            # {protein, carbs, fat, fiber}
+    items: List[dict]
+    nutrition: dict
     meal_type: str = "meal"
 
 class Meal(BaseModel):
@@ -905,9 +814,6 @@ class DietPlanResponse(BaseModel):
     weekly_plan: List[DayPlan]
     tips: List[str]
 
-# =========================
-# FOOD DATABASE
-# =========================
 FOOD_DATABASE = {
     "pizza": {"calories": 285, "protein": 12, "carbs": 36, "fat": 10, "fiber": 2.5, "sugar": 4, "sodium": 640},
     "burger": {"calories": 354, "protein": 17, "carbs": 29, "fat": 17, "fiber": 1.3, "sugar": 5, "sodium": 497},
@@ -974,10 +880,6 @@ HEALTHIER_ALTERNATIVES = {
     "rice": ["Brown rice", "Cauliflower rice", "Quinoa"],
 }
 
-
-# =========================
-# FASTING PLANS REGISTRY
-# =========================
 FASTING_PLANS = {
     "none": {
         "id": "none", "name": "No Fasting", "emoji": "🍽️",
@@ -1144,16 +1046,12 @@ MEAL_DATABASE = {
     },
 }
 
-# =========================
-# ROUTES
-# =========================
 @app.get("/")
 def root():
     return {"status": "NutriLife API running", "version": "1.0.0"}
 
 @app.get("/api/health")
-def health_check():
-    """Check API and database health"""
+def api_health_check():
     health_status = {
         "status": "healthy",
         "api": "running",
@@ -1162,7 +1060,6 @@ def health_check():
         "openai": "unknown"
     }
     
-    # Check database connection
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -1176,7 +1073,6 @@ def health_check():
         health_status["status"] = "degraded"
         health_status["database_error"] = str(e)
     
-    # Check OpenAI API key
     if os.getenv("OPENROUTER_API_KEY"):
         health_status["openai"] = "configured"
     else:
@@ -1188,7 +1084,6 @@ def health_check():
 
 @app.get("/api/db-test")
 def db_test():
-    """Test database connectivity"""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -1213,23 +1108,14 @@ def db_test():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
-# =========================
-# AUTH ROUTES
-# =========================
-# =========================
-# AUTH ROUTES (FIXED)
-# =========================
-
 @app.post("/api/auth/register", response_model=AuthResponse)
 def register(data: RegisterRequest, request: Request):
-    """Register a new user account"""
     conn = None
     cur = None
 
     try:
         print(f"[v0] Registration attempt for: {data.email}")
 
-        # Validate password
         is_valid, message = validate_password_strength(data.password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=message)
@@ -1237,12 +1123,10 @@ def register(data: RegisterRequest, request: Request):
         conn = get_db()
         cur = conn.cursor()
 
-        # Check if email exists
         cur.execute("SELECT id FROM users WHERE email = %s", (data.email,))
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="Email already registered")
 
-        # Insert user
         cur.execute("""
             INSERT INTO users (email, password_hash, name, gender, age, height, weight)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -1258,7 +1142,6 @@ def register(data: RegisterRequest, request: Request):
 
         user_id = cur.lastrowid
 
-        # Create session
         token = generate_token()
         cur.execute("""
             INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
@@ -1341,7 +1224,6 @@ def login(data: LoginRequest, request: Request):
 
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        # Reset failed attempts
         cur.execute("""
             UPDATE users SET failed_login_attempts=0, locked_until=NULL WHERE id=%s
         """, (user["id"],))
@@ -1463,12 +1345,8 @@ def update_profile(data: UpdateProfileRequest, user=Depends(require_auth)):
         conn.close()
 
 
-# =========================
-# FOOD ANALYSIS ROUTES
-# =========================
 @app.post("/api/analyze-food", response_model=FoodAnalysisResponse)
 def analyze_food(req: FoodAnalysisRequest):
-    """Analyze food from description or image using OpenAI"""
     try:
         description = req.description or ""
         
@@ -1520,7 +1398,6 @@ Use USDA database standards for calorie estimates."""
             except json.JSONDecodeError:
                 pass
         
-        # Fallback to database
         desc_lower = description.lower() if description else ""
         matched = "default"
         for key in FOOD_DATABASE.keys():
@@ -1551,7 +1428,6 @@ async def upload_food_image(
     file: UploadFile = File(...),
     description: Optional[str] = Form(None)
 ):
-    """Upload food image for analysis"""
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Invalid image type")
     
@@ -1560,12 +1436,8 @@ async def upload_food_image(
     
     return analyze_food(FoodAnalysisRequest(description=description, image_base64=b64))
 
-# =========================
-# HEALTH CHAT ROUTES
-# =========================
 @app.post("/api/health-chat", response_model=HealthChatResponse)
 def health_chat(req: HealthChatRequest):
-    """Health assistant chatbot"""
     try:
         print(f"[v0] Health chat request received: {req.message[:50]}...")
         
@@ -1604,7 +1476,6 @@ Always recommend seeing a doctor for serious symptoms. Never diagnose - only sug
             print("[v0] Returning successful response")
             return HealthChatResponse(success=True, response=response_text, symptom_analysis=symptom_analysis)
         
-        # Fallback
         msg_lower = req.message.lower()
         for symptom, data in SYMPTOM_DATABASE.items():
             if symptom in msg_lower:
@@ -1634,14 +1505,9 @@ Always recommend seeing a doctor for serious symptoms. Never diagnose - only sug
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Health chat failed: {str(e)}")
 
-# =========================
-# DIET PLAN ROUTES
-# =========================
 @app.post("/api/diet-plan", response_model=DietPlanResponse)
 def generate_diet_plan(req: DietPlanRequest):
-    """Generate personalized diet plan"""
     try:
-        # Calculate BMI
         height_m = req.height / 100
         bmi = round(req.weight / (height_m ** 2), 1)
         
@@ -1657,17 +1523,14 @@ def generate_diet_plan(req: DietPlanRequest):
         min_healthy = round(18.5 * (height_m ** 2), 1)
         max_healthy = round(24.9 * (height_m ** 2), 1)
         
-        # Calculate BMR
         if req.gender.lower() == "male":
             bmr = 10 * req.weight + 6.25 * req.height - 5 * req.age + 5
         else:
             bmr = 10 * req.weight + 6.25 * req.height - 5 * req.age - 161
         
-        # Metabolism modifier
         meta_mod = {"fast": 1.1, "normal": 1.0, "slow": 0.9}.get(req.metabolism_type.lower(), 1.0)
         bmr *= meta_mod
         
-        # Activity multiplier
         activity_mult = {
             "sedentary": 1.2, "light": 1.375, "moderate": 1.55,
             "active": 1.725, "very_active": 1.9
@@ -1675,7 +1538,6 @@ def generate_diet_plan(req: DietPlanRequest):
         
         tdee = bmr * activity_mult
         
-        # Goal adjustment
         goal_adj = {
             "lose": -500, "lose_fast": -750, "maintain": 0,
             "gain": 300, "gain_muscle": 400
@@ -1683,7 +1545,6 @@ def generate_diet_plan(req: DietPlanRequest):
         
         target_cal = max(int(tdee + goal_adj), 1200 if req.gender.lower() == "female" else 1500)
         
-        # Macros
         if req.goal.lower() in ["gain_muscle", "gain"]:
             p, c, f = 0.30, 0.45, 0.25
         elif req.goal.lower() in ["lose", "lose_fast"]:
@@ -1698,7 +1559,6 @@ def generate_diet_plan(req: DietPlanRequest):
             "fiber": 25 if req.gender.lower() == "female" else 38
         }
         
-        # Calorie split per meal (percentages of target_cal)
         cal_split = {
             "breakfast": 0.25,
             "morning_snack": 0.10,
@@ -1714,10 +1574,8 @@ def generate_diet_plan(req: DietPlanRequest):
             "dinner": "25 mins",
         }
 
-        # ── AI-powered meal plan generation ──────────────────────────
         restrictions = ", ".join(req.dietary_restrictions) if req.dietary_restrictions else "none"
 
-        # Map diet_type to clear instruction for the AI
         diet_type_map = {
             "veg":           "STRICT VEGETARIAN — no meat, no fish, no eggs. Use dairy (milk, paneer, curd, ghee) and plant proteins.",
             "non_veg":       "Non-vegetarian — include chicken, fish, eggs, and dairy as appropriate.",
@@ -1734,8 +1592,7 @@ def generate_diet_plan(req: DietPlanRequest):
             "No markdown, no explanations, no comments, no extra keys, no trailing commas. "
             "Follow the requested JSON schema exactly."
         )
-        # Compact single-line example keeps prompt short; max 3 ingredients per meal prevents truncation
-        # ── Fasting plan context ──────────────────────────────────────────────
+
         fasting_context = ""
         if req.fasting_plan and req.fasting_plan != "none":
             fasting_meta = FASTING_PLANS.get(req.fasting_plan, {})
@@ -1753,8 +1610,6 @@ def generate_diet_plan(req: DietPlanRequest):
                     f"and normal eating days. Adjust odd/even days accordingly.\n"
                 )
             else:
-                # Time-restricted eating: calculate eating window times
-                # Assume eating window starts at 12:00 PM for 16:8, adjusted for others
                 if fast_h >= 20:
                     eat_start = "2:00 PM"
                 elif fast_h >= 18:
@@ -1777,17 +1632,17 @@ def generate_diet_plan(req: DietPlanRequest):
             f"Create a 7-day meal plan STRICTLY BASED ON BMI CATEGORY.\n\n"
             f"USER PROFILE:\n"
             f"Gender: {req.gender}\n"
-           f"Age: {req.age}\n"
+            f"Age: {req.age}\n"
             f"Height: {req.height} cm\n"
-           f"Weight: {req.weight} kg\n"
-                   f"BMI: {bmi}\n"
-           f"BMI CATEGORY: {category}\n"
+            f"Weight: {req.weight} kg\n"
+            f"BMI: {bmi}\n"
+            f"BMI CATEGORY: {category}\n"
             f"Goal: {req.goal}\n"
             f"Activity Level: {req.activity_level}\n"
             f"Metabolism Type: {req.metabolism_type}\n"
             f"Target Calories: {target_cal} kcal/day\n"
             f"Dietary Restrictions: {restrictions}\n\n"
-           f"DIET TYPE (MANDATORY): {diet_instruction}\n"
+            f"DIET TYPE (MANDATORY): {diet_instruction}\n"
             f"{fasting_context}\n\n"
 
             "BMI-BASED DIET RULES (STRICT – MUST FOLLOW):\n"
@@ -1798,7 +1653,7 @@ def generate_diet_plan(req: DietPlanRequest):
 
             "- If BMI CATEGORY is 'Normal weight':\n"
             "  • Provide balanced meals with carbs, protein, and fats\n"
-           "  • Maintain weight stability and nutrition quality\n\n"
+            "  • Maintain weight stability and nutrition quality\n\n"
 
             "- If BMI CATEGORY is 'Overweight' or 'Obese':\n"
             "  • PRIORITIZE high-protein, high-fiber meals\n"
@@ -1817,11 +1672,11 @@ def generate_diet_plan(req: DietPlanRequest):
             "  • EXACTLY TWO supporting ingredients\n"
             "- Ingredients must naturally complement the dish\n"
             "- Snacks must follow the same structure\n"
-           "- Keep names short and realistic\n"
+            "- Keep names short and realistic\n"
             "- No calories, macros, or cooking instructions in names\n\n"
 
             "OUTPUT FORMAT (STRICT JSON ONLY):\n"
-           '{"days":[{"day":"Monday",'
+            '{"days":[{"day":"Monday",'
             '"breakfast":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
             '"morning_snack":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
             '"lunch":{"name":"MAIN DISH","ingredients":["item1","item2"]},'
@@ -1835,7 +1690,7 @@ def generate_diet_plan(req: DietPlanRequest):
             "- Exactly 2 ingredients per meal\n"
             "- BMI rules must override goal if conflicts arise\n"
             "- Output must be valid JSON only"
-        )       
+        )
 
         weekly_plan = []
         tips = [
@@ -1864,7 +1719,6 @@ def generate_diet_plan(req: DietPlanRequest):
                 ai_plan = None
 
         if ai_plan and "days" in ai_plan and len(ai_plan["days"]) == 7:
-            # Use AI-generated meals; distribute calories & macros mathematically
             if "tips" in ai_plan and ai_plan["tips"]:
                 tips = ai_plan["tips"]
 
@@ -1900,7 +1754,6 @@ def generate_diet_plan(req: DietPlanRequest):
                     total_calories=target_cal,
                 ))
         else:
-            # ── Fallback: MEAL_DATABASE ───────────────────────────────
             print("Diet plan AI unavailable or returned bad data — falling back to MEAL_DATABASE")
             tier = "low_cal" if target_cal < 1600 else ("medium_cal" if target_cal < 2200 else "high_cal")
             days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -1936,9 +1789,6 @@ def generate_diet_plan(req: DietPlanRequest):
         print(f"Diet plan error: {e}")
         raise HTTPException(status_code=500, detail="Diet plan generation failed")
 
-# =========================
-# MEAL LOGGING ROUTES
-# =========================
 @app.post("/api/meals/log")
 def log_meal(
     food_name: str,
@@ -1950,7 +1800,6 @@ def log_meal(
     notes: str = None,
     user=Depends(require_auth)
 ):
-    """Log a meal"""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -1968,7 +1817,6 @@ def log_meal(
 
 @app.get("/api/meals/history")
 def get_meal_history(days: int = 7, user=Depends(require_auth)):
-    """Get meal history"""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -1987,7 +1835,6 @@ def get_meal_history(days: int = 7, user=Depends(require_auth)):
 
 @app.delete("/api/meals/{meal_id}")
 def delete_meal(meal_id: int, user=Depends(require_auth)):
-    """Delete a logged meal"""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -2010,7 +1857,6 @@ def delete_meal(meal_id: int, user=Depends(require_auth)):
 
 @app.get("/api/meals/today")
 def get_todays_meals(user=Depends(require_auth)):
-    """Get all meals logged today"""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -2023,7 +1869,6 @@ def get_todays_meals(user=Depends(require_auth)):
         meals = cur.fetchall()
         cur.close()
         conn.close()
-        # Convert datetime to string for JSON
         for m in meals:
             if m.get("logged_at"):
                 m["logged_at"] = m["logged_at"].isoformat()
@@ -2043,10 +1888,8 @@ def get_dashboard_stats(user=Depends(require_auth)):
         conn = get_db()
         cur = conn.cursor(dictionary=True)
         
-        # Get today's date
         today = datetime.now().date()
         
-        # Get today's calorie intake
         cur.execute("""
             SELECT COALESCE(SUM(calories), 0) as total_calories,
                    COALESCE(SUM(protein), 0) as total_protein,
@@ -2057,7 +1900,6 @@ def get_dashboard_stats(user=Depends(require_auth)):
         """, (user["id"], today))
         today_nutrition = cur.fetchone()
         
-        # Get yesterday's calories for comparison
         yesterday = today - timedelta(days=1)
         cur.execute("""
             SELECT COALESCE(SUM(calories), 0) as total_calories
@@ -2066,13 +1908,11 @@ def get_dashboard_stats(user=Depends(require_auth)):
         """, (user["id"], yesterday))
         yesterday_nutrition = cur.fetchone()
         
-        # Calculate calorie trend
         calorie_trend = 0
         if yesterday_nutrition['total_calories'] > 0:
             calorie_trend = int(((today_nutrition['total_calories'] - yesterday_nutrition['total_calories']) 
                                / yesterday_nutrition['total_calories']) * 100)
         
-        # Get water intake for today
         cur.execute("""
             SELECT COALESCE(SUM(glasses), 0) as total_glasses
             FROM water_logs
@@ -2080,7 +1920,6 @@ def get_dashboard_stats(user=Depends(require_auth)):
         """, (user["id"], today))
         water_data = cur.fetchone()
         
-        # Get weekly stats (last 7 days)
         cur.execute("""
             SELECT DATE(logged_at) as date, 
                    COALESCE(SUM(calories), 0) as calories
@@ -2092,12 +1931,10 @@ def get_dashboard_stats(user=Depends(require_auth)):
         """, (user["id"],))
         weekly_calories = cur.fetchall()
         
-        # Get average weekly calories
         avg_weekly_calories = 0
         if weekly_calories:
             avg_weekly_calories = int(sum([d['calories'] for d in weekly_calories]) / len(weekly_calories))
         
-        # Get recent weight (if tracked)
         cur.execute("""
             SELECT weight FROM daily_stats
             WHERE user_id = %s AND weight IS NOT NULL
@@ -2110,24 +1947,19 @@ def get_dashboard_stats(user=Depends(require_auth)):
         if len(weight_records) >= 2:
             weight_change = round(weight_records[0]['weight'] - weight_records[1]['weight'], 1)
         
-        # Get user's target calories (from profile or calculate BMR/TDEE)
-        target_calories = 2000  # Default
+        target_calories = 2000
         if user.get('weight') and user.get('height') and user.get('age'):
-            # Calculate BMR
             if user.get('gender', '').lower() == 'male':
                 bmr = 10 * user['weight'] + 6.25 * user['height'] - 5 * user['age'] + 5
             else:
                 bmr = 10 * user['weight'] + 6.25 * user['height'] - 5 * user['age'] - 161
             
-            # Apply activity multiplier
             activity_mult = {'sedentary': 1.2, 'light': 1.375, 'moderate': 1.55, 
                            'active': 1.725, 'very_active': 1.9}.get(user.get('activity_level', '').lower(), 1.55)
             target_calories = int(bmr * activity_mult)
         
-        # Calculate daily goal percentage
         daily_goal_percentage = min(int((today_nutrition['total_calories'] / target_calories) * 100), 100) if target_calories > 0 else 0
         
-        # Get recent meals
         cur.execute("""
             SELECT food_name, calories, meal_type, logged_at
             FROM meal_logs
@@ -2136,6 +1968,16 @@ def get_dashboard_stats(user=Depends(require_auth)):
             LIMIT 5
         """, (user["id"],))
         recent_meals = cur.fetchall()
+
+        # ✅ FIX: Fetch the active weekly_plan so dashboard can pass it to WhatToEatNext
+        cur.execute("""
+            SELECT weekly_plan FROM diet_plans
+            WHERE user_id = %s AND is_active = 1
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (user["id"],))
+        plan_row = cur.fetchone()
+        weekly_plan = json.loads(plan_row['weekly_plan']) if plan_row and plan_row.get('weekly_plan') else None
         
         cur.close()
         conn.close()
@@ -2157,7 +1999,8 @@ def get_dashboard_stats(user=Depends(require_auth)):
                     "carbs": round(today_nutrition['total_carbs'], 1),
                     "fat": round(today_nutrition['total_fat'], 1)
                 },
-                "recent_meals": recent_meals
+                "recent_meals": recent_meals,
+                "weekly_plan": weekly_plan  # ✅ FIX: Include weekly_plan in stats response
             }
         }
         
@@ -2167,18 +2010,13 @@ def get_dashboard_stats(user=Depends(require_auth)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to get dashboard stats: {str(e)}")
 
-# =========================
-# WATER TRACKING ROUTES
-# =========================
 @app.post("/api/water/log")
 def log_water(glasses: int = 1, user=Depends(require_auth)):
-    """Log water intake"""
     try:
         conn = get_db()
         cur = conn.cursor()
         today = datetime.now().date()
         
-        # Insert water log for today (same logic)
         cur.execute("""
             INSERT INTO water_logs (user_id, glasses, log_date)
             VALUES (%s, %s, %s)
@@ -2186,7 +2024,6 @@ def log_water(glasses: int = 1, user=Depends(require_auth)):
         
         conn.commit()
         
-        # Get total for today
         cur.execute("""
             SELECT COALESCE(SUM(glasses), 0) as total
             FROM water_logs
@@ -2195,7 +2032,6 @@ def log_water(glasses: int = 1, user=Depends(require_auth)):
         
         result = cur.fetchone()
 
-        # ✅ HARD FIX (no logic change)
         total_today = 0
         if result is not None and result[0] is not None:
             total_today = int(result[0])
@@ -2208,7 +2044,7 @@ def log_water(glasses: int = 1, user=Depends(require_auth)):
         return {
             "success": True, 
             "message": "Water logged successfully",
-            "total_today": total_today  # ALWAYS integer now
+            "total_today": total_today
         }
 
     except Exception as e:
@@ -2218,7 +2054,6 @@ def log_water(glasses: int = 1, user=Depends(require_auth)):
 
 @app.get("/api/water/today")
 def get_water_today(user=Depends(require_auth)):
-    """Get today's water intake"""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -2232,7 +2067,6 @@ def get_water_today(user=Depends(require_auth)):
         
         result = cur.fetchone()
 
-        # ✅ HARD FIX (no logic change)
         glasses_today = 0
         if result is not None and result[0] is not None:
             glasses_today = int(result[0])
@@ -2244,33 +2078,29 @@ def get_water_today(user=Depends(require_auth)):
         
         return {
             "success": True,
-            "glasses": glasses_today,  # ALWAYS integer
-            "target": 8
+            "current": glasses_today,   # field name the frontend expects
+            "glasses": glasses_today,   # backwards-compat alias
+            "goal":    8,               # field name the frontend expects
+            "target":  8,               # backwards-compat alias
         }
 
     except Exception as e:
         print(f"Water fetch error: {e}")
         raise HTTPException(status_code=500, detail="Failed to get water intake")
 
-# =========================
-# ENHANCED FOOD ANALYSIS WITH LOGGING
-# =========================
 @app.post("/api/analyze-food-and-log")
 async def analyze_and_log_food(
     request: Request,
     user=Depends(require_auth)
 ):
-    """Analyze food from image/description and automatically log it"""
     try:
         body = await request.json()
         description = body.get("description", "")
         image_base64 = body.get("image_base64")
         
-        # First, analyze the food
         if not image_base64 and not description:
             raise HTTPException(status_code=400, detail="Either image or description required")
         
-        # Use existing analyze endpoint logic
         if image_base64:
             system_prompt = """You are a nutrition expert. Analyze food images accurately.
 Return a detailed JSON with this EXACT structure (no extra text):
@@ -2299,9 +2129,7 @@ Return this EXACT structure (no extra text):
         if not response_text:
             raise HTTPException(status_code=500, detail="AI analysis failed")
         
-        # Parse JSON response
         try:
-            # Clean response
             response_text = response_text.strip()
             if response_text.startswith("```json"):
                 response_text = response_text[7:]
@@ -2317,11 +2145,9 @@ Return this EXACT structure (no extra text):
             print(f"Response text: {response_text}")
             raise HTTPException(status_code=500, detail="Failed to parse nutrition data")
         
-        # Log to database
         conn = get_db()
         cur = conn.cursor()
         
-        # Log to food_analysis_history
         cur.execute("""
             INSERT INTO food_analysis_history 
             (user_id, food_items, total_calories, total_protein, total_carbs, total_fat, total_fiber)
@@ -2336,7 +2162,6 @@ Return this EXACT structure (no extra text):
             data.get("nutrition", {}).get("fiber", 0)
         ))
         
-        # Log each food item to meal_logs
         for item in data.get("items", []):
             cur.execute("""
                 INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
@@ -2369,12 +2194,8 @@ Return this EXACT structure (no extra text):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Food analysis failed: {str(e)}")
 
-# =========================
-# PROFILE UPDATE WITH FULL DATA
-# =========================
 @app.get("/api/profile")
 def get_profile(user=Depends(require_auth)):
-    """Get full user profile"""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -2403,15 +2224,13 @@ def get_profile(user=Depends(require_auth)):
         raise HTTPException(status_code=500, detail="Failed to fetch profile")
 
 @app.put("/api/profile")
-async def update_profile(request: Request, user=Depends(require_auth)):
-    """Update user profile"""
+async def update_profile_full(request: Request, user=Depends(require_auth)):
     try:
         body = await request.json()
         
         conn = get_db()
         cur = conn.cursor()
         
-        # Build dynamic update query
         update_fields = []
         values = []
         
@@ -2443,98 +2262,170 @@ async def update_profile(request: Request, user=Depends(require_auth)):
         raise HTTPException(status_code=500, detail="Failed to update profile")
 
 
-# =========================
-# WATER INTAKE ENDPOINTS
-# =========================
-
 class WaterAdjustRequest(BaseModel):
     adjustment: int  # +1 or -1
 
 @app.post("/api/water/adjust")
-def adjust_water_intake(
-    request: WaterAdjustRequest,
-    user=Depends(require_auth)
+async def adjust_water_intake(
+    request: dict,
+    user: dict = Depends(require_auth)
 ):
-    """Atomically adjust water intake for today"""
-    from datetime import date as date_module
-    today = date_module.today()
-    
-    conn = get_db()
-    cur = conn.cursor(dictionary=True)
-    
+    """Adjust water intake by +1 or -1 glass"""
     try:
-        # Check if water_intake table exists, create if not
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS water_intake (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                logged_date DATE NOT NULL,
-                glasses_count INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY user_date (user_id, logged_date),
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        """)
+        adjustment = request.get("adjustment")
+        if adjustment not in [-1, 1]:
+            raise HTTPException(status_code=400, detail="Adjustment must be +1 or -1")
         
-        # Get or create today's record
-        cur.execute("""
-            INSERT INTO water_intake (user_id, logged_date, glasses_count)
-            VALUES (%s, %s, 0)
-            ON DUPLICATE KEY UPDATE glasses_count = glasses_count
-        """, (user["id"], today))
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
         
-        # Atomic update with validation (prevent negative)
-        cur.execute("""
-            UPDATE water_intake
-            SET glasses_count = GREATEST(0, glasses_count + %s),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE user_id = %s AND logged_date = %s
-        """, (request.adjustment, user["id"], today))
+        today = date.today()
         
-        # Fetch updated value
         cur.execute("""
-            SELECT glasses_count
-            FROM water_intake
-            WHERE user_id = %s AND logged_date = %s
-        """, (user["id"], today))
+            SELECT COALESCE(SUM(glasses), 0) as current_total
+            FROM water_logs
+            WHERE user_id = %s AND log_date = %s
+        """, (user['id'], today))
         
         result = cur.fetchone()
+        current_total = int(result['current_total']) if result else 0
+        
+        new_total = current_total + adjustment
+        
+        if new_total < 0:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=400, detail="Water intake cannot be negative")
+        
+        if adjustment > 0:
+            cur.execute("""
+                INSERT INTO water_logs (user_id, glasses, log_date, logged_at)
+                VALUES (%s, 1, %s, NOW())
+            """, (user['id'], today))
+        
+        elif adjustment < 0 and current_total > 0:
+            cur.execute("""
+                DELETE FROM water_logs
+                WHERE user_id = %s AND log_date = %s
+                ORDER BY logged_at DESC
+                LIMIT 1
+            """, (user['id'], today))
+        
+        conn.commit()
+        
+        cur.execute("""
+            SELECT daily_water_goal
+            FROM users
+            WHERE id = %s
+        """, (user['id'],))
+        
+        user_data = cur.fetchone()
+        goal = user_data['daily_water_goal'] if user_data else 8
+        
+        cur.close()
+        conn.close()
+        
+        percentage = min(100, (new_total / goal * 100)) if goal > 0 else 0
+        
+        return {
+            "success": True,
+            "current": new_total,
+            "goal": goal,
+            "percentage": round(percentage, 1),
+            "goal_reached": new_total >= goal
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/water/set-goal")
+async def set_water_goal(request: dict, user: dict = Depends(require_auth)):
+    try:
+        goal = request.get("goal")
+        
+        if not goal or goal < 1 or goal > 20:
+            raise HTTPException(status_code=400, detail="Goal must be between 1 and 20 glasses")
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE users
+            SET daily_water_goal = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (goal, user['id']))
+        
         conn.commit()
         cur.close()
         conn.close()
         
         return {
             "success": True,
-            "current": result['glasses_count'] if result else 0,
-            "target": 8,
-            "date": today.isoformat()
+            "message": f"Daily water goal set to {goal} glasses",
+            "goal": goal
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        conn.rollback()
-        cur.close()
-        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# =========================
-# DIET PLAN ENDPOINTS
-# =========================
+@app.get("/api/water/history")
+async def get_water_history(days: int = 7, user: dict = Depends(require_auth)):
+    try:
+        if days < 1 or days > 30:
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
+        
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+        
+        cur.execute("""
+            SELECT 
+                log_date as date,
+                SUM(glasses) as glasses
+            FROM water_logs
+            WHERE user_id = %s 
+                AND log_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            GROUP BY log_date
+            ORDER BY log_date DESC
+        """, (user['id'], days))
+        
+        history = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        for entry in history:
+            entry['date'] = entry['date'].isoformat()
+        
+        return {
+            "success": True,
+            "history": history,
+            "days": days
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/diet-plan/save")
 def save_diet_plan(
     plan_data: dict,
     user=Depends(require_auth)
 ):
-    """Save generated diet plan for user"""
     from datetime import date as date_module, timedelta as timedelta_module
     
     conn = get_db()
     cur = conn.cursor()
     
     try:
-        # Check if diet_plans table exists, create if not
         cur.execute("""
             CREATE TABLE IF NOT EXISTS diet_plans (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2554,14 +2445,12 @@ def save_diet_plan(
             )
         """)
         
-        # Deactivate old plans
         cur.execute("""
             UPDATE diet_plans 
             SET is_active = 0
             WHERE user_id = %s
         """, (user["id"],))
         
-        # Insert new plan
         today = date_module.today()
         cur.execute("""
             INSERT INTO diet_plans (
@@ -2593,6 +2482,10 @@ def save_diet_plan(
         conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# =========================
+# DIET PLAN NEXT MEAL ENDPOINT
+# =========================
 @app.get("/api/diet-plan/next-meal")
 def get_next_meal(user=Depends(require_auth)):
     """Get the next meal based on current time and diet plan"""
@@ -2606,7 +2499,6 @@ def get_next_meal(user=Depends(require_auth)):
     cur = conn.cursor(dictionary=True)
     
     try:
-        # Get active diet plan
         cur.execute("""
             SELECT * FROM diet_plans
             WHERE user_id = %s 
@@ -2637,50 +2529,106 @@ def get_next_meal(user=Depends(require_auth)):
             return {"success": False, "message": "No plan for today"}
         
         # Define meal times
-        meal_times = {
-            "breakfast": time_module(7, 0),
-            "morning_snack": time_module(10, 0),
-            "lunch": time_module(12, 30),
-            "afternoon_snack": time_module(15, 30),
-            "dinner": time_module(19, 0)
-        }
-        
-        # Find next meal
+        # Ordered schedule: (snake_key, label_in_meals_array, meal_time)
+        meal_schedule = [
+            ("breakfast",       "Breakfast",       time_module(7, 0)),
+            ("morning_snack",   "Morning Snack",   time_module(10, 0)),
+            ("lunch",           "Lunch",           time_module(12, 30)),
+            ("afternoon_snack", "Afternoon Snack", time_module(15, 30)),
+            ("dinner",          "Dinner",          time_module(19, 0)),
+        ]
+
+        # The frontend saves meals as an ARRAY inside today_plan["meals"]:
+        #   [{"meal": "Breakfast", "dish": "...", "foods": [...], ...}, ...]
+        # Build a normalised lookup keyed by snake_case type so we handle
+        # both the current array format and any legacy direct-key format.
+        meal_lookup: dict = {}
+
+        raw_meals = today_plan.get("meals")
+        if isinstance(raw_meals, list):
+            # Current format: frontend saves meals as an ordered list
+            label_to_key = {label.lower(): key for key, label, _ in meal_schedule}
+            for m in raw_meals:
+                label = m.get("meal", "").strip().lower()
+                key = label_to_key.get(label)
+                if key:
+                    meal_lookup[key] = {
+                        "dish":     m.get("dish") or m.get("name", "Healthy Meal"),
+                        "foods":    m.get("foods") or m.get("ingredients", []),
+                        "calories": m.get("calories", 0),
+                        "protein":  m.get("protein", 0),
+                        "carbs":    m.get("carbs", 0),
+                        "fat":      m.get("fat", 0),
+                    }
+        else:
+            # Legacy format: meals stored as direct keys on the day object
+            for key, _label, _ in meal_schedule:
+                raw = today_plan.get(key)
+                if isinstance(raw, dict):
+                    meal_lookup[key] = {
+                        "dish":     raw.get("name", "Healthy Meal"),
+                        "foods":    raw.get("ingredients", []),
+                        "calories": raw.get("calories", 0),
+                        "protein":  raw.get("protein", 0),
+                        "carbs":    raw.get("carbs", 0),
+                        "fat":      raw.get("fat", 0),
+                    }
+
+        # Find the next upcoming meal.
+        # IMPORTANT: break is INSIDE "if meal_data" so if a time slot has no
+        # data in the lookup we continue to the next slot instead of stopping.
         next_meal = None
-        for meal_type, meal_time in meal_times.items():
+        for meal_type, _label, meal_time in meal_schedule:
             if current_time < meal_time:
-                for meal in today_plan.get('meals', []):
-                    if meal['meal'].lower().replace(' ', '_') == meal_type:
-                        next_meal = {
-                            "type": meal_type,
-                            "time": meal_time.strftime("%I:%M %p"),
-                            "foods": meal['foods'],
-                            "calories": meal['calories'],
-                            "protein": meal['protein'],
-                            "carbs": meal['carbs'],
-                            "fat": meal['fat']
-                        }
-                        break
-                break
-        
+                meal_data = meal_lookup.get(meal_type)
+                if meal_data:
+                    next_meal = {
+                        "type":        meal_type,
+                        "time":        meal_time.strftime("%I:%M %p"),
+                        "dish":        meal_data["dish"],
+                        "foods":       meal_data["foods"],
+                        "calories":    meal_data["calories"],
+                        "protein":     meal_data["protein"],
+                        "carbs":       meal_data["carbs"],
+                        "fat":         meal_data["fat"],
+                        "is_tomorrow": False,
+                    }
+                    break   # ← break only after successfully finding a meal
+                # if no data for this time slot, continue to the next meal
+
+        # After dinner (or if no slot matched), fall forward to tomorrow's breakfast
+        # so the widget always shows something useful.
+        if not next_meal:
+            bfast = meal_lookup.get("breakfast")
+            if bfast:
+                next_meal = {
+                    "type":        "breakfast",
+                    "time":        "07:00 AM",
+                    "dish":        bfast["dish"],
+                    "foods":       bfast["foods"],
+                    "calories":    bfast["calories"],
+                    "protein":     bfast["protein"],
+                    "carbs":       bfast["carbs"],
+                    "fat":         bfast["fat"],
+                    "is_tomorrow": True,
+                }
+
         if next_meal:
             return {"success": True, "next_meal": next_meal}
         else:
-            return {"success": False, "message": "All meals completed for today"}
+            return {"success": False, "message": "No diet plan meals found for today"}
             
     except Exception as e:
-        cur.close()
-        conn.close()
+        try:
+            cur.close()
+            conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# =========================
-# GOOGLE OAUTH AUTHENTICATION ROUTES
-# =========================
-
 @app.post("/api/auth/google")
 async def google_login(request: dict, req: Request):
-    """Authenticate user with Google OAuth"""
     if not google_auth_service:
         raise HTTPException(status_code=503, detail="Google Auth service not available. Install google-auth package.")
     
@@ -2711,16 +2659,9 @@ async def google_login(request: dict, req: Request):
         raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 
-# =========================
-# SUBSCRIPTION MANAGEMENT ROUTES
-# =========================
-
 @app.get("/api/subscription/plans")
 async def get_subscription_plans():
-    """Return subscription plans as a pure array (FIXED for frontend .map())"""
-
     try:
-        # If subscription service is NOT available → return default plans
         if not subscription_service:
             return [
                 {
@@ -2779,11 +2720,7 @@ async def get_subscription_plans():
                 }
             ]
 
-        # If subscription service exists → return real plans
         plans = subscription_service.get_all_plans()
-
-        # 🔥 IMPORTANT FIX
-        # Always return array, never {"plans": plans}
         return plans
 
     except Exception as e:
@@ -2792,7 +2729,6 @@ async def get_subscription_plans():
 
 @app.get("/api/subscription/my-subscription")
 async def get_my_subscription(user: dict = Depends(require_auth)):
-    """Get current user's active subscription"""
     if not subscription_service:
         raise HTTPException(status_code=503, detail="Subscription service not available")
     
@@ -2811,12 +2747,6 @@ async def get_my_subscription(user: dict = Depends(require_auth)):
 
 @app.post("/api/subscription/create")
 async def create_subscription_route(request: dict, user: dict = Depends(require_auth)):
-    """
-    Create a Razorpay ORDER (one-time payment) for the selected plan.
-    Works on ALL Razorpay accounts — no Subscriptions product needed.
-
-    Returns order_id + amount for the frontend Razorpay checkout.
-    """
     try:
         rzp_key = os.getenv("RAZORPAY_KEY_ID", "")
         rzp_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
@@ -2837,7 +2767,6 @@ async def create_subscription_route(request: dict, user: dict = Depends(require_
 
         amount_paise = int(plan["final_price"] * 100)
 
-        # ── Create Razorpay Order (works on all accounts) ─────────────────────
         order = razorpay_client.order.create({
             "amount": amount_paise,
             "currency": "INR",
@@ -2850,7 +2779,6 @@ async def create_subscription_route(request: dict, user: dict = Depends(require_
             }
         })
 
-        # ── Persist pending transaction ───────────────────────────────────────
         conn = get_db()
         cur = conn.cursor()
         try:
@@ -2887,47 +2815,11 @@ async def create_subscription_route(request: dict, user: dict = Depends(require_
 
 @app.post("/api/subscription/create-payment")
 async def create_payment_legacy(request: dict, user: dict = Depends(require_auth)):
-    """Legacy alias → same as /api/subscription/create"""
     return await create_subscription_route(request, user)
 
 
-'''@app.post("/api/subscription/activate-subscription")
-async def activate_subscription_manual(
-    transaction_id: str,
-    user: dict = Depends(require_auth)
-):
-    """Activate subscription after payment (demo mode - no actual payment required)"""
-    if not subscription_service:
-        raise HTTPException(status_code=503, detail="Subscription service not available")
-    
-    try:
-        subscription = subscription_service.activate_subscription(
-            transaction_id=transaction_id,
-            gateway_response={"status": "success", "mode": "demo"}
-        )
-        
-        return {
-            "success": True,
-            "subscription": subscription,
-            "message": "Subscription activated successfully!"
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))'''
-        
 @app.post("/api/subscription/verify-payment")
 async def verify_payment(data: dict, user: dict = Depends(require_auth)):
-    """
-    Verify Razorpay payment signature after checkout success.
-    Activates the subscription for the user.
-
-    Expected body:
-        razorpay_payment_id  : "pay_XXXX"
-        razorpay_subscription_id : "sub_XXXX"
-        razorpay_signature   : "<hmac>"
-        plan_id              : <int>
-    """
     try:
         rzp_payment_id = data.get("razorpay_payment_id")
         rzp_sub_id = data.get("razorpay_subscription_id")
@@ -2939,8 +2831,6 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
         if not all([rzp_payment_id, rzp_signature, rzp_order_id]):
             raise HTTPException(status_code=400, detail="Missing payment verification fields (need razorpay_payment_id, razorpay_order_id, razorpay_signature)")
 
-        # ── Verify order payment signature ────────────────────────────────────
-        # Signature = HMAC-SHA256(order_id + "|" + payment_id)
         razorpay_client.utility.verify_payment_signature({
             "razorpay_order_id": rzp_order_id,
             "razorpay_payment_id": rzp_payment_id,
@@ -2952,9 +2842,7 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
     except Exception:
         raise HTTPException(status_code=400, detail="Payment signature verification failed")
 
-    # ── Activate subscription in DB ──────────────────────────────────────────
     try:
-        # Derive duration from plan
         plans = await get_subscription_plans()
         plan = next((p for p in plans if p["id"] == plan_id), None)
         duration_months = plan["duration_months"] if plan else 1
@@ -2965,7 +2853,6 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
         conn = get_db()
         cur = conn.cursor()
         try:
-            # Update / create user_subscriptions row
             cur.execute("""
                 INSERT INTO user_subscriptions
                 (user_id, plan_id, status, start_date, end_date, created_at)
@@ -2976,7 +2863,6 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
 
             sub_id = cur.lastrowid
 
-            # Mark payment_transactions completed
             cur.execute("""
                 UPDATE payment_transactions
                 SET payment_status='completed',
@@ -2991,7 +2877,6 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
                 rzp_order_id
             ))
 
-            # Update users table with all required subscription fields
             cur.execute("""
                 UPDATE users SET
                     is_premium = TRUE,
@@ -3031,7 +2916,6 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
 
 @app.get("/api/subscription/status")
 async def get_subscription_status(user: dict = Depends(require_auth)):
-    """Get user's subscription status"""
     if not subscription_middleware:
         return {
             "is_premium": False,
@@ -3052,9 +2936,7 @@ async def check_feature_access(
     feature_name: str,
     user: dict = Depends(require_auth)
 ):
-    """Check if user has access to a specific feature"""
     if not subscription_middleware:
-        # Fallback: allow all features if middleware not available
         return {
             "feature_name": feature_name,
             "has_access": True,
@@ -3078,26 +2960,11 @@ async def check_feature_access(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# =========================
-# RAZORPAY WEBHOOK
-# =========================
-
 import hmac
 import hashlib
 
 @app.post("/api/webhook/razorpay")
 async def razorpay_webhook(request: Request):
-    """
-    Razorpay webhook endpoint.
-    Verifies the X-Razorpay-Signature header and processes events:
-      - subscription.activated
-      - subscription.charged
-      - subscription.cancelled
-      - payment.failed
-
-    Set this URL in the Razorpay dashboard → Settings → Webhooks.
-    Webhook secret must match RAZORPAY_WEBHOOK_SECRET env variable.
-    """
     webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
     if not webhook_secret:
         raise HTTPException(status_code=500, detail="Webhook secret not configured")
@@ -3105,7 +2972,6 @@ async def razorpay_webhook(request: Request):
     body_bytes = await request.body()
     received_sig = request.headers.get("X-Razorpay-Signature", "")
 
-    # ── Verify webhook signature ─────────────────────────────────────────────
     expected_sig = hmac.new(
         webhook_secret.encode("utf-8"),
         body_bytes,
@@ -3123,7 +2989,6 @@ async def razorpay_webhook(request: Request):
     event_type = payload.get("event", "")
     event_id = payload.get("event_id") or payload.get("id") or secrets.token_urlsafe(8)
 
-    # ── Idempotency: skip already-processed events ───────────────────────────
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -3137,7 +3002,6 @@ async def razorpay_webhook(request: Request):
             conn.close()
             return {"status": "already_processed"}
 
-        # Log the event
         cur.execute(
             """INSERT INTO razorpay_webhook_events
                (event_id, event_type, payload, processed, created_at)
@@ -3150,7 +3014,6 @@ async def razorpay_webhook(request: Request):
     except Exception as db_err:
         print(f"Webhook DB log error: {db_err}")
 
-    # ── Route events ─────────────────────────────────────────────────────────
     try:
         if event_type in ("subscription.activated", "subscription.charged"):
             await _webhook_activate_subscription(payload)
@@ -3161,7 +3024,6 @@ async def razorpay_webhook(request: Request):
         elif event_type == "payment.failed":
             await _webhook_payment_failed(payload)
 
-        # Mark processed
         try:
             conn = get_db()
             cur = conn.cursor()
@@ -3182,7 +3044,6 @@ async def razorpay_webhook(request: Request):
 
 
 async def _webhook_activate_subscription(payload: dict):
-    """Handle subscription.activated / subscription.charged."""
     sub_data = payload.get("payload", {}).get("subscription", {}).get("entity", {})
     payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
 
@@ -3195,7 +3056,6 @@ async def _webhook_activate_subscription(payload: dict):
     if not rzp_sub_id:
         return
 
-    # Determine plan duration
     duration_months = 1
     if plan_id:
         try:
@@ -3212,7 +3072,6 @@ async def _webhook_activate_subscription(payload: dict):
     conn = get_db()
     cur = conn.cursor(dictionary=True)
     try:
-        # Lookup user by subscription id if user_id note is missing
         if not user_id:
             cur.execute(
                 "SELECT id FROM users WHERE razorpay_subscription_id = %s", (rzp_sub_id,)
@@ -3238,7 +3097,6 @@ async def _webhook_activate_subscription(payload: dict):
             WHERE id = %s
         """, (rzp_sub_id, rzp_payment_id, start_date, end_date, end_date, user_id))
 
-        # Upsert user_subscriptions table
         if plan_id:
             cur.execute("""
                 INSERT INTO user_subscriptions
@@ -3256,7 +3114,6 @@ async def _webhook_activate_subscription(payload: dict):
 
 
 async def _webhook_cancel_subscription(payload: dict):
-    """Handle subscription.cancelled."""
     sub_data = payload.get("payload", {}).get("subscription", {}).get("entity", {})
     rzp_sub_id = sub_data.get("id")
     if not rzp_sub_id:
@@ -3273,7 +3130,6 @@ async def _webhook_cancel_subscription(payload: dict):
             WHERE razorpay_subscription_id = %s
         """, (rzp_sub_id,))
 
-        # Also mark user_subscriptions cancelled
         cur.execute("""
             UPDATE user_subscriptions us
             JOIN users u ON u.id = us.user_id
@@ -3289,12 +3145,10 @@ async def _webhook_cancel_subscription(payload: dict):
 
 
 async def _webhook_payment_failed(payload: dict):
-    """Handle payment.failed — mark subscription inactive."""
     payment_data = payload.get("payload", {}).get("payment", {}).get("entity", {})
     description = payment_data.get("description", "")
     rzp_payment_id = payment_data.get("id", "")
 
-    # Try to identify subscription from payment notes
     notes = payment_data.get("notes", {})
     rzp_sub_id = notes.get("razorpay_subscription_id") or payment_data.get("subscription_id")
 
@@ -3313,7 +3167,6 @@ async def _webhook_payment_failed(payload: dict):
             WHERE razorpay_subscription_id = %s
         """, (rzp_sub_id,))
 
-        # Log the failure in payment_transactions
         cur.execute("""
             UPDATE payment_transactions
             SET payment_status = 'failed', updated_at = NOW()
@@ -3327,228 +3180,14 @@ async def _webhook_payment_failed(payload: dict):
         conn.close()
 
 
-# =========================
-# ENHANCED WATER TRACKING ROUTES
-# =========================
-
-@app.post("/api/water/adjust")
-async def adjust_water_intake(request: dict, user: dict = Depends(require_auth)):
-    """Adjust water intake by +1 or -1 glass"""
-    try:
-        adjustment = request.get("adjustment")
-        if adjustment not in [-1, 1]:
-            raise HTTPException(status_code=400, detail="Adjustment must be +1 or -1")
-        
-        conn = get_db()
-        cur = conn.cursor(dictionary=True)
-        
-        today = date.today()
-        
-        # Get current total for today
-        cur.execute("""
-            SELECT COALESCE(SUM(glasses), 0) as current_total
-            FROM water_logs
-            WHERE user_id = %s AND log_date = %s
-        """, (user['id'], today))
-        
-        result = cur.fetchone()
-        current_total = int(result['current_total']) if result else 0
-        
-        # Calculate new total
-        new_total = current_total + adjustment
-        
-        # Prevent negative values
-        if new_total < 0:
-            cur.close()
-            conn.close()
-            raise HTTPException(status_code=400, detail="Water intake cannot be negative")
-        
-        # If adjusting up, add a new log entry
-        if adjustment > 0:
-            cur.execute("""
-                INSERT INTO water_logs (user_id, glasses, log_date, logged_at)
-                VALUES (%s, 1, %s, NOW())
-            """, (user['id'], today))
-        
-        # If adjusting down, remove the most recent entry
-        elif adjustment < 0 and current_total > 0:
-            cur.execute("""
-                DELETE FROM water_logs
-                WHERE user_id = %s AND log_date = %s
-                ORDER BY logged_at DESC
-                LIMIT 1
-            """, (user['id'], today))
-        
-        conn.commit()
-        
-        # Get user's water goal
-        cur.execute("""
-            SELECT daily_water_goal
-            FROM users
-            WHERE id = %s
-        """, (user['id'],))
-        
-        user_data = cur.fetchone()
-        goal = user_data['daily_water_goal'] if user_data else 8
-        
-        cur.close()
-        conn.close()
-        
-        percentage = min(100, (new_total / goal * 100)) if goal > 0 else 0
-        
-        return {
-            "success": True,
-            "current": new_total,
-            "goal": goal,
-            "percentage": round(percentage, 1),
-            "goal_reached": new_total >= goal
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/water/today")
-async def get_today_water_intake(user: dict = Depends(require_auth)):
-    """Get today's water intake"""
-    try:
-        conn = get_db()
-        cur = conn.cursor(dictionary=True)
-        
-        today = date.today()
-        
-        # Get user's water goal
-        cur.execute("""
-            SELECT daily_water_goal
-            FROM users
-            WHERE id = %s
-        """, (user['id'],))
-        
-        user_data = cur.fetchone()
-        goal = user_data['daily_water_goal'] if user_data else 8
-        
-        # Get today's total
-        cur.execute("""
-            SELECT COALESCE(SUM(glasses), 0) as total
-            FROM water_logs
-            WHERE user_id = %s AND log_date = %s
-        """, (user['id'], today))
-        
-        result = cur.fetchone()
-        current = int(result['total']) if result else 0
-        
-        cur.close()
-        conn.close()
-        
-        percentage = min(100, (current / goal * 100)) if goal > 0 else 0
-        
-        return {
-            "current": current,
-            "goal": goal,
-            "date": today.isoformat(),
-            "percentage": round(percentage, 1),
-            "goal_reached": current >= goal
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/water/set-goal")
-async def set_water_goal(request: dict, user: dict = Depends(require_auth)):
-    """Set daily water intake goal"""
-    try:
-        goal = request.get("goal")
-        
-        if not goal or goal < 1 or goal > 20:
-            raise HTTPException(status_code=400, detail="Goal must be between 1 and 20 glasses")
-        
-        conn = get_db()
-        cur = conn.cursor()
-        
-        cur.execute("""
-            UPDATE users
-            SET daily_water_goal = %s,
-                updated_at = NOW()
-            WHERE id = %s
-        """, (goal, user['id']))
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        return {
-            "success": True,
-            "message": f"Daily water goal set to {goal} glasses",
-            "goal": goal
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/water/history")
-async def get_water_history(days: int = 7, user: dict = Depends(require_auth)):
-    """Get water intake history for the past N days"""
-    try:
-        if days < 1 or days > 30:
-            raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
-        
-        conn = get_db()
-        cur = conn.cursor(dictionary=True)
-        
-        cur.execute("""
-            SELECT 
-                log_date as date,
-                SUM(glasses) as glasses
-            FROM water_logs
-            WHERE user_id = %s 
-                AND log_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-            GROUP BY log_date
-            ORDER BY log_date DESC
-        """, (user['id'], days))
-        
-        history = cur.fetchall()
-        
-        cur.close()
-        conn.close()
-        
-        # Convert dates to strings
-        for entry in history:
-            entry['date'] = entry['date'].isoformat()
-        
-        return {
-            "success": True,
-            "history": history,
-            "days": days
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
-# =========================
-# MEAL LOG BATCH ENDPOINT
-# =========================
-
 @app.post("/api/meals/log-batch")
 async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
-    """Log multiple food items from analysis to the food diary at once."""
     conn = None
     cur = None
     try:
         conn = get_db()
         cur = conn.cursor()
 
-        # Log to food_analysis_history
         cur.execute("""
             INSERT INTO food_analysis_history
             (user_id, food_items, total_calories, total_protein, total_carbs, total_fat, total_fiber)
@@ -3563,7 +3202,6 @@ async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
             req.nutrition.get("fiber", 0),
         ))
 
-        # Log each item to meal_logs
         items_logged = 0
         for item in req.items:
             cur.execute("""
@@ -3602,19 +3240,13 @@ async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
             conn.close()
 
 
-# =========================
-# FASTING TRACKER ENDPOINTS
-# =========================
-
 @app.get("/api/fasting/plans")
 def get_fasting_plans():
-    """Return all available fasting plans."""
     return {"success": True, "plans": list(FASTING_PLANS.values())}
 
 
 @app.get("/api/fasting/my-plan")
 def get_my_fasting_plan(user=Depends(require_auth)):
-    """Get the current user's saved fasting plan."""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -3631,7 +3263,6 @@ def get_my_fasting_plan(user=Depends(require_auth)):
 
 @app.post("/api/fasting/set-plan")
 async def set_fasting_plan(request: dict, user=Depends(require_auth)):
-    """Save the user's chosen fasting plan."""
     plan_id = request.get("plan_id", "none")
     if plan_id not in FASTING_PLANS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: {plan_id}")
@@ -3649,12 +3280,10 @@ async def set_fasting_plan(request: dict, user=Depends(require_auth)):
 
 @app.post("/api/fasting/start")
 async def start_fasting_session(request: dict, user=Depends(require_auth)):
-    """Start a fasting session for the user."""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
 
-        # Check for already-active session
         cur.execute("""
             SELECT id FROM fasting_sessions
             WHERE user_id = %s AND end_time IS NULL
@@ -3665,7 +3294,6 @@ async def start_fasting_session(request: dict, user=Depends(require_auth)):
             conn.close()
             raise HTTPException(status_code=400, detail="You already have an active fasting session.")
 
-        # Get user's fasting plan
         cur.execute("SELECT fasting_plan FROM users WHERE id = %s", (user["id"],))
         row = cur.fetchone()
         plan_id = (row["fasting_plan"] or "none") if row else "none"
@@ -3701,7 +3329,6 @@ async def start_fasting_session(request: dict, user=Depends(require_auth)):
 
 @app.post("/api/fasting/end")
 async def end_fasting_session(request: dict, user=Depends(require_auth)):
-    """End the current fasting session."""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -3748,7 +3375,6 @@ async def end_fasting_session(request: dict, user=Depends(require_auth)):
 
 @app.get("/api/fasting/status")
 def get_fasting_status(user=Depends(require_auth)):
-    """Get current fasting session status with elapsed/remaining time."""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -3801,7 +3427,6 @@ def get_fasting_status(user=Depends(require_auth)):
 
 @app.get("/api/fasting/history")
 def get_fasting_history(days: int = 30, user=Depends(require_auth)):
-    """Get fasting session history for the past N days."""
     try:
         conn = get_db()
         cur = conn.cursor(dictionary=True)
@@ -3857,10 +3482,6 @@ def get_fasting_history(days: int = 30, user=Depends(require_auth)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# =========================
-# SYSTEM INFORMATION
-# =========================
 
 print("=" * 60)
 print("✓ NutriLife API initialized successfully")

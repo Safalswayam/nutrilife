@@ -7,241 +7,221 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
 import {
-  Moon,
-  Play,
-  Square,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Loader2,
-  Trophy,
-  TrendingUp,
-  Calendar,
-  Zap,
+  Moon, Play, Square, Clock, CheckCircle, AlertTriangle,
+  Loader2, Trophy, TrendingUp, Calendar, Zap, Sun,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface FastingPlan {
-  id: string
-  name: string
-  emoji: string
-  fast_hours: number
-  eat_hours: number
-  category: string
-  difficulty: string
-  description: string
-  suitable_for: string
-  benefits: string[]
-  tips: string[]
+  id: string; name: string; emoji: string; fast_hours: number; eat_hours: number
+  category: string; difficulty: string; description: string; suitable_for: string
+  benefits: string[]; tips: string[]
 }
-
 interface ActiveSession {
-  id: number
-  plan_type: string
-  plan: FastingPlan
-  start_time: string
-  target_end_time: string | null
-  elapsed_seconds: number
-  remaining_seconds: number
-  elapsed_hours: number
-  goal_hours: number
-  progress_percent: number
-  goal_reached: boolean
+  id: number; plan_type: string; plan: FastingPlan; start_time: string
+  target_end_time: string | null; elapsed_seconds: number; remaining_seconds: number
+  elapsed_hours: number; goal_hours: number; progress_percent: number; goal_reached: boolean
 }
-
 interface HistorySession {
-  id: number
-  plan_type: string
-  plan_name: string
-  plan_emoji: string
-  start_time: string
-  end_time: string | null
-  duration_hours: number
-  completed: boolean
+  id: number; plan_type: string; plan_name: string; plan_emoji: string
+  start_time: string; end_time: string | null; duration_hours: number; completed: boolean
 }
-
 interface FastingStats {
-  total_sessions: number
-  completed_sessions: number
-  avg_duration_hours: number
-  success_rate_percent: number
+  total_sessions: number; completed_sessions: number
+  avg_duration_hours: number; success_rate_percent: number
 }
 
 const difficultyColor: Record<string, string> = {
-  None: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-  Easy: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
-  Moderate: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400",
-  Hard: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400",
-  "Very Hard": "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
-  Extreme: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400",
+  None:        "bg-gray-100 text-gray-600",
+  Easy:        "bg-green-100 text-green-700",
+  Moderate:    "bg-yellow-100 text-yellow-700",
+  Hard:        "bg-orange-100 text-orange-700",
+  "Very Hard": "bg-red-100 text-red-700",
+  Extreme:     "bg-purple-100 text-purple-700",
 }
 
-function formatDuration(seconds: number) {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`
+function pad(n: number) { return n.toString().padStart(2, "0") }
+function splitSecs(s: number) {
+  return { h: pad(Math.floor(s / 3600)), m: pad(Math.floor((s % 3600) / 60)), s: pad(s % 60) }
+}
+
+/* ── Animated ring timer — shown both idle (0%) and active ── */
+function RingTimer({
+  seconds,
+  goalSeconds,
+  emoji,
+  isActive,
+}: {
+  seconds: number
+  goalSeconds: number
+  emoji: string
+  isActive: boolean
+}) {
+  const { h, m, s } = splitSecs(seconds)
+  const pct = goalSeconds > 0 ? Math.min(100, (seconds / goalSeconds) * 100) : 0
+  const R = 80
+  const C = 2 * Math.PI * R
+  const offset = C * (1 - pct / 100)
+
+  return (
+    <div className="flex flex-col items-center py-2">
+      <div className="relative w-52 h-52">
+        <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+          {/* Track ring */}
+          <circle
+            cx="100" cy="100" r={R}
+            fill="none" strokeWidth="10"
+            className="stroke-muted"
+          />
+          {/* Progress ring */}
+          <circle
+            cx="100" cy="100" r={R}
+            fill="none" strokeWidth="10"
+            stroke="url(#ringGrad)"
+            strokeLinecap="round"
+            strokeDasharray={C}
+            strokeDashoffset={offset}
+            style={{ transition: "stroke-dashoffset 0.8s ease" }}
+          />
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#6366f1" />
+              <stop offset="100%" stopColor="#8b5cf6" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {/* Center content */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+          <span className="text-2xl">{emoji}</span>
+
+          {isActive ? (
+            /* Live clock digits */
+            <div className="flex items-end gap-0.5 font-mono">
+              {[{ v: h, l: "h" }, { v: m, l: "m" }, { v: s, l: "s" }].map(({ v, l }, i) => (
+                <React.Fragment key={l}>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-foreground tabular-nums leading-none">{v}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-widest">{l}</div>
+                  </div>
+                  {i < 2 && <div className="text-xl font-bold text-muted-foreground leading-none mb-3">:</div>}
+                </React.Fragment>
+              ))}
+            </div>
+          ) : (
+            /* Idle state */
+            <div className="text-center">
+              <div className="text-sm font-semibold text-muted-foreground">Ready</div>
+              <div className="text-xs text-muted-foreground/60">to fast</div>
+            </div>
+          )}
+
+          {/* Percentage */}
+          <div className={cn("text-xs font-medium mt-1", isActive ? "text-indigo-600" : "text-muted-foreground/50")}>
+            {Math.round(pct)}%
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function FastingTrackerPage() {
   const { token } = useAuth()
-  const [allPlans, setAllPlans] = useState<FastingPlan[]>([])
-  const [savedPlanId, setSavedPlanId] = useState<string>("none")
+  const [allPlans, setAllPlans]           = useState<FastingPlan[]>([])
+  const [savedPlanId, setSavedPlanId]     = useState("none")
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
-  const [history, setHistory] = useState<HistorySession[]>([])
-  const [stats, setStats] = useState<FastingStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [starting, setStarting] = useState(false)
-  const [ending, setEnding] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-
-  // Live timer
-  const [elapsed, setElapsed] = useState(0)
+  const [history, setHistory]             = useState<HistorySession[]>([])
+  const [stats, setStats]                 = useState<FastingStats | null>(null)
+  const [loading, setLoading]             = useState(true)
+  const [starting, setStarting]           = useState(false)
+  const [ending, setEnding]               = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+  const [success, setSuccess]             = useState<string | null>(null)
+  const [elapsed, setElapsed]             = useState(0)
 
   const fetchStatus = useCallback(async () => {
     if (!token) return
     try {
-      const [statusRes, historyRes, planRes] = await Promise.all([
-        fetch(getApiUrl("/api/fasting/status"), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(getApiUrl("/api/fasting/history?days=30"), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(getApiUrl("/api/fasting/my-plan"), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [sR, hR, pR] = await Promise.all([
+        fetch(getApiUrl("/api/fasting/status"),          { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(getApiUrl("/api/fasting/history?days=30"), { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(getApiUrl("/api/fasting/my-plan"),         { headers: { Authorization: `Bearer ${token}` } }),
       ])
-
-      if (statusRes.ok) {
-        const statusData = await statusRes.json()
-        setActiveSession(statusData.active ? statusData.session : null)
-        if (statusData.active && statusData.session) {
-          setElapsed(statusData.session.elapsed_seconds)
-        }
+      if (sR.ok) {
+        const d = await sR.json()
+        setActiveSession(d.active ? d.session : null)
+        if (d.active && d.session) setElapsed(d.session.elapsed_seconds)
       }
-
-      if (historyRes.ok) {
-        const histData = await historyRes.json()
-        setHistory(histData.sessions || [])
-        setStats(histData.stats || null)
-      }
-
-      if (planRes.ok) {
-        const planData = await planRes.json()
-        setSavedPlanId(planData.plan_id || "none")
-      }
-    } catch (err) {
-      console.error("Failed to fetch fasting status:", err)
-    } finally {
-      setLoading(false)
-    }
+      if (hR.ok) { const d = await hR.json(); setHistory(d.sessions || []); setStats(d.stats || null) }
+      if (pR.ok) { const d = await pR.json(); setSavedPlanId(d.plan_id || "none") }
+    } catch { /* silent */ } finally { setLoading(false) }
   }, [token])
 
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch(getApiUrl("/api/fasting/plans"))
-      if (res.ok) {
-        const data = await res.json()
-        setAllPlans(data.plans || [])
-      }
-    } catch {}
+      const r = await fetch(getApiUrl("/api/fasting/plans"))
+      if (r.ok) { const d = await r.json(); setAllPlans(d.plans || []) }
+    } catch { /* silent */ }
   }, [])
 
-  useEffect(() => {
-    fetchPlans()
-    fetchStatus()
-  }, [fetchPlans, fetchStatus])
+  useEffect(() => { fetchPlans(); fetchStatus() }, [fetchPlans, fetchStatus])
 
-  // Live tick
   useEffect(() => {
     if (!activeSession) return
-    const interval = setInterval(() => {
-      setElapsed(prev => prev + 1)
-    }, 1000)
-    return () => clearInterval(interval)
+    const t = setInterval(() => setElapsed(p => p + 1), 1000)
+    return () => clearInterval(t)
   }, [activeSession])
 
   const startFasting = async () => {
-    if (!token) return
-    setStarting(true)
-    setError(null)
-    setSuccess(null)
+    if (!token) return; setStarting(true); setError(null); setSuccess(null)
     try {
-      const res = await fetch(getApiUrl("/api/fasting/start"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+      const r = await fetch(getApiUrl("/api/fasting/start"), {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({}),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || "Failed to start session")
-      setSuccess(data.message || "Fasting session started!")
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || "Failed to start session")
+      setSuccess(d.message || "Fasting session started!")
       await fetchStatus()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start fasting")
-    } finally {
-      setStarting(false)
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed to start fasting") }
+    finally { setStarting(false) }
   }
 
   const endFasting = async () => {
-    if (!token) return
-    setEnding(true)
-    setError(null)
-    setSuccess(null)
+    if (!token) return; setEnding(true); setError(null); setSuccess(null)
     try {
-      const res = await fetch(getApiUrl("/api/fasting/end"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+      const r = await fetch(getApiUrl("/api/fasting/end"), {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({}),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || "Failed to end session")
-      setSuccess(data.message || "Session ended!")
-      setActiveSession(null)
-      setElapsed(0)
-      await fetchStatus()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to end fasting")
-    } finally {
-      setEnding(false)
-    }
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || "Failed to end session")
+      setSuccess(d.message || "Session ended!")
+      setActiveSession(null); setElapsed(0); await fetchStatus()
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed to end fasting") }
+    finally { setEnding(false) }
   }
 
-  const setSavedPlan = async (planId: string) => {
+  const savePlan = async (planId: string) => {
     if (!token) return
     try {
-      const res = await fetch(getApiUrl("/api/fasting/set-plan"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+      const r = await fetch(getApiUrl("/api/fasting/set-plan"), {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan_id: planId }),
       })
-      if (res.ok) {
-        setSavedPlanId(planId)
-        setSuccess(`Fasting plan saved!`)
-        setTimeout(() => setSuccess(null), 3000)
-      }
-    } catch {}
+      if (r.ok) { setSavedPlanId(planId); setSuccess("Fasting plan saved!"); setTimeout(() => setSuccess(null), 3000) }
+    } catch { /* silent */ }
   }
 
-  const savedPlan = allPlans.find(p => p.id === savedPlanId) || null
-
-  // Calculate current progress
+  const savedPlan   = allPlans.find(p => p.id === savedPlanId) || null
   const goalSeconds = activeSession ? activeSession.goal_hours * 3600 : 0
-  const progress = goalSeconds > 0 ? Math.min(100, (elapsed / goalSeconds) * 100) : 0
-  const remaining = goalSeconds > 0 ? Math.max(0, goalSeconds - elapsed) : 0
+  const progress    = goalSeconds > 0 ? Math.min(100, (elapsed / goalSeconds) * 100) : 0
+  const remaining   = goalSeconds > 0 ? Math.max(0, goalSeconds - elapsed) : 0
+  const goalReached = progress >= 100
+  const planEmoji   = activeSession?.plan?.emoji ?? savedPlan?.emoji ?? "🌙"
 
   if (loading) {
     return (
@@ -272,51 +252,88 @@ export default function FastingTrackerPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* LEFT: Timer + controls */}
+
+        {/* ══ LEFT: Timer card (always visible) + controls ══ */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Active Session Timer */}
-          {activeSession ? (
-            <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-indigo-800 dark:text-indigo-200">
+
+          {/* Main timer card — always shown, switches state */}
+          <Card className={cn(
+            "transition-all",
+            activeSession
+              ? "border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30"
+              : ""
+          )}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className={cn(
+                  "flex items-center gap-2",
+                  activeSession ? "text-indigo-800 dark:text-indigo-200" : ""
+                )}>
                   <Moon className="w-5 h-5" />
-                  Fasting in Progress
-                  <span className="ml-auto text-lg font-mono text-indigo-700 dark:text-indigo-300">
-                    {formatDuration(elapsed)}
-                  </span>
+                  {activeSession ? "Fasting in Progress" : "Start Fasting"}
                 </CardTitle>
-                <CardDescription className="text-indigo-700 dark:text-indigo-400">
-                  {activeSession.plan.emoji} {activeSession.plan.name}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {activeSession.goal_hours > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm font-medium">
-                      <span className="text-indigo-700 dark:text-indigo-300">
-                        {Math.round(progress)}% complete
-                      </span>
-                      <span className="text-muted-foreground">
-                        {remaining > 0 ? `${formatDuration(remaining)} remaining` : "Goal reached! 🎉"}
-                      </span>
-                    </div>
-                    <Progress value={progress} className="h-3" />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Start</span>
-                      <span>Goal: {activeSession.goal_hours}h</span>
-                    </div>
-                  </>
-                )}
 
-                {progress >= 100 && (
-                  <Alert className="bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30">
-                    <Trophy className="w-4 h-4 text-yellow-600" />
-                    <AlertDescription className="text-yellow-700 dark:text-yellow-300 font-semibold">
-                      🎉 Goal reached! You can break your fast now.
-                    </AlertDescription>
-                  </Alert>
+                {activeSession && (
+                  <div className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+                    </span>
+                    Live
+                  </div>
                 )}
+              </div>
 
+              <CardDescription className={activeSession ? "text-indigo-700 dark:text-indigo-400" : ""}>
+                {activeSession
+                  ? `${activeSession.plan.emoji} ${activeSession.plan.name}`
+                  : savedPlan && savedPlan.id !== "none"
+                    ? `Using: ${savedPlan.emoji} ${savedPlan.name}`
+                    : "Select a plan from the right panel to begin"}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {/* ── Ring timer (always rendered, 0% when idle) ── */}
+              <div className={cn(
+                "rounded-xl py-2",
+                activeSession
+                  ? "bg-white/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900"
+                  : "bg-muted/30 border"
+              )}>
+                <RingTimer
+                  seconds={elapsed}
+                  goalSeconds={goalSeconds}
+                  emoji={planEmoji}
+                  isActive={!!activeSession}
+                />
+              </div>
+
+              {/* Progress info when active */}
+              {activeSession && activeSession.goal_hours > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>
+                    Started: {new Date(activeSession.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  {remaining > 0
+                    ? <span>{splitSecs(remaining).h}:{splitSecs(remaining).m} remaining</span>
+                    : <span className="text-green-600 font-medium">🎉 Goal reached!</span>
+                  }
+                </div>
+              )}
+
+              {/* Goal reached */}
+              {goalReached && (
+                <Alert className="bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30">
+                  <Trophy className="w-4 h-4 text-yellow-600" />
+                  <AlertDescription className="text-yellow-700 dark:text-yellow-300 font-semibold">
+                    🎉 Goal reached! You can break your fast now.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Start/end times when active */}
+              {activeSession && (
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="p-3 rounded-lg bg-white/60 dark:bg-indigo-950/40">
                     <p className="text-muted-foreground text-xs">Started</p>
@@ -333,100 +350,65 @@ export default function FastingTrackerPage() {
                     </div>
                   )}
                 </div>
+              )}
 
-                <Button
-                  onClick={endFasting}
-                  disabled={ending}
-                  variant="destructive"
-                  className="w-full"
-                  size="lg"
-                >
-                  {ending ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Ending...</>
-                  ) : (
-                    <><Square className="w-4 h-4 mr-2" />End Fasting Session</>
+              {/* Idle — plan preview */}
+              {!activeSession && savedPlan && savedPlan.id !== "none" && (
+                <div className="grid grid-cols-2 gap-2">
+                  {savedPlan.fast_hours > 0 && (
+                    <>
+                      <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg p-2.5 text-center">
+                        <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300">{savedPlan.fast_hours}h</p>
+                        <p className="text-xs text-muted-foreground">Fasting window</p>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 text-center">
+                        <p className="text-lg font-bold text-green-700 dark:text-green-300">{savedPlan.eat_hours}h</p>
+                        <p className="text-xs text-muted-foreground">Eating window</p>
+                      </div>
+                    </>
                   )}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-primary" />
-                  Start Fasting
-                </CardTitle>
-                <CardDescription>
-                  {savedPlan && savedPlan.id !== "none"
-                    ? `Using your saved plan: ${savedPlan.emoji} ${savedPlan.name}`
-                    : "No fasting plan saved. Select one from the panel on the right."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {savedPlan && savedPlan.id !== "none" && (
-                  <div className="rounded-lg border p-4 space-y-2 bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm">
-                        {savedPlan.emoji} {savedPlan.name}
-                      </span>
-                      <span className={cn(
-                        "text-xs px-2 py-0.5 rounded-full font-medium",
-                        difficultyColor[savedPlan.difficulty] || ""
-                      )}>
-                        {savedPlan.difficulty}
-                      </span>
-                    </div>
-                    {savedPlan.fast_hours > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Fast {savedPlan.fast_hours}h · Eat {savedPlan.eat_hours}h
-                      </p>
-                    )}
-                    <ul className="text-xs space-y-1 text-muted-foreground">
-                      {savedPlan.tips.slice(0, 2).map((tip, i) => (
-                        <li key={i} className="flex items-start gap-1">
-                          <Zap className="w-3 h-3 mt-0.5 flex-shrink-0 text-yellow-500" />
-                          {tip}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                </div>
+              )}
 
+              {/* CTA button */}
+              {activeSession ? (
+                <Button onClick={endFasting} disabled={ending} variant="destructive" className="w-full" size="lg">
+                  {ending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Ending...</>
+                          : <><Square className="w-4 h-4 mr-2" />End Fasting Session</>}
+                </Button>
+              ) : (
                 <Button
                   onClick={startFasting}
-                  disabled={starting || savedPlanId === "none" || !savedPlanId}
-                  className="w-full"
-                  size="lg"
+                  disabled={starting || !savedPlanId || savedPlanId === "none"}
+                  className="w-full" size="lg"
                 >
-                  {starting ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Starting...</>
-                  ) : (
-                    <><Play className="w-4 h-4 mr-2" />Start Fasting Session</>
-                  )}
+                  {starting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Starting...</>
+                            : <><Play className="w-4 h-4 mr-2" />Start Fasting Session</>}
                 </Button>
-                {(savedPlanId === "none" || !savedPlanId) && (
-                  <p className="text-xs text-center text-muted-foreground">
-                    Select a fasting plan from the list on the right to start.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
+              )}
+
+              {!activeSession && (!savedPlanId || savedPlanId === "none") && (
+                <p className="text-xs text-center text-muted-foreground">
+                  Select a fasting plan from the list on the right to start.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Stats */}
           {stats && stats.total_sessions > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { label: "Total Sessions", value: stats.total_sessions, icon: Calendar, color: "text-blue-600" },
-                { label: "Completed", value: stats.completed_sessions, icon: Trophy, color: "text-yellow-600" },
-                { label: "Avg Duration", value: `${stats.avg_duration_hours}h`, icon: Clock, color: "text-indigo-600" },
-                { label: "Success Rate", value: `${stats.success_rate_percent}%`, icon: TrendingUp, color: "text-green-600" },
-              ].map((stat) => (
-                <Card key={stat.label}>
-                  <CardContent className="p-4 text-center">
-                    <stat.icon className={cn("w-5 h-5 mx-auto mb-1", stat.color)} />
-                    <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                { label: "Total Sessions", value: stats.total_sessions,            Icon: Calendar,   color: "text-blue-600",   bg: "bg-blue-50 dark:bg-blue-950/20" },
+                { label: "Completed",      value: stats.completed_sessions,         Icon: Trophy,     color: "text-yellow-600", bg: "bg-yellow-50 dark:bg-yellow-950/20" },
+                { label: "Avg Duration",   value: `${stats.avg_duration_hours}h`,   Icon: Clock,      color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-950/20" },
+                { label: "Success Rate",   value: `${stats.success_rate_percent}%`, Icon: TrendingUp, color: "text-green-600",  bg: "bg-green-50 dark:bg-green-950/20" },
+              ].map(({ label, value, Icon, color, bg }) => (
+                <Card key={label}>
+                  <CardContent className={cn("p-4 text-center rounded-xl", bg)}>
+                    <Icon className={cn("w-5 h-5 mx-auto mb-1", color)} />
+                    <p className="text-2xl font-bold text-foreground">{value}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -443,25 +425,25 @@ export default function FastingTrackerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {history.slice(0, 7).map((session) => (
-                    <div key={session.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
+                <div className="space-y-2">
+                  {history.slice(0, 7).map(session => (
+                    <div key={session.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{session.plan_emoji}</span>
                         <div>
                           <p className="font-medium text-sm">{session.plan_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {session.start_time ? new Date(session.start_time).toLocaleDateString() : "—"}
+                            {session.start_time
+                              ? new Date(session.start_time).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                              : "—"}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right flex items-center gap-2">
-                        <span className="text-sm font-medium">{session.duration_hours}h</span>
-                        {session.completed ? (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <AlertTriangle className="w-4 h-4 text-orange-400" />
-                        )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-muted-foreground">{session.duration_hours}h</span>
+                        {session.completed
+                          ? <CheckCircle className="w-4 h-4 text-green-500" />
+                          : <AlertTriangle className="w-4 h-4 text-orange-400" />}
                       </div>
                     </div>
                   ))}
@@ -471,7 +453,7 @@ export default function FastingTrackerPage() {
           )}
         </div>
 
-        {/* RIGHT: Plan selector */}
+        {/* ══ RIGHT: Plan selector ══ */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
@@ -481,11 +463,11 @@ export default function FastingTrackerPage() {
               </CardTitle>
               <CardDescription>Tap a plan to select it as your default.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 max-h-[700px] overflow-y-auto pr-1">
-              {allPlans.map((plan) => (
+            <CardContent className="space-y-2 max-h-[700px] overflow-y-auto pr-1">
+              {allPlans.map(plan => (
                 <button
                   key={plan.id}
-                  onClick={() => setSavedPlan(plan.id)}
+                  onClick={() => savePlan(plan.id)}
                   className={cn(
                     "w-full text-left rounded-xl border p-3 transition-all",
                     savedPlanId === plan.id
@@ -498,23 +480,36 @@ export default function FastingTrackerPage() {
                       <span>{plan.emoji}</span>
                       <span>{plan.name}</span>
                     </span>
-                    <div className="flex items-center gap-1">
-                      <span className={cn(
-                        "text-xs px-1.5 py-0.5 rounded-full font-medium",
-                        difficultyColor[plan.difficulty] || ""
-                      )}>
+                    <div className="flex items-center gap-1.5">
+                      <Badge className={cn("text-xs font-medium border-0", difficultyColor[plan.difficulty] || difficultyColor["None"])}>
                         {plan.difficulty}
-                      </span>
-                      {savedPlanId === plan.id && (
-                        <CheckCircle className="w-4 h-4 text-indigo-500" />
-                      )}
+                      </Badge>
+                      {savedPlanId === plan.id && <CheckCircle className="w-4 h-4 text-indigo-500" />}
                     </div>
                   </div>
+
                   <p className="text-xs text-muted-foreground line-clamp-2">{plan.description}</p>
+
                   {plan.fast_hours > 0 && (
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-medium">
-                      {plan.fast_hours}h fast / {plan.eat_hours}h eating window
-                    </p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <span className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                        <Moon className="w-3 h-3" />{plan.fast_hours}h fast
+                      </span>
+                      <span className="text-muted-foreground text-xs">·</span>
+                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                        <Sun className="w-3 h-3" />{plan.eat_hours}h eat
+                      </span>
+                    </div>
+                  )}
+
+                  {savedPlanId === plan.id && plan.benefits.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {plan.benefits.slice(0, 3).map((b, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                          {b}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </button>
               ))}
