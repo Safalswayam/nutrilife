@@ -1995,9 +1995,15 @@ def get_dashboard_stats(user=Depends(require_auth)):
                 "avg_weekly_calories": avg_weekly_calories,
                 "weekly_activity": [int(d['calories']) for d in weekly_calories],
                 "macros": {
-                    "protein": round(today_nutrition['total_protein'], 1),
-                    "carbs": round(today_nutrition['total_carbs'], 1),
-                    "fat": round(today_nutrition['total_fat'], 1)
+                    # Cast to float first — MySQL SUM() returns Decimal which breaks JSON
+                    "protein": round(float(today_nutrition['total_protein'] or 0), 1),
+                    "carbs":   round(float(today_nutrition['total_carbs']   or 0), 1),
+                    "fat":     round(float(today_nutrition['total_fat']     or 0), 1),
+                    # Macro targets derived from TDEE:
+                    # 30% protein (4 kcal/g), 45% carbs (4 kcal/g), 25% fat (9 kcal/g)
+                    "target_protein": round(target_calories * 0.30 / 4, 1),
+                    "target_carbs":   round(target_calories * 0.45 / 4, 1),
+                    "target_fat":     round(target_calories * 0.25 / 9, 1),
                 },
                 "recent_meals": recent_meals,
                 "weekly_plan": weekly_plan  # ✅ FIX: Include weekly_plan in stats response
