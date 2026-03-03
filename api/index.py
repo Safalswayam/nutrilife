@@ -495,7 +495,7 @@ def init_database():
             ("subscription_start_date",     "DATETIME"),
             ("subscription_end_date",       "DATETIME"),
             ("google_id",                   "VARCHAR(255)"),
-            ("profile_image",               "VARCHAR(500)"),
+            ("profile_image",               "MEDIUMTEXT"),      # stores base64 image data URL
             ("auth_provider",               "VARCHAR(50) DEFAULT 'email'"),
             ("is_premium",                  "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("subscription_expires_at",     "DATETIME"),
@@ -1920,20 +1920,37 @@ def get_dashboard_stats(user=Depends(require_auth)):
         """, (user["id"], today))
         water_data = cur.fetchone()
         
+        # Fetch last 7 days with actual date so we can map to correct day names
         cur.execute("""
-            SELECT DATE(logged_at) as date, 
+            SELECT DATE(logged_at) as log_date,
                    COALESCE(SUM(calories), 0) as calories
             FROM meal_logs
-            WHERE user_id = %s 
-              AND logged_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            WHERE user_id = %s
+              AND DATE(logged_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
             GROUP BY DATE(logged_at)
             ORDER BY DATE(logged_at)
         """, (user["id"],))
-        weekly_calories = cur.fetchall()
-        
+        raw_weekly = cur.fetchall()
+
+        # Build a complete Mon-Sun 7-day window with 0 for missing days
+        from datetime import timedelta as _td
+        day_abbr   = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        cal_by_date = {str(r["log_date"]): int(r["calories"]) for r in raw_weekly}
+
+        weekly_activity = []
+        for i in range(7):
+            d = today - _td(days=6 - i)          # oldest → newest
+            weekly_activity.append({
+                "date":    str(d),
+                "day":     day_abbr[d.weekday()], # Mon=0 … Sun=6
+                "calories": cal_by_date.get(str(d), 0),
+                "is_today": d == today,
+            })
+
         avg_weekly_calories = 0
-        if weekly_calories:
-            avg_weekly_calories = int(sum([d['calories'] for d in weekly_calories]) / len(weekly_calories))
+        filled = [w["calories"] for w in weekly_activity if w["calories"] > 0]
+        if filled:
+            avg_weekly_calories = int(sum(filled) / len(filled))
         
         cur.execute("""
             SELECT weight FROM daily_stats
@@ -1993,17 +2010,11 @@ def get_dashboard_stats(user=Depends(require_auth)):
                 "target_water": 8,
                 "weight_change": weight_change,
                 "avg_weekly_calories": avg_weekly_calories,
-                "weekly_activity": [int(d['calories']) for d in weekly_calories],
+                "weekly_activity": weekly_activity,
                 "macros": {
-                    # Cast to float first — MySQL SUM() returns Decimal which breaks JSON
-                    "protein": round(float(today_nutrition['total_protein'] or 0), 1),
-                    "carbs":   round(float(today_nutrition['total_carbs']   or 0), 1),
-                    "fat":     round(float(today_nutrition['total_fat']     or 0), 1),
-                    # Macro targets derived from TDEE:
-                    # 30% protein (4 kcal/g), 45% carbs (4 kcal/g), 25% fat (9 kcal/g)
-                    "target_protein": round(target_calories * 0.30 / 4, 1),
-                    "target_carbs":   round(target_calories * 0.45 / 4, 1),
-                    "target_fat":     round(target_calories * 0.25 / 9, 1),
+                    "protein": round(today_nutrition['total_protein'], 1),
+                    "carbs": round(today_nutrition['total_carbs'], 1),
+                    "fat": round(today_nutrition['total_fat'], 1)
                 },
                 "recent_meals": recent_meals,
                 "weekly_plan": weekly_plan  # ✅ FIX: Include weekly_plan in stats response
@@ -2207,8 +2218,9 @@ def get_profile(user=Depends(require_auth)):
         cur = conn.cursor(dictionary=True)
         
         cur.execute("""
-            SELECT id, email, name, gender, age, height, weight, 
-                   activity_level, metabolism_type, goal, created_at
+            SELECT id, email, name, gender, age, height, weight,
+                   activity_level, metabolism_type, goal, created_at,
+                   profile_image
             FROM users
             WHERE id = %s
         """, (user["id"],))
@@ -2228,6 +2240,92 @@ def get_profile(user=Depends(require_auth)):
     except Exception as e:
         print(f"Profile fetch error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch profile")
+
+
+@app.post("/api/profile/image")
+async def upload_profile_image(
+    file: UploadFile = File(...),
+    user=Depends(require_auth)
+):
+    """Upload, resize, compress, and save a profile photo as a base64 data URL."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image (JPG, PNG, GIF, or WebP)")
+
+    raw = await file.read()
+    if len(raw) > 10 * 1024 * 1024:   # hard reject at 10 MB before even touching Pillow
+        raise HTTPException(status_code=413, detail="Image must be under 10 MB")
+
+    # ── Resize + compress with Pillow so the stored data URL stays small ──
+    try:
+        from PIL import Image as PILImage
+        import io as _io
+
+        img = PILImage.open(_io.BytesIO(raw))
+
+        # Convert palette/transparency modes to RGB for JPEG compatibility
+        if img.mode in ("RGBA", "P", "LA"):
+            bg = PILImage.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "P":
+                img = img.convert("RGBA")
+            bg.paste(img, mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None)
+            img = bg
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+
+        # Resize to max 400×400 avatar size (preserves aspect ratio)
+        max_dim = 400
+        img.thumbnail((max_dim, max_dim), PILImage.LANCZOS)
+
+        # Compress to JPEG at quality=75 (~15-40 KB for most photos)
+        buf = _io.BytesIO()
+        img.save(buf, format="JPEG", quality=75, optimize=True)
+        compressed = buf.getvalue()
+
+        data_url = f"data:image/jpeg;base64,{base64.b64encode(compressed).decode()}"
+
+    except ImportError:
+        # Pillow not installed — fall back to raw encoding (may be large)
+        data_url = f"data:{file.content_type};base64,{base64.b64encode(raw).decode()}"
+    except Exception as img_err:
+        raise HTTPException(status_code=422, detail=f"Could not process image: {str(img_err)}")
+
+    # ── Ensure column is MEDIUMTEXT (safe to run every time, MySQL ignores no-ops) ──
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        try:
+            cur.execute("ALTER TABLE users MODIFY COLUMN profile_image MEDIUMTEXT")
+            conn.commit()
+        except Exception:
+            pass  # already MEDIUMTEXT or ALTER not permitted — proceed anyway
+
+        cur.execute("UPDATE users SET profile_image = %s WHERE id = %s", (data_url, user["id"]))
+        conn.commit()
+        return {"success": True, "profile_image": data_url}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save image: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.delete("/api/profile/image")
+def delete_profile_image(user=Depends(require_auth)):
+    """Remove the user's profile photo."""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET profile_image = NULL WHERE id = %s", (user["id"],))
+        conn.commit()
+        return {"success": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to remove image: {str(e)}")
+    finally:
+        cur.close()
+        conn.close()
+
 
 @app.put("/api/profile")
 async def update_profile_full(request: Request, user=Depends(require_auth)):

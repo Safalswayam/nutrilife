@@ -111,8 +111,12 @@ export function SidebarNav() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-sidebar-accent/50 hover:bg-sidebar-accent transition-colors text-left">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-semibold">
-                  {user.name?.charAt(0).toUpperCase() || "U"}
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-semibold overflow-hidden flex-shrink-0">
+                  {user.profile_image ? (
+                    <img src={user.profile_image} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    user.name?.charAt(0).toUpperCase() || "U"
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>

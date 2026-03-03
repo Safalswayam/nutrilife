@@ -15,6 +15,7 @@ interface User {
   activity_level?: string
   metabolism_type?: string
   goal?: string
+  profile_image?: string | null
 }
 
 interface AuthContextType {

@@ -240,26 +240,38 @@ export default function FoodAnalysisPage() {
         throw new Error(data.detail || "Failed to analyze food")
       }
 
+      // Distribute total nutrition evenly across detected items for per-item display
+      const items = data.items || []
+      const totalNutrition = data.nutrition || {}
+      const itemCount = items.length || 1
+
       const transformedResult: AnalysisResult = {
         success: data.success,
-        foods: (data.items || []).map((item: { name: string; portion: string; calories: number }) => ({
-          food: item.name,
-          calories: item.calories,
-          protein: data.nutrition?.protein ?? 0,
-          carbs: data.nutrition?.carbs ?? 0,
-          fat: data.nutrition?.fat ?? 0,
-          fiber: data.nutrition?.fiber ?? 0,
-          servingSize: item.portion,
-          healthBenefits: data.health_benefits || [],
-          warnings: data.warnings || [],
-          confidence: 0.85,
-        })),
+        foods: items.map((item: { name: string; portion: string; calories: number }, idx: number) => {
+          // Estimate per-item macros proportionally by calorie share
+          const totalCal = totalNutrition.calories || 1
+          const share = item.calories / totalCal
+          return {
+            food: item.name && item.name.toLowerCase() !== "default"
+              ? item.name
+              : (data.food_name || "Analyzed Food"),
+            calories: item.calories,
+            protein: Math.round((totalNutrition.protein ?? 0) * share * 10) / 10,
+            carbs:   Math.round((totalNutrition.carbs   ?? 0) * share * 10) / 10,
+            fat:     Math.round((totalNutrition.fat     ?? 0) * share * 10) / 10,
+            fiber:   Math.round((totalNutrition.fiber   ?? 0) * share * 10) / 10,
+            servingSize: item.portion,
+            healthBenefits: data.health_benefits || [],
+            warnings: data.warnings || [],
+            confidence: 0.85,
+          }
+        }),
         totalNutrition: {
-          calories: data.nutrition?.calories ?? 0,
-          protein: data.nutrition?.protein ?? 0,
-          carbs: data.nutrition?.carbs ?? 0,
-          fat: data.nutrition?.fat ?? 0,
-          fiber: data.nutrition?.fiber ?? 0,
+          calories: totalNutrition.calories ?? 0,
+          protein:  totalNutrition.protein  ?? 0,
+          carbs:    totalNutrition.carbs    ?? 0,
+          fat:      totalNutrition.fat      ?? 0,
+          fiber:    totalNutrition.fiber    ?? 0,
         },
         healthBenefits: data.health_benefits || [],
         warnings: data.warnings || [],
@@ -268,8 +280,8 @@ export default function FoodAnalysisPage() {
             ? `Try these healthier alternatives: ${data.healthier_alternatives.join(", ")}`
             : "This looks like a balanced meal choice!",
         logged: false,
-        _rawItems: data.items || [],
-        _rawNutrition: data.nutrition || {},
+        _rawItems: items,
+        _rawNutrition: totalNutrition,
       }
 
       setResult(transformedResult)

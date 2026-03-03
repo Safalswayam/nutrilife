@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { getApiUrl } from "@/lib/api"
 import { PageHeader } from "@/components/page-header"
@@ -18,11 +18,13 @@ import {
 } from "@/components/ui/select"
 import {
   User,
-  Settings,
   Save,
   CheckCircle,
   Target,
   Loader2,
+  Camera,
+  Trash2,
+  Upload,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -37,17 +39,27 @@ interface UserProfile {
   activity_level: string
   metabolism_type: string
   goal: string
+  profile_image?: string | null
 }
 
 export default function ProfilePage() {
-  const { user, token } = useAuth()
+  const { user, token, refreshUser } = useAuth()
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"profile" | "goals">("profile")
+
+  // Image upload state
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [removingImage, setRemovingImage] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [imageSaved, setImageSaved] = useState(false)
 
   useEffect(() => {
     if (!user || !token) {
@@ -61,28 +73,24 @@ export default function ProfilePage() {
     try {
       setLoading(true)
       const response = await fetch(getApiUrl("/api/profile"), {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+        headers: { "Authorization": `Bearer ${token}` },
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch profile")
-      }
-
+      if (!response.ok) throw new Error("Failed to fetch profile")
       const data = await response.json()
       if (data.success) {
         setProfile({
-          name: data.profile.name || "",
-          email: data.profile.email || "",
-          gender: data.profile.gender || "male",
-          age: data.profile.age || "",
-          height: data.profile.height || "",
-          weight: data.profile.weight || "",
-          activity_level: data.profile.activity_level || "moderate",
+          name:            data.profile.name            || "",
+          email:           data.profile.email           || "",
+          gender:          data.profile.gender          || "male",
+          age:             data.profile.age             || "",
+          height:          data.profile.height          || "",
+          weight:          data.profile.weight          || "",
+          activity_level:  data.profile.activity_level  || "moderate",
           metabolism_type: data.profile.metabolism_type || "normal",
-          goal: data.profile.goal || "maintain",
+          goal:            data.profile.goal            || "maintain",
+          profile_image:   data.profile.profile_image   || null,
         })
+        setImagePreview(data.profile.profile_image || null)
       }
     } catch (err) {
       console.error("Profile fetch error:", err)
@@ -94,11 +102,9 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!profile || !token) return
-
     try {
       setSaving(true)
       setError(null)
-      
       const response = await fetch(getApiUrl("/api/profile"), {
         method: "PUT",
         headers: {
@@ -106,21 +112,17 @@ export default function ProfilePage() {
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: profile.name,
-          gender: profile.gender,
-          age: profile.age ? parseInt(profile.age.toString()) : null,
-          height: profile.height ? parseFloat(profile.height.toString()) : null,
-          weight: profile.weight ? parseFloat(profile.weight.toString()) : null,
-          activity_level: profile.activity_level,
+          name:            profile.name,
+          gender:          profile.gender,
+          age:             profile.age    ? parseInt(profile.age.toString())    : null,
+          height:          profile.height ? parseFloat(profile.height.toString()) : null,
+          weight:          profile.weight ? parseFloat(profile.weight.toString()) : null,
+          activity_level:  profile.activity_level,
           metabolism_type: profile.metabolism_type,
-          goal: profile.goal,
+          goal:            profile.goal,
         }),
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to update profile")
-      }
-
+      if (!response.ok) throw new Error("Failed to update profile")
       const data = await response.json()
       if (data.success) {
         setSaved(true)
@@ -134,10 +136,97 @@ export default function ProfilePage() {
     }
   }
 
+  // ── Image handlers ────────────────────────────────────────────
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageError(null)
+
+    if (!file.type.startsWith("image/")) {
+      setImageError("Please select an image file (JPG, PNG, GIF, or WebP)")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError("Image must be under 5 MB")
+      return
+    }
+
+    // Instant local preview
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+
+    uploadImage(file)
+
+    // Reset so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const uploadImage = async (file: File) => {
+    if (!token) return
+    setUploadingImage(true)
+    setImageError(null)
+
+    try {
+      const form = new FormData()
+      form.append("file", file)
+
+      const res = await fetch(getApiUrl("/api/profile/image"), {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: form,
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || "Upload failed")
+
+      // Use server-canonical copy
+      setImagePreview(data.profile_image)
+      setProfile(prev => prev ? { ...prev, profile_image: data.profile_image } : prev)
+      setImageSaved(true)
+      setTimeout(() => setImageSaved(false), 3000)
+      // Refresh auth context so sidebar avatar updates immediately
+      await refreshUser()
+    } catch (err: any) {
+      setImageError(err.message || "Upload failed. Please try again.")
+      setImagePreview(profile?.profile_image || null)
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleRemoveImage = async () => {
+    if (!token) return
+    setRemovingImage(true)
+    setImageError(null)
+
+    try {
+      const res = await fetch(getApiUrl("/api/profile/image"), {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || "Failed to remove image")
+
+      setImagePreview(null)
+      setProfile(prev => prev ? { ...prev, profile_image: null } : prev)
+      await refreshUser()
+    } catch (err: any) {
+      setImageError(err.message || "Failed to remove image")
+    } finally {
+      setRemovingImage(false)
+    }
+  }
+
   const tabs = [
-    { id: "profile" as const, label: "Profile", icon: User },
-    { id: "goals" as const, label: "Health Goals", icon: Target },
+    { id: "profile" as const, label: "Profile",      icon: User   },
+    { id: "goals"   as const, label: "Health Goals", icon: Target },
   ]
+
+  const initials = profile?.name
+    ? profile.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : "U"
 
   if (loading) {
     return (
@@ -150,13 +239,8 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="p-4 md:p-8">
-        <PageHeader
-          title="Profile & Settings"
-          subtitle="Manage your personal information and health goals"
-        />
-        <div className="text-center text-muted-foreground">
-          {error || "Unable to load profile data"}
-        </div>
+        <PageHeader title="Profile & Settings" subtitle="Manage your personal information and health goals" />
+        <div className="text-center text-muted-foreground">{error || "Unable to load profile data"}</div>
       </div>
     )
   }
@@ -169,26 +253,108 @@ export default function ProfilePage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Left Sidebar - Profile Card & Tabs */}
+
+        {/* ── Left Sidebar ── */}
         <div className="space-y-6">
-          {/* Profile Card */}
+
+          {/* Profile photo card */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center">
-                <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <User className="w-12 h-12 text-primary" />
+
+                {/* Avatar with camera hover overlay */}
+                <div className="relative mb-3 group">
+                  <div className="w-24 h-24 rounded-full overflow-hidden ring-2 ring-border bg-primary/10 flex items-center justify-center select-none">
+                    {imagePreview ? (
+                      <img
+                        src={imagePreview}
+                        alt="Profile photo"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-2xl font-bold text-primary">{initials}</span>
+                    )}
+                  </div>
+
+                  {/* Hover overlay — click to open picker */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage || removingImage}
+                    title="Change photo"
+                    className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {uploadingImage
+                      ? <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      : <Camera className="w-6 h-6 text-white" />
+                    }
+                  </button>
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground">
-                  {profile.name || "User"}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  {profile.email}
+
+                {/* Upload / Remove buttons */}
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage || removingImage}
+                    className="text-xs h-7 px-2.5"
+                  >
+                    {uploadingImage
+                      ? <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      : <Upload className="w-3 h-3 mr-1" />
+                    }
+                    {uploadingImage ? "Uploading…" : "Upload"}
+                  </Button>
+
+                  {imagePreview && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveImage}
+                      disabled={uploadingImage || removingImage}
+                      className="text-xs h-7 px-2.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      {removingImage
+                        ? <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        : <Trash2 className="w-3 h-3 mr-1" />
+                      }
+                      {removingImage ? "Removing…" : "Remove"}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Feedback messages */}
+                {imageSaved && (
+                  <p className="text-xs text-green-600 flex items-center gap-1 mb-1">
+                    <CheckCircle className="w-3 h-3" /> Photo saved
+                  </p>
+                )}
+                {imageError && (
+                  <p className="text-xs text-destructive mb-1 max-w-[160px] leading-snug text-center">
+                    {imageError}
+                  </p>
+                )}
+
+                <p className="text-[10px] text-muted-foreground mb-3">
+                  JPG, PNG, GIF or WebP · Max 5 MB
                 </p>
+
+                <h3 className="text-lg font-semibold text-foreground">{profile.name || "User"}</h3>
+                <p className="text-sm text-muted-foreground">{profile.email}</p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Tab Navigation */}
+          {/* Tab navigation */}
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-2">
@@ -215,17 +381,14 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* Main Content */}
+        {/* ── Main Content ── */}
         <div className="lg:col-span-3">
           {saved && (
             <Alert className="mb-6 bg-primary/10 border-primary/20">
               <CheckCircle className="w-4 h-4 text-primary" />
-              <AlertDescription className="text-foreground">
-                Profile updated successfully!
-              </AlertDescription>
+              <AlertDescription className="text-foreground">Profile updated successfully!</AlertDescription>
             </Alert>
           )}
-
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertDescription>{error}</AlertDescription>
@@ -239,9 +402,7 @@ export default function ProfilePage() {
                   <User className="w-5 h-5 text-primary" />
                   Personal Information
                 </CardTitle>
-                <CardDescription>
-                  Update your personal details and physical measurements
-                </CardDescription>
+                <CardDescription>Update your personal details and physical measurements</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -257,20 +418,13 @@ export default function ProfilePage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      value={profile.email}
-                      disabled
-                      className="bg-muted"
-                    />
+                    <Input id="email" value={profile.email} disabled className="bg-muted" />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="gender">Gender</Label>
-                    <Select value={profile.gender} onValueChange={(value) => setProfile({ ...profile, gender: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
+                    <Select value={profile.gender} onValueChange={(v) => setProfile({ ...profile, gender: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="female">Female</SelectItem>
@@ -282,8 +436,7 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label htmlFor="age">Age</Label>
                     <Input
-                      id="age"
-                      type="number"
+                      id="age" type="number"
                       value={profile.age}
                       onChange={(e) => setProfile({ ...profile, age: e.target.value })}
                       placeholder="28"
@@ -293,8 +446,7 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label htmlFor="height">Height (cm)</Label>
                     <Input
-                      id="height"
-                      type="number"
+                      id="height" type="number"
                       value={profile.height}
                       onChange={(e) => setProfile({ ...profile, height: e.target.value })}
                       placeholder="175"
@@ -304,9 +456,7 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <Label htmlFor="weight">Weight (kg)</Label>
                     <Input
-                      id="weight"
-                      type="number"
-                      step="0.1"
+                      id="weight" type="number" step="0.1"
                       value={profile.weight}
                       onChange={(e) => setProfile({ ...profile, weight: e.target.value })}
                       placeholder="72"
@@ -315,10 +465,8 @@ export default function ProfilePage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="activity">Activity Level</Label>
-                    <Select value={profile.activity_level} onValueChange={(value) => setProfile({ ...profile, activity_level: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select activity level" />
-                      </SelectTrigger>
+                    <Select value={profile.activity_level} onValueChange={(v) => setProfile({ ...profile, activity_level: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select activity level" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="sedentary">Sedentary (Little/no exercise)</SelectItem>
                         <SelectItem value="light">Light (1-3 days/week)</SelectItem>
@@ -331,10 +479,8 @@ export default function ProfilePage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="metabolism">Metabolism Type</Label>
-                    <Select value={profile.metabolism_type} onValueChange={(value) => setProfile({ ...profile, metabolism_type: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select metabolism" />
-                      </SelectTrigger>
+                    <Select value={profile.metabolism_type} onValueChange={(v) => setProfile({ ...profile, metabolism_type: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select metabolism" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="fast">Fast</SelectItem>
                         <SelectItem value="normal">Normal</SelectItem>
@@ -346,17 +492,10 @@ export default function ProfilePage() {
 
                 <div className="flex justify-end pt-4">
                   <Button onClick={handleSave} disabled={saving} size="lg">
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
-                      </>
-                    )}
+                    {saving
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                      : <><Save className="w-4 h-4 mr-2" />Save Changes</>
+                    }
                   </Button>
                 </div>
               </CardContent>
@@ -370,17 +509,13 @@ export default function ProfilePage() {
                   <Target className="w-5 h-5 text-primary" />
                   Health Goals
                 </CardTitle>
-                <CardDescription>
-                  Define your health and fitness objectives
-                </CardDescription>
+                <CardDescription>Define your health and fitness objectives</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="goal">Primary Goal</Label>
-                  <Select value={profile.goal} onValueChange={(value) => setProfile({ ...profile, goal: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your goal" />
-                    </SelectTrigger>
+                  <Select value={profile.goal} onValueChange={(v) => setProfile({ ...profile, goal: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select your goal" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="lose">Lose Weight</SelectItem>
                       <SelectItem value="lose_fast">Lose Weight Fast</SelectItem>
@@ -432,17 +567,10 @@ export default function ProfilePage() {
 
                 <div className="flex justify-end pt-4">
                   <Button onClick={handleSave} disabled={saving} size="lg">
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
-                      </>
-                    )}
+                    {saving
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                      : <><Save className="w-4 h-4 mr-2" />Save Changes</>
+                    }
                   </Button>
                 </div>
               </CardContent>

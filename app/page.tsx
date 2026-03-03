@@ -12,6 +12,10 @@ import { EnhancedWaterIntake } from "@/components/enhanced-water-intake"
 import { WhatToEatNext } from "@/components/what-to-eat-next"
 import { Flame, Target, TrendingUp, Droplets, Activity, Utensils, Loader2, Sun, Sunrise, Sunset, Moon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell, ReferenceLine,
+} from "recharts"
 import { useRouter } from "next/navigation"
 
 interface DashboardStats {
@@ -23,14 +27,16 @@ interface DashboardStats {
   target_water: number
   weight_change: number | null
   avg_weekly_calories: number
-  weekly_activity: number[]
+  weekly_activity: Array<{
+    date: string
+    day: string
+    calories: number
+    is_today: boolean
+  }>
   macros: {
     protein: number
     carbs: number
     fat: number
-    target_protein: number
-    target_carbs: number
-    target_fat: number
   }
   recent_meals: Array<{
     food_name: string
@@ -225,40 +231,101 @@ export default function DashboardPage() {
           {/* Activity Overview */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary" />
-                Weekly Activity
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-primary" />
+                  Weekly Activity
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">Last 7 days</span>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-2 h-32">
-                {stats.weekly_activity.length > 0 ? (
-                  stats.weekly_activity.slice(-7).map((calories, index) => {
-                    const maxCalories = Math.max(...stats.weekly_activity.slice(-7), 1)
-                    const height = (calories / maxCalories) * 100
-                    return (
-                      <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                        <div
-                          className="w-full rounded-t-lg bg-primary transition-all duration-500 hover:bg-primary/80 cursor-pointer group relative"
-                          style={{ height: `${Math.max(height, 5)}%` }}
-                          title={`${calories} calories`}
-                        >
-                          <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs bg-primary text-primary-foreground px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            {calories} cal
-                          </span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {["M", "T", "W", "T", "F", "S", "S"][index % 7]}
-                        </span>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <div className="flex-1 text-center text-muted-foreground">
-                    No activity data yet
-                  </div>
-                )}
-              </div>
+              {stats.weekly_activity.some(d => d.calories > 0) ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={stats.weekly_activity} margin={{ top: 10, right: 4, left: -20, bottom: 0 }} barCategoryGap="28%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.03 145)" vertical={false} />
+                    <XAxis
+                      dataKey="day"
+                      tick={({ x, y, payload }) => {
+                        const entry = stats.weekly_activity.find(d => d.day === payload.value)
+                        return (
+                          <text
+                            x={x} y={y + 12}
+                            textAnchor="middle"
+                            fontSize={12}
+                            fontWeight={entry?.is_today ? 700 : 400}
+                            fill={entry?.is_today ? "oklch(0.5 0.15 145)" : "oklch(0.5 0.03 145)"}
+                          >
+                            {entry?.is_today ? `${payload.value}*` : payload.value}
+                          </text>
+                        )
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "oklch(0.5 0.03 145)" }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v}
+                    />
+                    {stats.avg_weekly_calories > 0 && (
+                      <ReferenceLine
+                        y={stats.avg_weekly_calories}
+                        stroke="oklch(0.5 0.15 145)"
+                        strokeDasharray="4 4"
+                        strokeOpacity={0.5}
+                        label={{ value: "avg", position: "insideTopRight", fontSize: 10, fill: "oklch(0.5 0.03 145)" }}
+                      />
+                    )}
+                    <Tooltip
+                      cursor={{ fill: "oklch(0.95 0.02 145)", radius: 6 }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null
+                        const d = payload[0].payload
+                        return (
+                          <div className="bg-popover border border-border rounded-lg shadow-md px-3 py-2 text-sm">
+                            <p className="font-semibold text-foreground flex items-center gap-1">
+                              {d.day}{d.is_today && <span className="text-[10px] text-primary font-medium ml-1">Today</span>}
+                            </p>
+                            <p className="text-muted-foreground text-xs">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                            {d.calories > 0
+                              ? <p className="font-bold text-primary mt-0.5">{d.calories.toLocaleString()} kcal</p>
+                              : <p className="text-muted-foreground mt-0.5 italic text-xs">No meals logged</p>
+                            }
+                            {stats.target_calories > 0 && d.calories > 0 && (
+                              <p className="text-[11px] text-muted-foreground">
+                                {Math.round((d.calories / stats.target_calories) * 100)}% of daily goal
+                              </p>
+                            )}
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="calories" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                      {stats.weekly_activity.map((entry, i) => (
+                        <Cell
+                          key={i}
+                          fill={
+                            entry.is_today
+                              ? "oklch(0.5 0.15 145)"      /* --primary: full app green */
+                              : entry.calories === 0
+                              ? "oklch(0.90 0.03 145)"     /* near-white muted stub */
+                              : "oklch(0.62 0.14 145)"     /* lighter green for past days */
+                          }
+                          fillOpacity={entry.calories === 0 ? 0.6 : 1}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[200px] flex flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Activity className="w-8 h-8 opacity-30" />
+                  <p className="text-sm">No activity data yet — start logging meals!</p>
+                </div>
+              )}
+
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-foreground">{stats.avg_weekly_calories.toLocaleString()}</p>
@@ -349,14 +416,10 @@ export default function DashboardPage() {
           <WhatToEatNext/>
 
           <QuickActions />
-          <MacroBreakdown
-            protein={stats.macros.protein}
-            carbs={stats.macros.carbs}
-            fat={stats.macros.fat}
-            targetProtein={stats.macros.target_protein}
-            targetCarbs={stats.macros.target_carbs}
-            targetFat={stats.macros.target_fat}
-            targetCalories={stats.target_calories}
+          <MacroBreakdown 
+            protein={stats.macros.protein} 
+            carbs={stats.macros.carbs} 
+            fat={stats.macros.fat} 
           />
           <HealthTips />
         </div>
