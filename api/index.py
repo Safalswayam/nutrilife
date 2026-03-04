@@ -177,11 +177,11 @@ def ask_openai_with_image(
         return None
 
 DB_CONFIG = {
-    "host": os.getenv("MYSQL_HOST", "localhost"),
-    "user": os.getenv("MYSQL_USER", "root"),
-    "password": os.getenv("MYSQL_PASSWORD", "Safal@7076"),
-    "database": os.getenv("MYSQL_DATABASE", "nutrilife_db"),
-    "port": int(os.getenv("MYSQL_PORT", 3306))
+    "host": os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST", "localhost"),
+    "user": os.getenv("MYSQLUSER") or os.getenv("MYSQL_USER", "root"),
+    "password": os.getenv("MYSQLPASSWORD") or os.getenv("MYSQL_PASSWORD", ""),
+    "database": os.getenv("MYSQLDATABASE") or os.getenv("MYSQL_DATABASE", "nutrilife_db"),
+    "port": int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT", 3306))
 }
 
 db_pool = None
