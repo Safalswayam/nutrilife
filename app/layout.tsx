@@ -2,6 +2,7 @@ import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { Poppins, Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AuthProvider } from '@/lib/auth-context'
 import { AppShell } from '@/components/app-shell'
@@ -55,6 +56,7 @@ export default function RootLayout({
           </AuthProvider>
         </GoogleOAuthProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
