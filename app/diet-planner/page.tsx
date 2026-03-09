@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { getApiUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
@@ -46,6 +46,11 @@ import {
   Save,
   Clock,
   Moon,
+  Camera,
+  ImagePlus,
+  X,
+  Upload,
+  SwitchCamera,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -96,6 +101,282 @@ interface FastingPlan {
   tips: string[]
 }
 
+// ─── Image compression utility ────────────────────────────────────────────────
+// Smartphone photos can be 5–15 MB. This compresses them to a manageable size
+// before upload / preview while preserving EXIF orientation via CSS.
+async function compressImage(
+  file: File,
+  maxWidth = 1200,
+  maxHeight = 1600,
+  quality = 0.82
+): Promise<{ dataUrl: string; blob: Blob; originalSize: number; compressedSize: number }> {
+  return new Promise((resolve, reject) => {
+    const originalSize = file.size
+    const reader = new FileReader()
+
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        // Calculate new dimensions keeping aspect ratio
+        let { width, height } = img
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext("2d")
+        if (!ctx) { reject(new Error("Canvas not supported")); return }
+
+        // White background for photos that may have transparency
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { reject(new Error("Compression failed")); return }
+            const dataUrl = canvas.toDataURL("image/jpeg", quality)
+            resolve({ dataUrl, blob, originalSize, compressedSize: blob.size })
+          },
+          "image/jpeg",
+          quality
+        )
+      }
+      img.onerror = () => reject(new Error("Image load failed"))
+      img.src = e.target?.result as string
+    }
+
+    reader.onerror = () => reject(new Error("File read failed"))
+    reader.readAsDataURL(file)
+  })
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ─── Image upload sub-component ───────────────────────────────────────────────
+interface BodyPhotoUploadProps {
+  onImageReady: (dataUrl: string | null, blob: Blob | null) => void
+}
+
+function BodyPhotoUpload({ onImageReady }: BodyPhotoUploadProps) {
+  const [preview, setPreview] = useState<string | null>(null)
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [sizeInfo, setSizeInfo] = useState<{ original: number; compressed: number } | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  // Two hidden inputs: one for gallery, one for camera
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  const processFile = useCallback(async (file: File) => {
+    setUploadError(null)
+
+    // Basic validation
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please select an image file (JPG, PNG, HEIC, etc.)")
+      return
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setUploadError("File is too large (max 50 MB). Please choose a smaller photo.")
+      return
+    }
+
+    setIsCompressing(true)
+    try {
+      const { dataUrl, blob, originalSize, compressedSize } = await compressImage(file)
+      setPreview(dataUrl)
+      setSizeInfo({ original: originalSize, compressed: compressedSize })
+      onImageReady(dataUrl, blob)
+    } catch (err) {
+      setUploadError("Could not process this image. Please try another photo.")
+      onImageReady(null, null)
+    } finally {
+      setIsCompressing(false)
+    }
+  }, [onImageReady])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) processFile(file)
+    // Reset input so the same file can be re-selected
+    e.target.value = ""
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
+
+  const handleRemove = () => {
+    setPreview(null)
+    setSizeInfo(null)
+    setUploadError(null)
+    onImageReady(null, null)
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Hidden file inputs */}
+      {/* Gallery / files picker — works on all devices */}
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+        aria-label="Upload from gallery"
+      />
+      {/* Camera capture — on mobile opens the camera directly */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+        aria-label="Take a photo"
+      />
+
+      {preview ? (
+        /* ── Preview state ── */
+        <div className="relative rounded-xl overflow-hidden border border-border bg-muted/30">
+          {/* The image uses object-contain so portrait phone photos aren't cropped */}
+          <img
+            src={preview}
+            alt="Body photo preview"
+            className="w-full max-h-64 object-contain bg-black/5"
+            style={{ imageOrientation: "from-image" }}   // respect EXIF orientation
+          />
+
+          {/* Top-right remove button */}
+          <button
+            type="button"
+            onClick={handleRemove}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
+            aria-label="Remove photo"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          {/* Size info pill */}
+          {sizeInfo && (
+            <div className="absolute bottom-2 left-2 flex gap-1">
+              <span className="text-xs bg-black/60 text-white rounded-full px-2 py-0.5">
+                {formatBytes(sizeInfo.original)} → {formatBytes(sizeInfo.compressed)}
+              </span>
+            </div>
+          )}
+
+          {/* Change photo buttons */}
+          <div className="p-3 flex gap-2 bg-muted/50">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              <ImagePlus className="w-4 h-4" />
+              Change Photo
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <SwitchCamera className="w-4 h-4" />
+              Retake
+            </Button>
+          </div>
+        </div>
+      ) : (
+        /* ── Upload state ── */
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+          className={cn(
+            "rounded-xl border-2 border-dashed transition-colors",
+            isDragOver
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-primary/50 bg-muted/20"
+          )}
+        >
+          {isCompressing ? (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Optimising photo…</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-6 px-4 text-center">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Upload className="w-7 h-7 text-primary" />
+              </div>
+
+              <div>
+                <p className="font-medium text-foreground text-sm">Upload a body photo</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Optional — helps track visual progress. Supports all smartphone formats (HEIC, JPG, PNG).
+                </p>
+              </div>
+
+              {/* Two prominent buttons: gallery + camera */}
+              <div className="flex gap-2 w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 gap-2 min-h-[44px]"   /* 44 px minimum touch target */
+                  onClick={() => galleryInputRef.current?.click()}
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  <span>Gallery</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 gap-2 min-h-[44px]"
+                  onClick={() => cameraInputRef.current?.click()}
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Camera</span>
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                or drag &amp; drop a file here · max 50 MB
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {uploadError && (
+        <p className="text-xs text-destructive flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+          {uploadError}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Colour helpers ────────────────────────────────────────────────────────────
 const getBMIColor = (bmi: number) => {
   if (bmi < 18.5) return "text-blue-600"
   if (bmi < 25) return "text-primary"
@@ -119,6 +400,7 @@ const difficultyColor: Record<string, string> = {
   Extreme: "bg-purple-100 text-purple-700",
 }
 
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function DietPlannerPage() {
   const { token } = useAuth()
   const [formData, setFormData] = useState({
@@ -139,6 +421,10 @@ export default function DietPlannerPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Body photo state
+  const [bodyPhotoDataUrl, setBodyPhotoDataUrl] = useState<string | null>(null)
+  const [bodyPhotoBlob, setBodyPhotoBlob] = useState<Blob | null>(null)
 
   // Fasting plans state
   const [fastingPlans, setFastingPlans] = useState<FastingPlan[]>([])
@@ -172,11 +458,38 @@ export default function DietPlannerPage() {
     }
   }, [formData.fastingPlan, fastingPlans])
 
+  const handleImageReady = useCallback((dataUrl: string | null, blob: Blob | null) => {
+    setBodyPhotoDataUrl(dataUrl)
+    setBodyPhotoBlob(blob)
+  }, [])
+
   const saveDietPlan = async () => {
     if (!result || !token) return
 
     setIsSaving(true)
     try {
+      // If there's a body photo, upload it first via FormData, then send plan JSON.
+      // Falls back to JSON-only save when no photo is present.
+      let photoUrl: string | null = null
+
+      if (bodyPhotoBlob) {
+        try {
+          const fd = new FormData()
+          fd.append("photo", bodyPhotoBlob, "body-photo.jpg")
+          const photoRes = await fetch(getApiUrl("/api/diet-plan/upload-photo"), {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          })
+          if (photoRes.ok) {
+            const photoData = await photoRes.json()
+            photoUrl = photoData.url ?? null
+          }
+        } catch {
+          // Non-fatal — continue saving plan without photo
+        }
+      }
+
       const response = await fetch(getApiUrl("/api/diet-plan/save"), {
         method: "POST",
         headers: {
@@ -186,7 +499,8 @@ export default function DietPlannerPage() {
         body: JSON.stringify({
           target_calories: result.targetCalories,
           macros: result.macros,
-          weekly_plan: result.weeklyPlan
+          weekly_plan: result.weeklyPlan,
+          ...(photoUrl ? { body_photo_url: photoUrl } : {}),
         })
       })
 
@@ -268,61 +582,61 @@ export default function DietPlannerPage() {
           carbs: data.macro_targets.carbs,
           fat: data.macro_targets.fat,
         },
-                weeklyPlan: data.weekly_plan.map((day: any) => ({
+        weeklyPlan: data.weekly_plan.map((day: any) => ({
           day: day.day,
           meals: [
             {
               meal: "Breakfast",
-             dish: day.breakfast.name,
+              dish: day.breakfast.name,
               time: "7:00 AM",
-             foods: day.breakfast.ingredients,
+              foods: day.breakfast.ingredients,
               calories: day.breakfast.calories,
               protein: day.breakfast.protein,
               carbs: day.breakfast.carbs,
               fat: day.breakfast.fat,
             },
             {
-      meal: "Morning Snack",
-      dish: day.morning_snack.name,
-      time: "10:00 AM",
-      foods: day.morning_snack.ingredients,
-      calories: day.morning_snack.calories,
-      protein: day.morning_snack.protein,
-      carbs: day.morning_snack.carbs,
-      fat: day.morning_snack.fat,
+              meal: "Morning Snack",
+              dish: day.morning_snack.name,
+              time: "10:00 AM",
+              foods: day.morning_snack.ingredients,
+              calories: day.morning_snack.calories,
+              protein: day.morning_snack.protein,
+              carbs: day.morning_snack.carbs,
+              fat: day.morning_snack.fat,
             },
             {
-      meal: "Lunch",
-      dish: day.lunch.name,
-      time: "12:30 PM",
-      foods: day.lunch.ingredients,
-      calories: day.lunch.calories,
-      protein: day.lunch.protein,
-      carbs: day.lunch.carbs,
-      fat: day.lunch.fat,
+              meal: "Lunch",
+              dish: day.lunch.name,
+              time: "12:30 PM",
+              foods: day.lunch.ingredients,
+              calories: day.lunch.calories,
+              protein: day.lunch.protein,
+              carbs: day.lunch.carbs,
+              fat: day.lunch.fat,
             },
             {
-      meal: "Afternoon Snack",
-      dish: day.afternoon_snack.name,
-      time: "3:30 PM",
-      foods: day.afternoon_snack.ingredients,
-      calories: day.afternoon_snack.calories,
-      protein: day.afternoon_snack.protein,
-      carbs: day.afternoon_snack.carbs,
-      fat: day.afternoon_snack.fat,
+              meal: "Afternoon Snack",
+              dish: day.afternoon_snack.name,
+              time: "3:30 PM",
+              foods: day.afternoon_snack.ingredients,
+              calories: day.afternoon_snack.calories,
+              protein: day.afternoon_snack.protein,
+              carbs: day.afternoon_snack.carbs,
+              fat: day.afternoon_snack.fat,
             },
             {
-      meal: "Dinner",
-      dish: day.dinner.name,
-      time: "7:00 PM",
-      foods: day.dinner.ingredients,
-      calories: day.dinner.calories,
-      protein: day.dinner.protein,
-      carbs: day.dinner.carbs,
-      fat: day.dinner.fat,
+              meal: "Dinner",
+              dish: day.dinner.name,
+              time: "7:00 PM",
+              foods: day.dinner.ingredients,
+              calories: day.dinner.calories,
+              protein: day.dinner.protein,
+              carbs: day.dinner.carbs,
+              fat: day.dinner.fat,
             },
           ],
-         totalCalories: day.total_calories,
+          totalCalories: day.total_calories,
         })),
         tips: data.tips,
         warnings: [],
@@ -376,6 +690,20 @@ export default function DietPlannerPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* ── BODY PHOTO UPLOAD ──────────────────────────────────── */}
+                <div className="space-y-2 pb-2 border-b">
+                  <Label className="flex items-center gap-2 font-semibold">
+                    <Camera className="w-4 h-4 text-primary" />
+                    Body Photo
+                    <span className="text-xs font-normal text-muted-foreground ml-1">(Optional)</span>
+                  </Label>
+                  <BodyPhotoUpload onImageReady={handleImageReady} />
+                  <p className="text-xs text-muted-foreground">
+                    Upload or take a photo to track your physique progress alongside your plan.
+                    Large smartphone photos are automatically compressed.
+                  </p>
+                </div>
+
                 {/* Gender */}
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
@@ -715,6 +1043,31 @@ export default function DietPlannerPage() {
                   </Card>
                 </div>
 
+                {/* Body photo result card (shown only when a photo was uploaded) */}
+                {bodyPhotoDataUrl && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Camera className="w-5 h-5 text-primary" />
+                        Starting Body Photo
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-xl overflow-hidden border border-border max-w-xs mx-auto">
+                        <img
+                          src={bodyPhotoDataUrl}
+                          alt="Starting body photo"
+                          className="w-full object-contain bg-black/5"
+                          style={{ imageOrientation: "from-image", maxHeight: "320px" }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground text-center mt-2">
+                        Saved with your plan for progress tracking
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Macros */}
                 <Card>
                   <CardHeader className="pb-3">
@@ -803,7 +1156,7 @@ export default function DietPlannerPage() {
                                     <p className="text-sm font-medium text-primary">{meal.dish}</p>
                                   </div>
                                   <span className="text-sm text-muted-foreground">{meal.time}</span>
-                                </div>                                
+                                </div>
                                 <ul className="text-sm text-muted-foreground mb-3 space-y-1">
                                   {meal.foods.map((food, foodIndex) => (
                                     <li key={foodIndex} className="flex items-center gap-2">
@@ -879,6 +1232,11 @@ export default function DietPlannerPage() {
               {formData.fastingPlan !== "none" && selectedFastingPlan && (
                 <span className="block mt-1 text-indigo-600 font-medium">
                   Your {selectedFastingPlan.name} fasting protocol will also be saved.
+                </span>
+              )}
+              {bodyPhotoDataUrl && (
+                <span className="block mt-1 text-primary font-medium">
+                  Your body photo will be saved for progress tracking.
                 </span>
               )}
             </DialogDescription>

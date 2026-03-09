@@ -179,7 +179,7 @@ def ask_openai_with_image(
 DB_CONFIG = {
     "host": os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST", "localhost"),
     "user": os.getenv("MYSQLUSER") or os.getenv("MYSQL_USER", "root"),
-    "password": os.getenv("MYSQLPASSWORD") or os.getenv("MYSQL_PASSWORD", ""),
+    "password": os.getenv("MYSQLPASSWORD") or os.getenv("MYSQL_PASSWORD", "Safal@7076"),
     "database": os.getenv("MYSQLDATABASE") or os.getenv("MYSQL_DATABASE", "nutrilife_db"),
     "port": int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT", 3306))
 }
@@ -532,6 +532,16 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             INDEX idx_user_fasting (user_id, start_time)
+        )
+        """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS diet_plans (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            weekly_plan JSON NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
 
