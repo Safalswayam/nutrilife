@@ -8,28 +8,19 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Home,
   Camera,
   MessageCircle,
   Calculator,
   User,
   LogOut,
-  Settings,
-  ChevronDown,
   LogIn,
   Crown,
   ClipboardList,
   Menu,
   X,
   Moon,
+  Loader2,
 } from "lucide-react"
 
 const navItems = [
@@ -46,7 +37,7 @@ const navItems = [
 // Bottom nav shows 5 most-used items
 const bottomNavItems = [
   { title: "Home",     href: "/",                icon: Home          },
-  { title: "Food Log", href: "/food-log",        icon: ClipboardList  },
+  { title: "Health Assistant",href: "/health-assistant",icon: MessageCircle},
   { title: "Camera",   href: "/food-analysis",   icon: Camera        },
   { title: "Diet",     href: "/diet-planner",    icon: Calculator    },
   { title: "Profile",  href: "/profile",         icon: User          },
@@ -56,10 +47,16 @@ export function SidebarNav() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, isAuthenticated, logout } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
-    await logout()
-    router.push("/login")
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      router.replace("/login")
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
@@ -81,7 +78,7 @@ export function SidebarNav() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-6">
+      <nav className="flex-1 px-4 py-6 overflow-y-auto min-h-0">
         <ul className="space-y-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href
@@ -108,38 +105,30 @@ export function SidebarNav() {
       {/* User section */}
       <div className="px-4 py-6 border-t border-sidebar-border">
         {isAuthenticated && user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-sidebar-accent/50 hover:bg-sidebar-accent transition-colors text-left">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-semibold overflow-hidden flex-shrink-0">
-                  {user.profile_image ? (
-                    <img src={user.profile_image} alt={user.name} className="w-full h-full object-cover" />
-                  ) : (
-                    user.name?.charAt(0).toUpperCase() || "U"
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>
-                  <p className="text-xs text-sidebar-foreground/70 truncate">{user.email}</p>
-                </div>
-                <ChevronDown className="w-4 h-4 text-sidebar-foreground/70" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/profile")}>
-                <User className="mr-2 h-4 w-4" />Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/profile")}>
-                <Settings className="mr-2 h-4 w-4" />Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-                <LogOut className="mr-2 h-4 w-4" />Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-sidebar-accent/50 text-left">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-semibold overflow-hidden flex-shrink-0">
+                {user.profile_image ? (
+                  <img src={user.profile_image} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  user.name?.charAt(0).toUpperCase() || "U"
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>
+                <p className="text-xs text-sidebar-foreground/70 truncate">{user.email}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+              <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
+            </button>
+          </div>
         ) : (
           <Link href="/login">
             <Button className="w-full" variant="default">
@@ -158,11 +147,17 @@ export function MobileHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, isAuthenticated, logout } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
-    await logout()
-    setDrawerOpen(false)
-    router.push("/login")
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      setDrawerOpen(false)
+      router.replace("/login")
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
@@ -241,7 +236,7 @@ export function MobileHeader() {
         {/* User section */}
         <div className="px-4 py-4 border-t border-sidebar-border">
           {isAuthenticated && user ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center gap-3 px-3 py-2">
                 <div className="w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-bold flex items-center justify-center shrink-0">
                   {user.name?.charAt(0).toUpperCase() || "U"}
@@ -253,10 +248,11 @@ export function MobileHeader() {
               </div>
               <button
                 onClick={handleLogout}
+                disabled={isLoggingOut}
                 className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
               >
-                <LogOut className="w-5 h-5" />
-                <span className="font-medium">Log out</span>
+                {isLoggingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
+                <span className="font-medium">{isLoggingOut ? "Logging out..." : "Log out"}</span>
               </button>
             </div>
           ) : (

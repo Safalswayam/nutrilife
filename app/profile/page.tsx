@@ -25,6 +25,7 @@ import {
   Camera,
   Trash2,
   Upload,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -43,7 +44,7 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const { user, token, refreshUser } = useAuth()
+  const { user, token, refreshUser, logout } = useAuth()
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -60,6 +61,7 @@ export default function ProfilePage() {
   const [removingImage, setRemovingImage] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const [imageSaved, setImageSaved] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     if (!user || !token) {
@@ -224,6 +226,16 @@ export default function ProfilePage() {
     { id: "goals"   as const, label: "Health Goals", icon: Target },
   ]
 
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await logout()
+      router.replace("/login")
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
   const initials = profile?.name
     ? profile.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
     : "U"
@@ -377,6 +389,25 @@ export default function ProfilePage() {
                   )
                 })}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Account</CardTitle>
+              <CardDescription>Use this button anytime you want to sign out.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={handleLogout}
+                disabled={loggingOut}
+              >
+                {loggingOut
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Logging out...</>
+                  : <><LogOut className="w-4 h-4 mr-2" />Log out</>}
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -576,6 +607,23 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           )}
+        </div>
+
+        {/* Legal & Support Footer */}
+        <div className="mt-8 border-t border-border pt-6">
+          <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Legal & Support</p>
+          <div className="flex flex-wrap gap-3">
+            <a href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
+              <span>📋</span> Terms & Conditions
+            </a>
+            <span className="text-border">·</span>
+            <a href="/support" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
+              <span>🛟</span> Support & Telegram
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            NutriLife · Built by Safal Swayam · KIIT University
+          </p>
         </div>
       </div>
     </div>

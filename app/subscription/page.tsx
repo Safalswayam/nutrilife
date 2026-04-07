@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -315,7 +316,11 @@ export default function SubscriptionPage() {
       </div>
 
       <div className="text-center mt-12 text-sm text-muted-foreground">
-        Questions? Contact us at <a href="mailto:support@nutrilife.com" className="text-primary underline">support@nutrilife.com</a>
+        Questions? Visit{" "}
+        <Link href="/support" className="text-primary underline underline-offset-4">
+          Support & Telegram
+        </Link>
+        {" "}for help.
       </div>
     </div>
   )

@@ -283,13 +283,14 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             By signing in, you agree to our{" "}
-            <Link href="#" className="underline hover:text-primary">
-              Terms of Service
+            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+              Terms & Conditions
             </Link>{" "}
-            and{" "}
-            <Link href="#" className="underline hover:text-primary">
-              Privacy Policy
+            and can get help from{" "}
+            <Link href="/support" className="underline underline-offset-4 hover:text-primary">
+              Support & Telegram
             </Link>
+            .
           </p>
 
         </div>

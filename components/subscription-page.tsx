@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -406,7 +407,11 @@ export default function SubscriptionPage() {
       <div className="max-w-3xl mx-auto mt-16 text-center">
         <h2 className="text-2xl font-bold mb-4">Questions?</h2>
         <p className="text-muted-foreground mb-4">
-          We're here to help! Contact us at support@nutrilife.com
+          We're here to help! Visit{" "}
+          <Link href="/support" className="text-primary underline underline-offset-4">
+            Support & Telegram
+          </Link>
+          {" "}for assistance.
         </p>
         <p className="text-sm text-muted-foreground">
           All plans include a 7-day money-back guarantee

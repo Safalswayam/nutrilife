@@ -36,6 +36,24 @@ try:
 except ImportError:
     print("⚠ python-dotenv not installed — using system environment variables only")
 
+# ── Telegram Admin Notifications ─────────────────────────────────────────────
+try:
+    from telegram_notifier import (
+        notify_new_user_email,
+        notify_new_user_google,
+        notify_new_subscription,
+        notify_server_start,
+    )
+    TELEGRAM_ENABLED = True
+    print("✓ Telegram notifier loaded")
+except Exception as _tg_err:
+    TELEGRAM_ENABLED = False
+    print(f"⚠ Telegram notifier not loaded: {_tg_err}")
+    def notify_new_user_email(*a, **k): pass
+    def notify_new_user_google(*a, **k): pass
+    def notify_new_subscription(*a, **k): pass
+    def notify_server_start(): pass
+
 
 import mysql.connector
 from mysql.connector import pooling
@@ -89,12 +107,16 @@ def detailed_health():
     return {
         "api": "healthy",
         "database": db_status,
-        "openai": "configured" if os.getenv("OPENROUTER_API_KEY") else "not configured"
+        "openai": "configured" if (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")) else "not configured"
     }
+
+OPENROUTER_API_KEY = (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
+if not OPENROUTER_API_KEY:
+    print("⚠ OpenRouter API key missing (set OPENROUTER_API_KEY or OPENAI_API_KEY)")
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key= os.getenv("OPENAI_API_KEY"),
+    api_key=OPENROUTER_API_KEY,
     default_headers={
         "HTTP-Referer": "http://localhost:3000",
         "X-Title": "Health Diet App"
@@ -562,6 +584,8 @@ def startup_init():
         init_database()
     else:
         print("Warning: Database not available. Some features may not work.")
+    # Notify admin that server has started
+    notify_server_start()
 
 startup_init()
 
@@ -1165,6 +1189,16 @@ def register(data: RegisterRequest, request: Request):
         ))
 
         conn.commit()
+
+        # ── Telegram: notify admin of new registration ─────────────────────
+        notify_new_user_email(
+            user_id=user_id,
+            name=data.name,
+            email=data.email,
+            gender=getattr(data, "gender", None),
+            age=getattr(data, "age", None),
+            ip=request.client.host if request.client else None,
+        )
 
         return AuthResponse(
             success=True,
@@ -2759,7 +2793,17 @@ async def google_login(request: dict, req: Request):
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
+
+        # ── Telegram: notify admin only for brand new Google users ──────────
+        if is_new:
+            notify_new_user_google(
+                user_id=user.get("id", 0),
+                name=user.get("name", "Unknown"),
+                email=user.get("email", ""),
+                profile_image=user.get("profile_image"),
+                ip=ip_address,
+            )
+
         return {
             "token": token,
             "user": user,
@@ -3221,6 +3265,24 @@ async def _webhook_activate_subscription(payload: dict):
             """, (user_id, plan_id, start_date, end_date, start_date, end_date))
 
         conn.commit()
+
+        # ── Telegram: notify admin of new subscription ─────────────────────
+        try:
+            cur2 = conn.cursor(dictionary=True)
+            cur2.execute("SELECT name, email FROM users WHERE id = %s", (user_id,))
+            u = cur2.fetchone()
+            cur2.close()
+            if u:
+                notify_new_subscription(
+                    user_id=user_id,
+                    name=u.get('name', 'Unknown'),
+                    email=u.get('email', ''),
+                    plan=f'{duration_months}-Month Plan',
+                    amount=0,
+                    transaction_id=rzp_payment_id or rzp_sub_id,
+                )
+        except Exception as _notify_err:
+            print(f'[Telegram] Subscription notify error: {_notify_err}')
         print(f"Webhook: activated subscription {rzp_sub_id} for user {user_id}")
     finally:
         cur.close()
