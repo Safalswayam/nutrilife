@@ -560,7 +560,15 @@ def init_database():
         CREATE TABLE IF NOT EXISTS diet_plans (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
-            weekly_plan JSON NOT NULL,
+            plan_name VARCHAR(255),
+            start_date DATE,
+            end_date DATE,
+            target_calories INT DEFAULT 2000,
+            target_protein DECIMAL(10,2) DEFAULT 0,
+            target_carbs DECIMAL(10,2) DEFAULT 0,
+            target_fat DECIMAL(10,2) DEFAULT 0,
+            weekly_plan JSON,
+            is_active BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -568,6 +576,31 @@ def init_database():
         """)
 
         conn.commit()
+
+        # Migration: add missing columns to diet_plans if they don't exist
+        migrations = [
+            ("is_active", "ALTER TABLE diet_plans ADD COLUMN is_active BOOLEAN DEFAULT 1"),
+            ("plan_name", "ALTER TABLE diet_plans ADD COLUMN plan_name VARCHAR(255)"),
+            ("start_date", "ALTER TABLE diet_plans ADD COLUMN start_date DATE"),
+            ("end_date", "ALTER TABLE diet_plans ADD COLUMN end_date DATE"),
+            ("target_calories", "ALTER TABLE diet_plans ADD COLUMN target_calories INT DEFAULT 2000"),
+            ("target_protein", "ALTER TABLE diet_plans ADD COLUMN target_protein DECIMAL(10,2) DEFAULT 0"),
+            ("target_carbs", "ALTER TABLE diet_plans ADD COLUMN target_carbs DECIMAL(10,2) DEFAULT 0"),
+            ("target_fat", "ALTER TABLE diet_plans ADD COLUMN target_fat DECIMAL(10,2) DEFAULT 0"),
+        ]
+        migration_cur = conn.cursor()
+        for col_name, sql in migrations:
+            try:
+                migration_cur.execute(sql)
+                conn.commit()
+                print(f"Migration applied: added column '{col_name}' to diet_plans")
+            except mysql.connector.Error as me:
+                if me.errno == 1060:  # Duplicate column — already exists, skip
+                    pass
+                else:
+                    print(f"Migration warning for '{col_name}': {me}")
+        migration_cur.close()
+
         cur.close()
         conn.close()
         print("Database tables initialized successfully")
