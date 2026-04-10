@@ -151,7 +151,7 @@ export default function SubscriptionPage() {
                 throw new Error(verifyData.detail || "Payment verification failed")
               }
 
-              toast.success("🎉 Subscription activated! Welcome to NutriLife Premium!")
+              toast.success("Subscription activated! Welcome to NutriLife Premium!")
               await fetchCurrentSubscription()
               // Force a page reload so auth context picks up new subscription_status
               setTimeout(() => window.location.reload(), 1500)

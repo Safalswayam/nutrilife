@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Droplets, Plus, Minus, Loader2 } from "lucide-react"
+import { Droplets, Plus, Minus, Loader2, CheckCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { getApiUrl } from "@/lib/api"
 import { toast } from "sonner"
@@ -24,7 +24,7 @@ export function WaterIntakeWidget({
   const [isAdjusting, setIsAdjusting] = useState(false)
 
   const adjustWater = async (adjustment: number) => {
-    // ✅ Prevent negative values on client side
+    // Prevent negative values on client side
     const newValue = Math.max(0, glasses + adjustment)
     
     if (glasses === 0 && adjustment === -1) {
@@ -57,7 +57,7 @@ export function WaterIntakeWidget({
             ? `Added 1 glass! (${data.current}/${targetGlasses})` 
             : `Removed 1 glass (${data.current}/${targetGlasses})`
         )
-        // ✅ Trigger dashboard refresh
+        // Trigger dashboard refresh
         onUpdate?.()
       } else {
         // Revert on failure
@@ -117,7 +117,7 @@ export function WaterIntakeWidget({
         {/* Goal Status */}
         {isGoalReached && (
           <div className="text-center">
-            <p className="text-sm font-medium text-primary">🎉 Daily goal reached!</p>
+            <p className="text-sm font-medium text-primary flex items-center gap-1.5 justify-center"><CheckCircle className="w-4 h-4" /> Daily goal reached!</p>
           </div>
         )}
 
@@ -182,7 +182,7 @@ export function WaterIntakeWidget({
         {/* Tip */}
         {!isGoalReached && glasses < targetGlasses / 2 && (
           <div className="text-center text-xs text-muted-foreground">
-            💧 Tip: Drink water regularly throughout the day
+            Tip: Drink water regularly throughout the day
           </div>
         )}
       </CardContent>

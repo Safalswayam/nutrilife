@@ -221,7 +221,7 @@ export default function FoodAnalysisPage() {
         })
       }
 
-      // ✅ Analyze-only endpoint — does NOT log automatically
+      // Analyze-only endpoint — does NOT log automatically
       const response = await fetch(getApiUrl("/api/analyze-food"), {
         method: "POST",
         headers: {
@@ -490,11 +490,11 @@ export default function FoodAnalysisPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="breakfast">🌅 Breakfast</SelectItem>
-                        <SelectItem value="lunch">☀️ Lunch</SelectItem>
-                        <SelectItem value="dinner">🌙 Dinner</SelectItem>
-                        <SelectItem value="snack">🍎 Snack</SelectItem>
-                        <SelectItem value="meal">📊 Other / General</SelectItem>
+                        <SelectItem value="breakfast">Breakfast</SelectItem>
+                        <SelectItem value="lunch">Lunch</SelectItem>
+                        <SelectItem value="dinner">Dinner</SelectItem>
+                        <SelectItem value="snack">Snack</SelectItem>
+                        <SelectItem value="meal">Other / General</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

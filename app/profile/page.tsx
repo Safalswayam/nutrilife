@@ -26,6 +26,8 @@ import {
   Trash2,
   Upload,
   LogOut,
+  FileText,
+  LifeBuoy,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -614,11 +616,11 @@ export default function ProfilePage() {
           <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Legal & Support</p>
           <div className="flex flex-wrap gap-3">
             <a href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
-              <span>📋</span> Terms & Conditions
+              <FileText className="w-3.5 h-3.5" /> Terms & Conditions
             </a>
             <span className="text-border">·</span>
             <a href="/support" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
-              <span>🛟</span> Support & Telegram
+              <LifeBuoy className="w-3.5 h-3.5" /> Support & Telegram
             </a>
           </div>
           <p className="text-xs text-muted-foreground mt-3">

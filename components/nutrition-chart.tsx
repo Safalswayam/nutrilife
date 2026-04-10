@@ -38,9 +38,9 @@ export function NutritionChart({ data = defaultData, title = "Daily Nutrition" }
 
 /* ─── MacroBreakdown ─── */
 const MACROS = [
-  { key: "protein" as const, label: "Protein", icon: "🥩", color: "#3b82f6", barColor: "#3b82f6", textColor: "#2563eb", bgLight: "#eff6ff", calPerG: 4, description: "Builds & repairs muscle" },
-  { key: "carbs"   as const, label: "Carbs",   icon: "🌾", color: "#f59e0b", barColor: "#f59e0b", textColor: "#d97706", bgLight: "#fffbeb", calPerG: 4, description: "Primary energy source" },
-  { key: "fat"     as const, label: "Fat",     icon: "🥑", color: "#10b981", barColor: "#10b981", textColor: "#059669", bgLight: "#ecfdf5", calPerG: 9, description: "Hormones & cell health" },
+  { key: "protein" as const, label: "Protein", icon: "P", color: "#3b82f6", barColor: "#3b82f6", textColor: "#2563eb", bgLight: "#eff6ff", calPerG: 4, description: "Builds & repairs muscle" },
+  { key: "carbs"   as const, label: "Carbs",   icon: "C", color: "#f59e0b", barColor: "#f59e0b", textColor: "#d97706", bgLight: "#fffbeb", calPerG: 4, description: "Primary energy source" },
+  { key: "fat"     as const, label: "Fat",     icon: "F", color: "#10b981", barColor: "#10b981", textColor: "#059669", bgLight: "#ecfdf5", calPerG: 9, description: "Hormones & cell health" },
 ]
 
 interface MacroBreakdownProps {

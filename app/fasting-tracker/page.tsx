@@ -95,7 +95,7 @@ function RingTimer({
 
         {/* Center content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <span className="text-2xl">{emoji}</span>
+          <Moon className="w-6 h-6 text-indigo-400" />
 
           {isActive ? (
             /* Live clock digits */
@@ -221,7 +221,7 @@ export default function FastingTrackerPage() {
   const progress    = goalSeconds > 0 ? Math.min(100, (elapsed / goalSeconds) * 100) : 0
   const remaining   = goalSeconds > 0 ? Math.max(0, goalSeconds - elapsed) : 0
   const goalReached = progress >= 100
-  const planEmoji   = activeSession?.plan?.emoji ?? savedPlan?.emoji ?? "🌙"
+  const planEmoji   = activeSession?.plan?.emoji ?? savedPlan?.emoji ?? ""
 
   if (loading) {
     return (
@@ -317,7 +317,7 @@ export default function FastingTrackerPage() {
                   </span>
                   {remaining > 0
                     ? <span>{splitSecs(remaining).h}:{splitSecs(remaining).m} remaining</span>
-                    : <span className="text-green-600 font-medium">🎉 Goal reached!</span>
+                    : <span className="text-green-600 font-medium">Goal reached!</span>
                   }
                 </div>
               )}
@@ -327,7 +327,7 @@ export default function FastingTrackerPage() {
                 <Alert className="bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30">
                   <Trophy className="w-4 h-4 text-yellow-600" />
                   <AlertDescription className="text-yellow-700 dark:text-yellow-300 font-semibold">
-                    🎉 Goal reached! You can break your fast now.
+                    Goal reached! You can break your fast now.
                   </AlertDescription>
                 </Alert>
               )}

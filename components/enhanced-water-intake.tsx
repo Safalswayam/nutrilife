@@ -259,7 +259,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
           {isGoalReached ? (
             <div className="text-center animate-pulse">
               <p className="text-lg font-semibold text-primary">
-                🎉 Daily goal reached!
+                Daily goal reached!
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 Great job staying hydrated!
@@ -316,10 +316,10 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
             <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 {current === 0
-                  ? "💧 Start your hydration journey!"
+                  ? "Start your hydration journey!"
                   : current < goal / 2
-                  ? "💧 Keep going! You're making progress"
-                  : "🌊 Almost there! Stay hydrated"}
+                  ? "Keep going! You're making progress"
+                  : "Almost there! Stay hydrated"}
               </p>
             </div>
           )}
@@ -377,7 +377,9 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
       {/* Celebration Animation */}
       {showCelebration && (
         <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
-          <div className="text-6xl animate-bounce">🎉</div>
+          <div className="text-6xl animate-bounce">
+            <Droplets className="w-16 h-16 text-primary" />
+          </div>
         </div>
       )}
 

@@ -852,12 +852,12 @@ export default function DietPlannerPage() {
                       <SelectValue placeholder="Select diet type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="non_veg">🍗 Non-Vegetarian</SelectItem>
-                      <SelectItem value="veg">🥦 Vegetarian</SelectItem>
-                      <SelectItem value="vegan">🌱 Vegan</SelectItem>
-                      <SelectItem value="jain">🙏 Jain</SelectItem>
-                      <SelectItem value="indian_non_veg">🇮🇳 Indian Non-Veg (No Beef)</SelectItem>
-                      <SelectItem value="halal">☪️ Halal / Muslim (No Pork)</SelectItem>
+                      <SelectItem value="non_veg">Non-Vegetarian</SelectItem>
+                      <SelectItem value="veg">Vegetarian</SelectItem>
+                      <SelectItem value="vegan">Vegan</SelectItem>
+                      <SelectItem value="jain">Jain</SelectItem>
+                      <SelectItem value="indian_non_veg">Indian Non-Veg (No Beef)</SelectItem>
+                      <SelectItem value="halal">Halal / Muslim (No Pork)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
@@ -889,7 +889,7 @@ export default function DietPlannerPage() {
                       ) : fastingPlans.length > 0 ? (
                         fastingPlans.map((plan) => (
                           <SelectItem key={plan.id} value={plan.id}>
-                            {plan.emoji} {plan.name}
+                            {plan.name}
                             {plan.fast_hours > 0 && (
                               <span className="text-muted-foreground ml-1 text-xs">
                                 ({plan.fast_hours}h fast)
@@ -899,15 +899,15 @@ export default function DietPlannerPage() {
                         ))
                       ) : (
                         <>
-                          <SelectItem value="none">🍽️ No Fasting</SelectItem>
-                          <SelectItem value="12:12">🌙 12:12 Beginner (12h fast)</SelectItem>
-                          <SelectItem value="14:10">🕑 14:10 Beginner+ (14h fast)</SelectItem>
-                          <SelectItem value="16:8">⏰ 16:8 Leangains (16h fast)</SelectItem>
-                          <SelectItem value="18:6">🔥 18:6 Advanced (18h fast)</SelectItem>
-                          <SelectItem value="20:4">⚔️ 20:4 Warrior Diet (20h fast)</SelectItem>
-                          <SelectItem value="omad">🥗 OMAD (23h fast)</SelectItem>
-                          <SelectItem value="5:2">📅 5:2 Diet (2 low-cal days/week)</SelectItem>
-                          <SelectItem value="alternate">🔄 Alternate Day Fasting</SelectItem>
+                          <SelectItem value="none">No Fasting</SelectItem>
+                          <SelectItem value="12:12">12:12 Beginner (12h fast)</SelectItem>
+                          <SelectItem value="14:10">14:10 Beginner+ (14h fast)</SelectItem>
+                          <SelectItem value="16:8">16:8 Leangains (16h fast)</SelectItem>
+                          <SelectItem value="18:6">18:6 Advanced (18h fast)</SelectItem>
+                          <SelectItem value="20:4">20:4 Warrior Diet (20h fast)</SelectItem>
+                          <SelectItem value="omad">OMAD (23h fast)</SelectItem>
+                          <SelectItem value="5:2">5:2 Diet (2 low-cal days/week)</SelectItem>
+                          <SelectItem value="alternate">Alternate Day Fasting</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -1218,7 +1218,7 @@ export default function DietPlannerPage() {
         </div>
       </div>
 
-      {/* ✅ Confirmation Dialog for Diet Plan Integration */}
+      {/* Confirmation Dialog for Diet Plan Integration */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

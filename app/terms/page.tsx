@@ -17,6 +17,8 @@ import {
   ChevronUp,
   ExternalLink,
   Send,
+  Check,
+  Star,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -92,7 +94,7 @@ const sections: Section[] = [
                 "Profile & health goal management",
               ].map((f) => (
                 <li key={f} className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
+                  <Check className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
                   <span>{f}</span>
                 </li>
               ))}
@@ -111,16 +113,17 @@ const sections: Section[] = [
                 "Priority customer support",
               ].map((f) => (
                 <li key={f} className="flex items-start gap-2">
-                  <span className="text-primary mt-0.5">★</span>
+                  <Star className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                   <span>{f}</span>
                 </li>
               ))}
             </ul>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
-          ⚠️ Attempting to bypass or circumvent subscription access controls is a violation of these Terms and
-          may result in account suspension.
+        <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <span>Attempting to bypass or circumvent subscription access controls is a violation of these Terms and
+          may result in account suspension.</span>
         </p>
       </div>
     ),
@@ -137,8 +140,8 @@ const sections: Section[] = [
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: "3 Months", price: "₹299", note: "Base" },
-              { label: "6 Months", price: "₹549", note: "Save ₹49 ⭐" },
-              { label: "1 Year", price: "₹849", note: "Save ₹347 🔥" },
+              { label: "6 Months", price: "₹549", note: "Save ₹49" },
+              { label: "1 Year", price: "₹849", note: "Save ₹347 — Best Value" },
             ].map((p) => (
               <div key={p.label} className="border border-border rounded-lg p-3 text-center">
                 <p className="text-xs text-muted-foreground">{p.label}</p>
@@ -220,8 +223,9 @@ const sections: Section[] = [
           <p className="mt-2">Each third party has its own privacy policy.</p>
         </div>
         <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-3">
-          <p className="text-green-700 dark:text-green-400 font-medium">
-            🔒 We do not sell your personal data to anyone, ever.
+          <p className="text-green-700 dark:text-green-400 font-medium flex items-center gap-2">
+            <Lock className="w-4 h-4 shrink-0" />
+            We do not sell your personal data to anyone, ever.
           </p>
         </div>
         <div>

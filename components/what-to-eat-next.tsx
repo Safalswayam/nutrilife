@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Clock, Utensils, Loader2, ChevronRight, RefreshCw } from "lucide-react"
+import { Utensils, Loader2, Clock, ChevronRight, RefreshCw, Sun, Apple, UtensilsCrossed, Coffee, Check, CheckCircle } from "lucide-react"
 import { getApiUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import Link from "next/link"
@@ -70,14 +70,15 @@ export function WhatToEatNext({
     type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
 
   const getMealIcon = (type: string) => {
-    const icons: Record<string, string> = {
-      breakfast:       "🍳",
-      morning_snack:   "🍎",
-      lunch:           "🍱",
-      afternoon_snack: "🥤",
-      dinner:          "🍽️",
+    const icons: Record<string, React.ElementType> = {
+      breakfast:       Sun,
+      morning_snack:   Apple,
+      lunch:           UtensilsCrossed,
+      afternoon_snack: Coffee,
+      dinner:          Utensils,
     }
-    return icons[type] || "🍴"
+    const Icon = icons[type] || Utensils
+    return <Icon className="w-6 h-6 text-primary" />
   }
 
   /* ── Loading ── */
@@ -114,8 +115,9 @@ export function WhatToEatNext({
             </>
           ) : (
             <>
-              <p className="text-sm text-muted-foreground">
-                All meals logged for today 🎉
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5 justify-center">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                All meals logged for today
               </p>
               <Button variant="outline" size="sm" onClick={fetchNextMeal}>
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
@@ -148,7 +150,7 @@ export function WhatToEatNext({
       <CardContent className="space-y-3">
         {/* Meal header */}
         <div className="flex items-center gap-3 p-3 rounded-lg bg-card border">
-          <div className="text-2xl">{getMealIcon(nextMeal.type)}</div>
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">{getMealIcon(nextMeal.type)}</div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-foreground">
               {formatMealType(nextMeal.type)}
@@ -172,7 +174,7 @@ export function WhatToEatNext({
             <ul className="space-y-1">
               {nextMeal.foods.map((food, i) => (
                 <li key={i} className="flex items-center gap-2 text-sm">
-                  <span className="text-primary text-xs">✓</span>
+                  <Check className="w-3.5 h-3.5 text-primary shrink-0" />
                   {food}
                 </li>
               ))}

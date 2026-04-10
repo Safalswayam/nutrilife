@@ -3,7 +3,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
 
 // Validate API URL on app load (only in browser)
 if (typeof window !== 'undefined' && !API_BASE_URL) {
-  console.warn("⚠️ NEXT_PUBLIC_API_URL is not set! API calls may fail. Please set it in .env.local")
+  console.warn("[WARNING] NEXT_PUBLIC_API_URL is not set! API calls may fail. Please set it in .env.local")
 }
 
 export function getApiUrl(endpoint: string): string {
@@ -11,7 +11,7 @@ export function getApiUrl(endpoint: string): string {
   const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
   
   if (!API_BASE_URL) {
-    console.error("❌ API_BASE_URL is not configured. Add NEXT_PUBLIC_API_URL to your .env.local file")
+    console.error("[ERROR] API_BASE_URL is not configured. Add NEXT_PUBLIC_API_URL to your .env.local file")
     // Return the endpoint as-is for Next.js API routes fallback
     return normalizedEndpoint
   }

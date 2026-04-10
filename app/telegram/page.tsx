@@ -16,6 +16,16 @@ import {
   CheckCircle,
   ChevronRight,
   Radio,
+  Rocket,
+  Sparkles,
+  Bug,
+  Wrench,
+  Lock,
+  CreditCard,
+  KeyRound,
+  Bot,
+  Droplets,
+  FileText,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -30,11 +40,11 @@ const CHANNELS = [
     badge: "Main Channel",
     badgeColor: "bg-primary text-primary-foreground",
     posts: [
-      { emoji: "🚀", label: "Version releases" },
-      { emoji: "🆕", label: "New features" },
-      { emoji: "🐛", label: "Bug fix notices" },
-      { emoji: "🔧", label: "Maintenance windows" },
-      { emoji: "🔒", label: "Security patches" },
+      { icon: Rocket, label: "Version releases" },
+      { icon: Sparkles, label: "New features" },
+      { icon: Bug, label: "Bug fix notices" },
+      { icon: Wrench, label: "Maintenance windows" },
+      { icon: Lock, label: "Security patches" },
     ],
   },
   {
@@ -47,11 +57,11 @@ const CHANNELS = [
     badge: "Support",
     badgeColor: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
     posts: [
-      { emoji: "💳", label: "Payment issues" },
-      { emoji: "🔐", label: "Account help" },
-      { emoji: "🤖", label: "AI feature bugs" },
-      { emoji: "💧", label: "Tracking issues" },
-      { emoji: "📝", label: "General queries" },
+      { icon: CreditCard, label: "Payment issues" },
+      { icon: KeyRound, label: "Account help" },
+      { icon: Bot, label: "AI feature bugs" },
+      { icon: Droplets, label: "Tracking issues" },
+      { icon: FileText, label: "General queries" },
     ],
   },
 ]
@@ -83,20 +93,20 @@ const LATEST_POSTS = [
   },
 ]
 
-const HOW_TO_REPORT = `📝 BUG / ISSUE REPORT
+const HOW_TO_REPORT = `BUG / ISSUE REPORT
 
-📧 Registered Email: 
-📱 Device / Browser: 
-🐛 Issue Type: [ Login | Payment | AI Feature | Water/Fasting | Other ]
-📄 Description:
+[Email] Registered Email: 
+[Device] Device / Browser: 
+[Type] Issue Type: [ Login | Payment | AI Feature | Water/Fasting | Other ]
+[Description]
 (What happened? What did you expect?)
 
-🔁 Steps to Reproduce:
+[Steps] Steps to Reproduce:
 1. 
 2. 
 3. 
 
-📸 Screenshot: (attach below)
+[Screenshot] (attach below)
 ━━━━━━━━━━━━━━━━━━
 Send to @NUTRILIFEDIET`
 
@@ -172,12 +182,15 @@ export default function TelegramPage() {
               </CardHeader>
               <CardContent className="flex-1">
                 <ul className="space-y-1.5 mb-4">
-                  {ch.posts.map((p) => (
+                  {ch.posts.map((p) => {
+                    const PostIcon = p.icon
+                    return (
                     <li key={p.label} className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="text-base leading-none">{p.emoji}</span>
+                      <PostIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span>{p.label}</span>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
                 <a href={ch.link} target="_blank" rel="noopener noreferrer">
                   <Button size="sm" variant="outline" className="w-full flex items-center gap-2 text-xs">

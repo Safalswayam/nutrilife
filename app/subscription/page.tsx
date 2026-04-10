@@ -126,7 +126,7 @@ export default function SubscriptionPage() {
               })
               const verifyData = await verifyRes.json()
               if (!verifyRes.ok) throw new Error(verifyData.detail || "Payment verification failed")
-              toast.success("🎉 Subscription activated! Welcome to NutriLife Premium!")
+              toast.success("Subscription activated! Welcome to NutriLife Premium!")
               await fetchCurrentSubscription()
               setTimeout(() => window.location.reload(), 1500)
               resolve()

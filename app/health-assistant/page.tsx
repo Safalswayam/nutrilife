@@ -144,13 +144,13 @@ function getTodayString(): string {
 
 function getTimeBasedHealthTip(): string {
   const hour = new Date().getHours()
-  if (hour >= 5  && hour < 9)  return "☀️ Morning tip: Start with a glass of warm water and light stretching."
-  if (hour >= 9  && hour < 12) return "🍎 Mid-morning: A healthy snack can keep your energy steady."
-  if (hour >= 12 && hour < 14) return "🍱 Lunchtime: Eat mindfully and include protein and vegetables."
-  if (hour >= 14 && hour < 17) return "💧 Afternoon: Stay hydrated — drink water before you feel thirsty."
-  if (hour >= 17 && hour < 20) return "🚶 Evening: A short walk after dinner aids digestion."
-  if (hour >= 20 && hour < 22) return "🌙 Wind-down time: Avoid screens and heavy meals before bed."
-  return "😴 Late night: Rest is important — try to get to sleep soon."
+  if (hour >= 5  && hour < 9)  return "Morning tip: Start with a glass of warm water and light stretching."
+  if (hour >= 9  && hour < 12) return "Mid-morning: A healthy snack can keep your energy steady."
+  if (hour >= 12 && hour < 14) return "Lunchtime: Eat mindfully and include protein and vegetables."
+  if (hour >= 14 && hour < 17) return "Afternoon: Stay hydrated — drink water before you feel thirsty."
+  if (hour >= 17 && hour < 20) return "Evening: A short walk after dinner aids digestion."
+  if (hour >= 20 && hour < 22) return "Wind-down time: Avoid screens and heavy meals before bed."
+  return "Late night: Rest is important — try to get to sleep soon."
 }
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -164,7 +164,7 @@ export default function HealthAssistantPage() {
       id: "welcome",
       role: "assistant",
       content:
-        `${_greeting}! 👋 Today is ${_today}.\n\n${_healthTip}\n\nI'm your AI Health Assistant. I can help you understand symptoms, suggest home remedies, and advise whether you should consult a doctor.\n\nYou can describe your symptoms, select from common issues, or do a quick wellness check-in. How can I help you today?`,
+        `${_greeting}! Today is ${_today}.\n\n${_healthTip}\n\nI'm your AI Health Assistant. I can help you understand symptoms, suggest home remedies, and advise whether you should consult a doctor.\n\nYou can describe your symptoms, select from common issues, or do a quick wellness check-in. How can I help you today?`,
       timestamp: new Date(),
       followUpQuestions: [
         "Do a wellness check-in",
@@ -467,7 +467,7 @@ export default function HealthAssistantPage() {
       {
         id: "welcome-new",
         role: "assistant",
-        content: `${newGreeting}! 👋 Today is ${newToday}.\n\n${newHealthTip}\n\nConversation cleared. How can I help you today?`,
+        content: `${newGreeting}! Today is ${newToday}.\n\n${newHealthTip}\n\nConversation cleared. How can I help you today?`,
         timestamp: new Date(),
         followUpQuestions: [
           "Do a wellness check-in",

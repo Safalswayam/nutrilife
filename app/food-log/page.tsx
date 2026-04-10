@@ -123,7 +123,7 @@ export default function FoodLogPage() {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!res.ok) throw new Error()
-      toast.success(`✅ ${foodName} logged!`)
+      toast.success(`${foodName} logged!`)
       setFoodName(""); setCalories(""); setProtein("")
       setCarbs(""); setFat(""); setSearchQuery("")
       nameInputRef.current?.focus()

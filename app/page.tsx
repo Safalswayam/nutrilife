@@ -96,7 +96,7 @@ export default function DashboardPage() {
   const mealNow    = useMemo(() => getMealTypeByTime(now.getHours()), [now])
 
 
-  // ✅ FIX: Memoize fetchDashboardStats to prevent infinite loops
+  // FIX: Memoize fetchDashboardStats to prevent infinite loops
   const fetchDashboardStats = useCallback(async () => {
     if (!token) return
     
@@ -129,7 +129,7 @@ export default function DashboardPage() {
     }
   }, [token])
 
-  // ✅ FIX: Proper useEffect with correct dependencies and fetch guard
+  // FIX: Proper useEffect with correct dependencies and fetch guard
   useEffect(() => {
     if (!user || !token) {
       router.push("/login")
@@ -182,10 +182,10 @@ export default function DashboardPage() {
           </div>
         </div>
         <p className="text-sm text-muted-foreground mt-1 ml-8">
-          {mealNow === "breakfast" && "🍳 Breakfast time — start your day right!"}
-          {mealNow === "lunch"     && "🍱 Lunchtime — refuel and keep going!"}
-          {mealNow === "dinner"    && "🍽️ Dinner time — wind down with a healthy meal!"}
-          {mealNow === "snack"     && "🍎 Snack time — something light to keep you going!"}
+          {mealNow === "breakfast" && "Breakfast time — start your day right!"}
+          {mealNow === "lunch"     && "Lunchtime — refuel and keep going!"}
+          {mealNow === "dinner"    && "Dinner time — wind down with a healthy meal!"}
+          {mealNow === "snack"     && "Snack time — something light to keep you going!"}
         </p>
       </div>
 

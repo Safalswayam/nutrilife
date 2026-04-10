@@ -63,20 +63,20 @@ const faqCategories: FAQCategory[] = [
   },
 ]
 
-const REPORT_TEMPLATE = `📝 BUG / ISSUE REPORT
+const REPORT_TEMPLATE = `BUG / ISSUE REPORT
 
-📧 Registered Email: 
-📱 Device / Browser: 
-🐛 Issue Type: [ Login | Payment | AI Feature | Water/Fasting | Other ]
-📄 Description:
+[Email] Registered Email: 
+[Device] Device / Browser: 
+[Type] Issue Type: [ Login | Payment | AI Feature | Water/Fasting | Other ]
+[Description]
 (What happened? What did you expect?)
 
-🔁 Steps to Reproduce:
+[Steps] Steps to Reproduce:
 1. 
 2. 
 3. 
 
-📸 Screenshot: (attach below)
+[Screenshot] (attach below)
 ━━━━━━━━━━━━━━━━━━
 Send to @NUTRILIFEDIET`
 
