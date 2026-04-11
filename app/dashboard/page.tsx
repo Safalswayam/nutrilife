@@ -394,7 +394,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-4 text-3xl font-black uppercase tracking-tight">
-                      <Activity className="w-8 h-8 text-primary" />
+                      <Activity className="w-8 h-8 text-orange-500" />
                       Momentum Matrix
                     </CardTitle>
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 ml-12">Temporal Calorie Velocity</p>
@@ -407,33 +407,33 @@ export default function DashboardPage() {
                   {stats.weekly_activity.some(d => d.calories > 0) ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={stats.weekly_activity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={8}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border/30" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border/60" vertical={false} />
                         <XAxis
                           dataKey="day"
                           tick={{ fontSize: 10, fontWeight: 900, fill: "currentColor" }}
-                          className="text-muted-foreground/50"
+                          className="text-muted-foreground/80"
                           axisLine={false}
                           tickLine={false}
                           dy={15}
                         />
                         <YAxis
                           tick={{ fontSize: 10, fontWeight: 900, fill: "currentColor" }}
-                          className="text-muted-foreground/50"
+                          className="text-muted-foreground/80"
                           axisLine={false}
                           tickLine={false}
                           tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v}
                         />
                         <Tooltip
-                          cursor={{ fill: "currentColor", className: "text-primary/5", radius: 20 }}
+                          cursor={{ fill: "currentColor", className: "text-orange-500/5", radius: 20 }}
                           content={({ active, payload }) => {
                             if (!active || !payload?.length) return null
                             const d = payload[0].payload
                             return (
                               <div className="bg-card p-6 rounded-3xl shadow-4xl border border-border">
                                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 flex items-center justify-between gap-4">
-                                  {d.day} {d.is_today && <span className="bg-primary text-white px-2 py-0.5 rounded-md">TODAY</span>}
+                                  {d.day} {d.is_today && <span className="bg-orange-500 text-white px-2 py-0.5 rounded-md">TODAY</span>}
                                 </p>
-                                <p className="text-3xl font-black text-primary tracking-tighter">{d.calories.toLocaleString()} <span className="text-xs text-muted-foreground font-bold uppercase opacity-40">kcal</span></p>
+                                <p className="text-3xl font-black text-orange-500 tracking-tighter">{d.calories.toLocaleString()} <span className="text-xs text-muted-foreground font-bold uppercase opacity-40">kcal</span></p>
                               </div>
                             )
                           }}
@@ -442,8 +442,9 @@ export default function DashboardPage() {
                           {stats.weekly_activity.map((entry, i) => (
                             <Cell
                               key={i}
-                              fill={entry.is_today ? "var(--primary)" : "currentColor"}
-                              className={entry.is_today ? "" : "text-muted/30"}
+                              fill={entry.is_today ? "#f97316" : "#f97316"}
+                              fillOpacity={entry.is_today ? 1 : 0.4}
+                              className="transition-all duration-500"
                             />
                           ))}
                         </Bar>

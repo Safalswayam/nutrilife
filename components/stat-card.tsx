@@ -31,8 +31,8 @@ export function StatCard({
       className={cn(
         "relative overflow-hidden rounded-2xl p-6 transition-all duration-300 hover:shadow-lg",
         variant === "primary" && "bg-primary text-primary-foreground",
-        variant === "green" && "bg-primary/10 text-primary border border-primary/20",
-        variant === "orange" && "bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20",
+        variant === "green" && "bg-primary/20 text-primary border border-primary/20",
+        variant === "orange" && "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20",
         variant === "accent" && "bg-accent text-accent-foreground",
         variant === "default" && "bg-card text-card-foreground border border-border",
         className
