@@ -15,6 +15,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth()
 
   const isAuthPage = AUTH_PAGES.includes(pathname)
+  const isLandingPage = pathname === "/"
+  const skipNav = isAuthPage || isLandingPage
 
   if (isLoading && !isAuthPage) {
     return (
@@ -36,12 +38,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (isAuthPage) {
+  if (skipNav) {
     return <>{children}</>
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-mesh bg-noise selection:bg-primary/20">
       {/* Desktop sidebar */}
       <SidebarNav />
 
@@ -57,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileNav />
 
       {/* Global Feedback Widget */}
-      {!isAuthPage && <FeedbackWidget />}
+      {!skipNav && <FeedbackWidget />}
     </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   CheckCircle, Copy, ClipboardList, Bell, Shield, Zap, Radio, ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 const TELEGRAM_LINK = "https://t.me/NUTRILIFEDIET"
 
@@ -117,57 +118,67 @@ export default function SupportTelegramPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto">
-      <PageHeader title="Support & Community" subtitle="Get help or stay connected on Telegram" />
+    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-10">
+      <div className="reveal-3d">
+        <PageHeader title="Support Nexus" subtitle="Operational Support & Community Synchronization" />
+      </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-border">
-        {([["support", "Support Center", null], ["telegram", "Telegram", Send]] as const).map(([id, label, Icon]) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-2 ${activeTab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            {Icon && <Icon className="w-3.5 h-3.5" />}
-            {label}
-          </button>
-        ))}
+      <div className="reveal-3d">
+        <div className="flex gap-4 border-b border-white/5">
+          {([["support", "Knowledge Base", null], ["telegram", "Direct Sync", Send]] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={cn("px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all -mb-px flex items-center gap-2", activeTab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground opacity-40 hover:opacity-100")}
+            >
+              {Icon && <Icon className="w-3.5 h-3.5" />}
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── SUPPORT TAB ── */}
       {activeTab === "support" && (
-        <div>
-          <div className="grid sm:grid-cols-3 gap-3 mb-6">
-            <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center"><Send className="w-4 h-4 text-primary" /></div>
-                  <p className="text-sm font-semibold text-foreground">Telegram Support</p>
-                  <p className="text-xs text-muted-foreground">DM us anytime</p>
+        <div className="space-y-8">
+          <div className="grid sm:grid-cols-3 gap-6 reveal-3d">
+            <Card className="border-none glass-card bg-primary/5 rounded-[2rem] shadow-3xl shadow-primary/5">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center"><Send className="w-5 h-5 text-primary" /></div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Sync Link</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase opacity-40">Direct Support</p>
+                  </div>
                   <a href={TELEGRAM_LINK} target="_blank" rel="noopener noreferrer" className="w-full">
-                    <Button size="sm" className="w-full text-xs">@NUTRILIFEDIET <ExternalLink className="w-3 h-3 ml-1" /></Button>
+                    <Button size="sm" className="w-full text-[9px] font-black uppercase tracking-widest h-10 rounded-xl">@NUTRILIFEDIET</Button>
                   </a>
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><Clock className="w-4 h-4 text-muted-foreground" /></div>
-                  <p className="text-sm font-semibold text-foreground">Response Time</p>
-                  <p className="text-xs text-muted-foreground">Within 24 hours</p>
-                  <Badge variant="secondary" className="text-xs">Mon – Sat</Badge>
+            <Card className="border-none glass-card rounded-[2rem] shadow-3xl shadow-white/5">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center"><Clock className="w-5 h-5 text-muted-foreground opacity-40" /></div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Latency</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase opacity-40">&lt; 24 Hour Cycle</p>
+                  </div>
+                  <div className="px-4 py-1.5 rounded-full border border-white/5 text-[9px] font-black uppercase tracking-widest opacity-40">Operational</div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><MessageCircle className="w-4 h-4 text-muted-foreground" /></div>
-                  <p className="text-sm font-semibold text-foreground">Updates Channel</p>
-                  <p className="text-xs text-muted-foreground">News & announcements</p>
+            <Card className="border-none glass-card rounded-[2rem] shadow-3xl shadow-white/5">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center"><MessageCircle className="w-5 h-5 text-muted-foreground opacity-40" /></div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Feed</p>
+                    <p className="text-xs text-muted-foreground font-bold uppercase opacity-40">Announcements</p>
+                  </div>
                   <button onClick={() => setActiveTab("telegram")} className="w-full">
-                    <Badge variant="outline" className="text-xs w-full justify-center py-1 cursor-pointer hover:bg-muted">View Telegram →</Badge>
+                    <div className="w-full py-2.5 rounded-xl bg-white/5 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5">View Node</div>
                   </button>
                 </div>
               </CardContent>

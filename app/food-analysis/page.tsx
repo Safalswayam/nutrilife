@@ -1,669 +1,617 @@
 "use client"
 
 import React from "react"
-
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { getApiUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { PremiumGate } from "@/components/premium-gate"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge as UIBadge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
 } from "@/components/ui/select"
 import {
-  Camera,
-  Upload,
-  ImageIcon,
-  Loader2,
-  Flame,
-  X,
-  CheckCircle,
-  AlertTriangle,
-  Info,
-  Apple,
-  RefreshCw,
-  BookOpen,
+   Camera,
+   Upload,
+   ImageIcon,
+   Loader2,
+   Flame,
+   X,
+   CheckCircle,
+   AlertTriangle,
+   Info,
+   Apple,
+   RefreshCw,
+   BookOpen,
+   Sparkles,
+   Zap,
+   Target,
+   Search,
+   ArrowRight,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { Label } from "recharts"
 
 interface FoodResult {
-  food: string
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
-  fiber: number
-  servingSize: string
-  healthBenefits: string[]
-  warnings: string[]
-  confidence: number
+   food: string
+   calories: number
+   protein: number
+   carbs: number
+   fat: number
+   fiber: number
+   servingSize: string
+   healthBenefits: string[]
+   warnings: string[]
+   confidence: number
 }
 
 interface AnalysisResult {
-  success: boolean
-  foods: FoodResult[]
-  totalNutrition: {
-    calories: number
-    protein: number
-    carbs: number
-    fat: number
-    fiber: number
-  }
-  healthBenefits: string[]
-  warnings: string[]
-  recommendation: string
-  logged?: boolean
-  _rawItems?: { name: string; calories: number; portion: string }[]
-  _rawNutrition?: { protein: number; carbs: number; fat: number; fiber: number; calories: number }
+   success: boolean
+   foods: FoodResult[]
+   totalNutrition: {
+      calories: number
+      protein: number
+      carbs: number
+      fat: number
+      fiber: number
+   }
+   healthBenefits: string[]
+   warnings: string[]
+   recommendation: string
+   logged?: boolean
+   _rawItems?: { name: string; calories: number; portion: string }[]
+   _rawNutrition?: { protein: number; carbs: number; fat: number; fiber: number; calories: number }
 }
 
 export default function FoodAnalysisPage() {
-  const { token, user } = useAuth()
-  const router = useRouter()
-  const [image, setImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [description, setDescription] = useState("")
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [result, setResult] = useState<AnalysisResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [showWebcam, setShowWebcam] = useState(false)
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+   const { token, user } = useAuth()
+   const router = useRouter()
+   const [image, setImage] = useState<File | null>(null)
+   const [imagePreview, setImagePreview] = useState<string | null>(null)
+   const [description, setDescription] = useState("")
+   const [isAnalyzing, setIsAnalyzing] = useState(false)
+   const [result, setResult] = useState<AnalysisResult | null>(null)
+   const [error, setError] = useState<string | null>(null)
+   const [showWebcam, setShowWebcam] = useState(false)
+   const [stream, setStream] = useState<MediaStream | null>(null)
+   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment")
+   const fileInputRef = useRef<HTMLInputElement>(null)
+   const videoRef = useRef<HTMLVideoElement>(null)
+   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Logging state
-  const [mealType, setMealType] = useState("meal")
-  const [isLogging, setIsLogging] = useState(false)
-  const [loggedSuccess, setLoggedSuccess] = useState(false)
-  const [logError, setLogError] = useState<string | null>(null)
+   const [mealType, setMealType] = useState("meal")
+   const [isLogging, setIsLogging] = useState(false)
+   const [loggedSuccess, setLoggedSuccess] = useState(false)
+   const [logError, setLogError] = useState<string | null>(null)
 
-  React.useEffect(() => {
-    if (!user || !token) {
-      router.push("/login")
-    }
-  }, [user, token])
+   useEffect(() => {
+      if (!user || !token) {
+         router.push("/login")
+      }
+   }, [user, token, router])
 
-  React.useEffect(() => {
-    return () => {
+   useEffect(() => {
+      return () => {
+         if (stream) {
+            stream.getTracks().forEach(track => track.stop())
+         }
+      }
+   }, [stream])
+
+   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (file) {
+         setImage(file)
+         const reader = new FileReader()
+         reader.onloadend = () => {
+            setImagePreview(reader.result as string)
+         }
+         reader.readAsDataURL(file)
+         setError(null)
+         setResult(null)
+         setLoggedSuccess(false)
+         setLogError(null)
+      }
+   }
+
+   const startWebcam = async (facing: "user" | "environment" = "environment") => {
+      try {
+         if (stream) {
+            stream.getTracks().forEach(track => track.stop())
+         }
+         const mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing }
+         })
+         setStream(mediaStream)
+         setShowWebcam(true)
+         setFacingMode(facing)
+         if (videoRef.current) {
+            videoRef.current.srcObject = mediaStream
+         }
+      } catch (err) {
+         console.error("Error accessing webcam:", err)
+         setError("Could not access camera. Please check permissions.")
+      }
+   }
+
+   const switchCamera = async () => {
+      const newFacingMode = facingMode === "environment" ? "user" : "environment"
+      await startWebcam(newFacingMode)
+   }
+
+   const capturePhoto = () => {
+      if (videoRef.current && canvasRef.current) {
+         const video = videoRef.current
+         const canvas = canvasRef.current
+         canvas.width = video.videoWidth
+         canvas.height = video.videoHeight
+         const ctx = canvas.getContext("2d")
+         if (ctx) {
+            ctx.drawImage(video, 0, 0)
+            canvas.toBlob((blob) => {
+               if (blob) {
+                  const file = new File([blob], "webcam-photo.jpg", { type: "image/jpeg" })
+                  setImage(file)
+                  setImagePreview(canvas.toDataURL("image/jpeg"))
+                  closeWebcam()
+                  setError(null)
+                  setResult(null)
+                  setLoggedSuccess(false)
+                  setLogError(null)
+               }
+            }, "image/jpeg")
+         }
+      }
+   }
+
+   const closeWebcam = () => {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+         stream.getTracks().forEach(track => track.stop())
+         setStream(null)
       }
-    }
-  }, [stream])
+      setShowWebcam(false)
+   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImage(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
+   const triggerUpload = (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (fileInputRef.current) {
+         fileInputRef.current.click()
       }
-      reader.readAsDataURL(file)
-      setError(null)
+   }
+
+   const clearImage = () => {
+      setImage(null)
+      setImagePreview(null)
       setResult(null)
       setLoggedSuccess(false)
       setLogError(null)
-    }
-  }
+      if (fileInputRef.current) fileInputRef.current.value = ""
+   }
 
-  const startWebcam = async (facing: "user" | "environment" = "environment") => {
-    try {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+   const analyzeFood = async () => {
+      if (!image && !description.trim()) {
+         setError("Please upload an image or describe the food")
+         return
       }
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing }
-      })
-      setStream(mediaStream)
-      setShowWebcam(true)
-      setFacingMode(facing)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
-    } catch (err) {
-      console.error("Error accessing webcam:", err)
-      setError("Could not access camera. Please check permissions.")
-    }
-  }
-
-  const switchCamera = async () => {
-    const newFacingMode = facingMode === "environment" ? "user" : "environment"
-    await startWebcam(newFacingMode)
-  }
-
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      const ctx = canvas.getContext("2d")
-      if (ctx) {
-        ctx.drawImage(video, 0, 0)
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const file = new File([blob], "webcam-photo.jpg", { type: "image/jpeg" })
-            setImage(file)
-            setImagePreview(canvas.toDataURL("image/jpeg"))
-            closeWebcam()
-            setError(null)
-            setResult(null)
-            setLoggedSuccess(false)
-            setLogError(null)
-          }
-        }, "image/jpeg")
-      }
-    }
-  }
-
-  const closeWebcam = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-    setShowWebcam(false)
-  }
-
-  const triggerUpload = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (fileInputRef.current) {
-      fileInputRef.current.click()
-    }
-  }
-
-  const clearImage = () => {
-    setImage(null)
-    setImagePreview(null)
-    setResult(null)
-    setLoggedSuccess(false)
-    setLogError(null)
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
-
-  // ── ANALYZE ONLY (no auto-log) ───────────────────────────────────────────
-  const analyzeFood = async () => {
-    if (!image && !description.trim()) {
-      setError("Please upload an image or describe the food")
-      return
-    }
-    if (!token) {
-      setError("Please login to analyze food")
-      return
-    }
-
-    setIsAnalyzing(true)
-    setError(null)
-    setLoggedSuccess(false)
-    setLogError(null)
-
-    try {
-      let imageBase64 = null
-      if (image) {
-        const reader = new FileReader()
-        imageBase64 = await new Promise((resolve) => {
-          reader.onloadend = () => {
-            const base64 = reader.result as string
-            resolve(base64.split(",")[1])
-          }
-          reader.readAsDataURL(image)
-        })
+      if (!token) {
+         setError("Please login to analyze food")
+         return
       }
 
-      // Analyze-only endpoint — does NOT log automatically
-      const response = await fetch(getApiUrl("/api/analyze-food"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          description: description || "food meal",
-          image_base64: imageBase64,
-        }),
-      })
+      setIsAnalyzing(true)
+      setError(null)
+      setLoggedSuccess(false)
+      setLogError(null)
 
-      const data = await response.json()
+      try {
+         let imageBase64 = null
+         if (image) {
+            const reader = new FileReader()
+            imageBase64 = await new Promise((resolve) => {
+               reader.onloadend = () => {
+                  const base64 = reader.result as string
+                  resolve(base64.split(",")[1])
+               }
+               reader.readAsDataURL(image)
+            })
+         }
 
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to analyze food")
-      }
+         const response = await fetch(getApiUrl("/api/analyze-food"), {
+            method: "POST",
+            headers: {
+               "Content-Type": "application/json",
+               "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+               description: description || "food meal",
+               image_base64: imageBase64,
+            }),
+         })
 
-      // Distribute total nutrition evenly across detected items for per-item display
-      const items = data.items || []
-      const totalNutrition = data.nutrition || {}
-      const itemCount = items.length || 1
+         const data = await response.json()
 
-      const transformedResult: AnalysisResult = {
-        success: data.success,
-        foods: items.map((item: { name: string; portion: string; calories: number }, idx: number) => {
-          // Estimate per-item macros proportionally by calorie share
-          const totalCal = totalNutrition.calories || 1
-          const share = item.calories / totalCal
-          return {
-            food: item.name && item.name.toLowerCase() !== "default"
-              ? item.name
-              : (data.food_name || "Analyzed Food"),
-            calories: item.calories,
-            protein: Math.round((totalNutrition.protein ?? 0) * share * 10) / 10,
-            carbs:   Math.round((totalNutrition.carbs   ?? 0) * share * 10) / 10,
-            fat:     Math.round((totalNutrition.fat     ?? 0) * share * 10) / 10,
-            fiber:   Math.round((totalNutrition.fiber   ?? 0) * share * 10) / 10,
-            servingSize: item.portion,
+         if (!response.ok) {
+            throw new Error(data.detail || "Failed to analyze food")
+         }
+
+         const items = data.items || []
+         const totalNutrition = data.nutrition || {}
+
+         const transformedResult: AnalysisResult = {
+            success: data.success,
+            foods: items.map((item: { name: string; portion: string; calories: number }, idx: number) => {
+               const totalCal = totalNutrition.calories || 1
+               const share = item.calories / totalCal
+               return {
+                  food: item.name && item.name.toLowerCase() !== "default"
+                     ? item.name
+                     : (data.food_name || "Analyzed Food"),
+                  calories: item.calories,
+                  protein: Math.round((totalNutrition.protein ?? 0) * share * 10) / 10,
+                  carbs: Math.round((totalNutrition.carbs ?? 0) * share * 10) / 10,
+                  fat: Math.round((totalNutrition.fat ?? 0) * share * 10) / 10,
+                  fiber: Math.round((totalNutrition.fiber ?? 0) * share * 10) / 10,
+                  servingSize: item.portion,
+                  healthBenefits: data.health_benefits || [],
+                  warnings: data.warnings || [],
+                  confidence: 0.85,
+               }
+            }),
+            totalNutrition: {
+               calories: totalNutrition.calories ?? 0,
+               protein: totalNutrition.protein ?? 0,
+               carbs: totalNutrition.carbs ?? 0,
+               fat: totalNutrition.fat ?? 0,
+               fiber: totalNutrition.fiber ?? 0,
+            },
             healthBenefits: data.health_benefits || [],
             warnings: data.warnings || [],
-            confidence: 0.85,
-          }
-        }),
-        totalNutrition: {
-          calories: totalNutrition.calories ?? 0,
-          protein:  totalNutrition.protein  ?? 0,
-          carbs:    totalNutrition.carbs    ?? 0,
-          fat:      totalNutrition.fat      ?? 0,
-          fiber:    totalNutrition.fiber    ?? 0,
-        },
-        healthBenefits: data.health_benefits || [],
-        warnings: data.warnings || [],
-        recommendation:
-          data.healthier_alternatives && data.healthier_alternatives.length > 0
-            ? `Try these healthier alternatives: ${data.healthier_alternatives.join(", ")}`
-            : "This looks like a balanced meal choice!",
-        logged: false,
-        _rawItems: items,
-        _rawNutrition: totalNutrition,
+            recommendation:
+               data.healthier_alternatives && data.healthier_alternatives.length > 0
+                  ? `Try these healthier alternatives: ${data.healthier_alternatives.join(", ")}`
+                  : "This looks like a balanced meal choice!",
+            logged: false,
+            _rawItems: items,
+            _rawNutrition: totalNutrition,
+         }
+
+         setResult(transformedResult)
+      } catch (err) {
+         console.error("[v0] Food analysis error:", err)
+         let errorMsg = "An error occurred"
+         if (err instanceof TypeError && err.message === "Failed to fetch") {
+            errorMsg = "Backend server is not running."
+         } else if (err instanceof Error) {
+            errorMsg = err.message
+         }
+         setError(errorMsg)
+      } finally {
+         setIsAnalyzing(false)
       }
+   }
 
-      setResult(transformedResult)
-    } catch (err) {
-      console.error("[v0] Food analysis error:", err)
-      let errorMsg = "An error occurred"
-      if (err instanceof TypeError && err.message === "Failed to fetch") {
-        errorMsg = "Backend server is not running. Please start it with: uvicorn api.index:app --reload"
-      } else if (err instanceof Error) {
-        errorMsg = err.message
+   const logToDiary = async () => {
+      if (!result || !token) return
+
+      setIsLogging(true)
+      setLogError(null)
+
+      try {
+         const response = await fetch(getApiUrl("/api/meals/log-batch"), {
+            method: "POST",
+            headers: {
+               "Content-Type": "application/json",
+               Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+               items: result._rawItems || [],
+               nutrition: result._rawNutrition || {},
+               meal_type: mealType,
+            }),
+         })
+
+         const data = await response.json()
+
+         if (!response.ok) {
+            throw new Error(data.detail || "Failed to log to diary")
+         }
+
+         setLoggedSuccess(true)
+         setResult(prev => prev ? { ...prev, logged: true } : prev)
+      } catch (err) {
+         const msg = err instanceof Error ? err.message : "Failed to log food"
+         setLogError(msg)
+      } finally {
+         setIsLogging(false)
       }
-      setError(errorMsg)
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
+   }
 
-  // ── LOG TO DIARY (explicit user action) ──────────────────────────────────
-  const logToDiary = async () => {
-    if (!result || !token) return
+   return (
+      <PremiumGate feature="food_analyzer">
+         <div className="p-3 md:p-8 space-y-8 max-w-7xl mx-auto">
+            <div className="reveal-3d">
+               <PageHeader
+                  title="AI Vision Analysis"
+                  subtitle="Harness artificial intelligence to identify nutrition vitals from your food photos."
+               />
+            </div>
 
-    setIsLogging(true)
-    setLogError(null)
-
-    try {
-      const response = await fetch(getApiUrl("/api/meals/log-batch"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          items: result._rawItems || [],
-          nutrition: result._rawNutrition || {},
-          meal_type: mealType,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to log to diary")
-      }
-
-      setLoggedSuccess(true)
-      setResult(prev => prev ? { ...prev, logged: true } : prev)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to log food"
-      setLogError(msg)
-    } finally {
-      setIsLogging(false)
-    }
-  }
-
-  return (
-    <PremiumGate feature="food_analyzer">
-      <div className="p-3 md:p-8">
-        <PageHeader
-          title="Food Analysis"
-          subtitle="Upload or capture food photos to get instant calorie and nutrition information"
-        />
-
-        {/* Info Banner */}
-        <Alert className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
-          <Info className="w-4 h-4 text-blue-600" />
-          <AlertDescription className="text-blue-700 dark:text-blue-300">
-            Analyzing food does <strong>not</strong> add it to your diary. After analyzing, use the{" "}
-            <strong>Log to Food Diary</strong> button below to save it.
-          </AlertDescription>
-        </Alert>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Upload Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-primary" />
-                Capture or Upload
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Webcam View */}
-              {showWebcam ? (
-                <div className="relative rounded-xl overflow-hidden bg-black">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    className="w-full h-64 object-cover"
-                  />
-                  <canvas ref={canvasRef} className="hidden" />
-                  <Button
-                    onClick={switchCamera}
-                    size="icon"
-                    variant="secondary"
-                    className="absolute top-4 right-4 rounded-full"
-                    title="Switch camera"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                  </Button>
-                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
-                    <Button onClick={capturePhoto} size="lg" className="bg-primary hover:bg-primary/90">
-                      <Camera className="w-5 h-5 mr-2" />
-                      Capture Photo
-                    </Button>
-                    <Button onClick={closeWebcam} size="lg" variant="secondary">
-                      <X className="w-5 h-5 mr-2" />
-                      Cancel
-                    </Button>
+            {/* Global Banner */}
+            <div className="reveal-3d">
+               <div className="glass-card p-4 rounded-3xl bg-blue-500/10 border-blue-500/20 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center shrink-0">
+                     <Zap className="w-5 h-5 text-blue-500" />
                   </div>
-                </div>
-              ) : imagePreview ? (
-                <div className="relative rounded-xl overflow-hidden">
-                  <img
-                    src={imagePreview || "/placeholder.svg"}
-                    alt="Food preview"
-                    className="w-full h-64 object-cover"
-                  />
-                  <button
-                    onClick={clearImage}
-                    className="absolute top-2 right-2 p-2 rounded-full bg-foreground/80 text-background hover:bg-foreground transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary transition-colors">
-                  <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">Upload a photo of your food or take a picture</p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Button type="button" variant="outline" onClick={triggerUpload}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Image
-                    </Button>
-                    <Button type="button" variant="default" onClick={() => startWebcam("environment")}>
-                      <Camera className="w-4 h-4 mr-2" />
-                      Take Photo
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Hidden file input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                aria-label="Upload food image"
-              />
-
-              {/* Food Description */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Describe the food (optional but helps accuracy)
-                </label>
-                <Textarea
-                  placeholder="e.g., grilled chicken with rice and salad"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="w-4 h-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* Analyze Button */}
-              <Button
-                onClick={analyzeFood}
-                disabled={isAnalyzing || (!image && !description.trim())}
-                className="w-full"
-                size="lg"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Flame className="w-4 h-4 mr-2" />
-                    Analyze Food
-                  </>
-                )}
-              </Button>
-
-              {/* ── LOG TO DIARY SECTION (appears after analysis, before logging) ── */}
-              {result && !loggedSuccess && (
-                <div className="border-2 border-dashed border-primary/40 rounded-xl p-4 space-y-3 bg-primary/5">
-                  <p className="text-sm font-semibold text-primary flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" />
-                    Log this meal to your Food Diary
+                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                     <span className="font-black">Pro Tip:</span> Analysis only calculates macros. Click <span className="font-bold underline">Log to Diary</span> below to save the results to your dailies.
                   </p>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Meal Type</label>
-                    <Select value={mealType} onValueChange={setMealType}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="breakfast">Breakfast</SelectItem>
-                        <SelectItem value="lunch">Lunch</SelectItem>
-                        <SelectItem value="dinner">Dinner</SelectItem>
-                        <SelectItem value="snack">Snack</SelectItem>
-                        <SelectItem value="meal">Other / General</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {logError && (
-                    <Alert variant="destructive" className="py-2">
-                      <AlertTriangle className="w-3 h-3" />
-                      <AlertDescription className="text-xs">{logError}</AlertDescription>
-                    </Alert>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+               {/* LEFT: Upload & Input */}
+               <div className="space-y-8 reveal-3d">
+                  <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden">
+                     <CardHeader className="p-8 pb-4">
+                        <CardTitle className="text-2xl font-black flex items-center gap-3">
+                           <Camera className="w-6 h-6 text-primary" /> Visual Capture
+                        </CardTitle>
+                     </CardHeader>
+                     <CardContent className="p-8 pt-2 space-y-8">
+                        {/* Visual Interface */}
+                        <div className="relative group">
+                           <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-[2.2rem] blur opacity-60 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                           <div className="relative">
+                              {showWebcam ? (
+                                 <div className="relative rounded-[2rem] overflow-hidden bg-black aspect-video shadow-2xl">
+                                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                    <canvas ref={canvasRef} className="hidden" />
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                       <Button onClick={switchCamera} size="icon" variant="secondary" className="rounded-full glass-card border-none hover:bg-white/20">
+                                          <RefreshCw className="w-5 h-5 text-white" />
+                                       </Button>
+                                       <Button onClick={closeWebcam} size="icon" variant="destructive" className="rounded-full shadow-lg">
+                                          <X className="w-5 h-5" />
+                                       </Button>
+                                    </div>
+                                    <div className="absolute bottom-6 left-0 right-0 flex justify-center">
+                                       <Button onClick={capturePhoto} size="lg" className="h-16 px-10 bg-primary hover:bg-primary/90 text-xl font-black rounded-3xl shadow-3xl shadow-primary/40 group/cam">
+                                          <Camera className="w-6 h-6 mr-3 group-hover/cam:scale-110 transition-transform" />
+                                          Snap Photo
+                                       </Button>
+                                    </div>
+                                 </div>
+                              ) : imagePreview ? (
+                                 <div className="relative rounded-[2rem] overflow-hidden aspect-video shadow-2xl ring-1 ring-white/10">
+                                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                    <button onClick={clearImage} className="absolute top-4 right-4 p-3 rounded-2xl bg-black/60 text-white backdrop-blur-md hover:bg-black transition-all">
+                                       <X className="w-5 h-5" />
+                                    </button>
+                                 </div>
+                              ) : (
+                                 <div className="border-2 border-dashed border-white/10 rounded-[2rem] p-12 text-center bg-white/5 hover:bg-white/10 hover:border-primary/50 transition-all group/box">
+                                    <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center mb-6 group-hover/box:scale-110 transition-transform">
+                                       <ImageIcon className="w-10 h-10 text-primary opacity-60" />
+                                    </div>
+                                    <h4 className="text-xl font-black mb-2">Awaiting Visual Input</h4>
+                                    <p className="text-muted-foreground font-medium mb-8 max-w-[240px] mx-auto text-sm">Upload a plate photo or use your camera for instant detection.</p>
+                                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                       <Button onClick={triggerUpload} variant="outline" className="h-12 rounded-2xl border-white/10 glass-card px-6 font-bold">
+                                          <Upload className="w-4 h-4 mr-2" /> Upload
+                                       </Button>
+                                       <Button onClick={() => startWebcam("environment")} className="h-12 rounded-2xl px-6 font-bold shadow-lg shadow-primary/20">
+                                          <Camera className="w-4 h-4 mr-2" /> Start Camera
+                                       </Button>
+                                    </div>
+                                    <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
+                                 </div>
+                              )}
+                           </div>
+                        </div>
+
+                        {/* Context Info */}
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-2">
+                              <Search className="w-4 h-4 text-primary" />
+                              <Label className="text-xs font-black uppercase text-muted-foreground tracking-widest">Optional Context</Label>
+                           </div>
+                           <Textarea
+                              placeholder="e.g. Scrambled eggs with a side of multigrain toast..."
+                              value={description}
+                              onChange={(e) => setDescription(e.target.value)}
+                              className="rounded-2xl bg-white/5 border-none min-h-[100px] focus-visible:ring-primary/50 text-base"
+                           />
+                        </div>
+
+                        {/* Analysis Trigger */}
+                        <div className="pt-4">
+                           {error && (
+                              <Alert variant="destructive" className="mb-4 rounded-2xl border-none bg-red-500/10 text-red-500">
+                                 <AlertTriangle className="w-4 h-4" />
+                                 <AlertDescription className="font-bold">{error}</AlertDescription>
+                              </Alert>
+                           )}
+                           <Button
+                              onClick={analyzeFood}
+                              disabled={isAnalyzing || (!image && !description.trim())}
+                              className="w-full h-16 rounded-[1.5rem] text-xl font-black group shadow-3xl shadow-primary/20"
+                           >
+                              {isAnalyzing ? (
+                                 <Loader2 className="animate-spin mr-3" />
+                              ) : (
+                                 <Sparkles className="w-6 h-6 mr-3 text-white group-hover:rotate-12 transition-transform" />
+                              )}
+                              {isAnalyzing ? "Processing Visuals..." : "Analyze Vitals"}
+                           </Button>
+                        </div>
+
+                        {/* Explicit Log to Diary Action (appears only after analysis) */}
+                        {result && !loggedSuccess && (
+                           <div className="glass-card p-6 rounded-[2rem] border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                              <h4 className="text-lg font-black flex items-center gap-2 mb-4">
+                                 <BookOpen className="w-5 h-5 text-primary" /> Log results to diary?
+                              </h4>
+                              <div className="grid grid-cols-2 gap-4 mb-6">
+                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Meal Segment</label>
+                                    <Select value={mealType} onValueChange={setMealType}>
+                                       <SelectTrigger className="rounded-xl bg-white/5 border-none h-10"><SelectValue /></SelectTrigger>
+                                       <SelectContent className="rounded-2xl glass-card">
+                                          <SelectItem value="breakfast">Breakfast</SelectItem>
+                                          <SelectItem value="lunch">Lunch</SelectItem>
+                                          <SelectItem value="dinner">Dinner</SelectItem>
+                                          <SelectItem value="snack">Snack</SelectItem>
+                                       </SelectContent>
+                                    </Select>
+                                 </div>
+                                 <div className="flex items-end">
+                                    <Button onClick={logToDiary} disabled={isLogging} className="w-full h-10 rounded-xl font-bold bg-primary shadow-lg shadow-primary/20">
+                                       {isLogging ? <Loader2 className="animate-spin" /> : "Log Now"}
+                                    </Button>
+                                 </div>
+                              </div>
+                              {logError && <p className="text-[10px] text-red-500 font-bold ml-1">Error: {logError}</p>}
+                           </div>
+                        )}
+
+                        {loggedSuccess && (
+                           <div className="p-6 rounded-[2rem] bg-primary/10 flex items-center gap-4 border border-primary/20 animate-in zoom-in-95 duration-500">
+                              <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0">
+                                 <CheckCircle className="w-6 h-6 text-primary" />
+                              </div>
+                              <div>
+                                 <p className="font-black text-lg">Vital Saved Successfully!</p>
+                                 <p className="text-sm text-muted-foreground font-medium">Results are now synced to your food diary.</p>
+                              </div>
+                           </div>
+                        )}
+                     </CardContent>
+                  </Card>
+               </div>
+
+               {/* RIGHT: Results */}
+               <div className="space-y-8 reveal-3d">
+                  {result ? (
+                     <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700">
+                        {/* Summary Bar */}
+                        <Card className="border-none glass-card rounded-[2.5rem] bg-gradient-to-br from-primary/10 to-transparent">
+                           <CardHeader className="p-8 pb-4">
+                              <CardTitle className="text-xl font-black">Detected Nutrition Vitals</CardTitle>
+                           </CardHeader>
+                           <CardContent className="p-8 pt-0">
+                              <div className="grid grid-cols-5 gap-2">
+                                 {[
+                                    { label: "kcal", value: result.totalNutrition.calories, icon: Flame, color: "text-primary" },
+                                    { label: "Prot", value: result.totalNutrition.protein, icon: Apple, color: "text-red-500" },
+                                    { label: "Carb", value: result.totalNutrition.carbs, icon: Target, color: "text-amber-500" },
+                                    { label: "Fat", value: result.totalNutrition.fat, icon: Info, color: "text-blue-500" },
+                                    { label: "Fib", value: result.totalNutrition.fiber, icon: Sparkles, color: "text-green-500" },
+                                 ].map((stat, i) => (
+                                    <div key={i} className="glass-card p-3 rounded-2xl flex flex-col items-center gap-1">
+                                       <stat.icon className={cn("w-4 h-4", stat.color)} />
+                                       <p className="text-lg font-black leading-none">{stat.value}</p>
+                                       <p className="text-[9px] font-bold text-muted-foreground uppercase">{stat.label}</p>
+                                    </div>
+                                 ))}
+                              </div>
+                           </CardContent>
+                        </Card>
+
+                        {/* Detected Items List */}
+                        <div className="space-y-4">
+                           <h4 className="text-sm font-black text-muted-foreground uppercase tracking-widest px-4">Detected Ingredients</h4>
+                           {result.foods.map((food, i) => (
+                              <div key={i} className="glass-card p-6 rounded-[2rem] space-y-4 reveal-3d" style={{ animationDelay: `${i * 100}ms` }}>
+                                 <div className="flex items-center justify-between">
+                                    <h5 className="text-xl font-black capitalize">{food.food}</h5>
+                                    <div className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-black uppercase text-muted-foreground">{Math.round(food.confidence * 100)}% detection</div>
+                                 </div>
+                                 <div className="flex gap-4">
+                                    <UIBadge variant="outline" className="border-primary/20 text-primary rounded-xl font-bold px-3 py-1">{food.servingSize}</UIBadge>
+                                    <UIBadge variant="outline" className="border-blue-500/20 text-blue-500 rounded-xl font-bold px-3 py-1">{food.calories} kcal</UIBadge>
+                                 </div>
+                                 <div className="flex gap-6 pt-2 border-t border-white/5">
+                                    <div className="flex-1 space-y-1">
+                                       <div className="flex justify-between text-[9px] font-black text-muted-foreground uppercase mb-1">
+                                          <span>Macros share</span>
+                                       </div>
+                                       <div className="h-1.5 flex rounded-full overflow-hidden bg-white/5">
+                                          <div className="bg-red-500 h-full" style={{ width: `${(food.protein / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
+                                          <div className="bg-amber-500 h-full" style={{ width: `${(food.carbs / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
+                                          <div className="bg-blue-500 h-full" style={{ width: `${(food.fat / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
+                                       </div>
+                                    </div>
+                                    <div className="flex gap-4 text-[11px] font-black">
+                                       <span className="text-red-500">P: {food.protein}g</span>
+                                       <span className="text-amber-500">C: {food.carbs}g</span>
+                                       <span className="text-blue-500">F: {food.fat}g</span>
+                                    </div>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+
+                        {/* Recommendations and Warnings */}
+                        <div className="grid md:grid-cols-2 gap-6 reveal-3d">
+                           {result.healthBenefits.length > 0 && (
+                              <div className="glass-card p-6 rounded-[2rem] border-green-500/10">
+                                 <h5 className="font-black text-green-500 flex items-center gap-2 mb-4">
+                                    <CheckCircle className="w-5 h-5" /> Benefits
+                                 </h5>
+                                 <ul className="space-y-3">
+                                    {result.healthBenefits.slice(0, 3).map((b, i) => (
+                                       <li key={i} className="text-xs font-medium text-muted-foreground flex items-center gap-2 leading-tight">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div>
+                                          {b}
+                                       </li>
+                                    ))}
+                                 </ul>
+                              </div>
+                           )}
+                           {result.warnings.length > 0 && (
+                              <div className="glass-card p-6 rounded-[2rem] border-amber-500/10">
+                                 <h5 className="font-black text-amber-500 flex items-center gap-2 mb-4">
+                                    <AlertTriangle className="w-5 h-5" /> Insights
+                                 </h5>
+                                 <ul className="space-y-3">
+                                    {result.warnings.slice(0, 3).map((w, i) => (
+                                       <li key={i} className="text-xs font-medium text-muted-foreground flex items-center gap-2 leading-tight">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></div>
+                                          {w}
+                                       </li>
+                                    ))}
+                                 </ul>
+                              </div>
+                           )}
+                        </div>
+
+                        <div className="glass-card p-6 rounded-[2rem] bg-gradient-to-r from-blue-500/10 to-transparent border-blue-500/10">
+                           <p className="text-sm font-black text-blue-500 uppercase tracking-widest mb-2">Scientific Recommendation</p>
+                           <p className="text-base font-bold italic leading-relaxed text-blue-700/80 dark:text-blue-300/80">"{result.recommendation}"</p>
+                        </div>
+                     </div>
+                  ) : (
+                     <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center p-12 glass-card rounded-[3rem] border-dashed border-2 border-white/5 opacity-50">
+                        <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-8">
+                           <Camera className="w-12 h-12 text-muted-foreground opacity-30" />
+                        </div>
+                        <h3 className="text-2xl font-black mb-2 opacity-60">Ready for Analysis</h3>
+                        <p className="text-muted-foreground font-medium max-w-[280px]">Detailed nutrition vitals will appear here after visual processing.</p>
+                     </div>
                   )}
-                  <Button
-                    onClick={logToDiary}
-                    disabled={isLogging}
-                    className="w-full"
-                    variant="default"
-                  >
-                    {isLogging ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Logging...
-                      </>
-                    ) : (
-                      <>
-                        <BookOpen className="w-4 h-4 mr-2" />
-                        Log to Food Diary
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {/* Success Message after logging */}
-              {loggedSuccess && (
-                <Alert className="bg-primary/10 border-primary/20">
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <AlertTitle className="text-primary">Logged Successfully!</AlertTitle>
-                  <AlertDescription className="text-foreground">
-                    This meal has been added to your food diary.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Results Section */}
-          <div className="space-y-6">
-            {result ? (
-              <>
-                {/* Total Nutrition */}
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Total Nutrition</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                      {[
-                        { label: "Calories", value: result.totalNutrition.calories, unit: "kcal" },
-                        { label: "Protein", value: result.totalNutrition.protein, unit: "g" },
-                        { label: "Carbs", value: result.totalNutrition.carbs, unit: "g" },
-                        { label: "Fat", value: result.totalNutrition.fat, unit: "g" },
-                        { label: "Fiber", value: result.totalNutrition.fiber, unit: "g" },
-                      ].map((item) => (
-                        <div key={item.label} className="text-center p-3 rounded-lg bg-card">
-                          <p className="text-2xl font-bold text-foreground">{item.value}</p>
-                          <p className="text-xs text-muted-foreground">{item.unit}</p>
-                          <p className="text-sm font-medium text-foreground">{item.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Detected Foods */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Apple className="w-5 h-5 text-primary" />
-                      Detected Foods
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {result.foods.map((food, index) => (
-                        <div key={index} className="p-4 rounded-xl border border-border bg-muted/30">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-foreground">{food.food}</h4>
-                            <span className="text-sm text-muted-foreground">
-                              {Math.round(food.confidence * 100)}% confidence
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-3">Serving size: {food.servingSize}</p>
-                          <div className="flex flex-wrap gap-2">
-                            <span className="px-2 py-1 text-xs rounded-full bg-chart-1/20 text-chart-1">{food.calories} kcal</span>
-                            <span className="px-2 py-1 text-xs rounded-full bg-chart-2/20 text-chart-2">{food.protein}g protein</span>
-                            <span className="px-2 py-1 text-xs rounded-full bg-chart-3/20 text-chart-3">{food.carbs}g carbs</span>
-                            <span className="px-2 py-1 text-xs rounded-full bg-chart-4/20 text-chart-4">{food.fat}g fat</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Health Benefits */}
-                {result.healthBenefits.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <CheckCircle className="w-5 h-5 text-primary" />
-                        Health Benefits
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {result.healthBenefits.map((benefit, index) => (
-                          <li key={index} className="flex items-start gap-2 text-sm text-foreground">
-                            <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                            {benefit}
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Warnings */}
-                {result.warnings.length > 0 && (
-                  <Card className="border-accent/30">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <AlertTriangle className="w-5 h-5 text-accent" />
-                        Things to Consider
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {result.warnings.map((warning, index) => (
-                          <li key={index} className="flex items-start gap-2 text-sm text-foreground">
-                            <AlertTriangle className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
-                            {warning}
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Recommendation */}
-                <Alert className="bg-primary/10 border-primary/20">
-                  <Info className="w-4 h-4 text-primary" />
-                  <AlertTitle className="text-primary">Recommendation</AlertTitle>
-                  <AlertDescription className="text-foreground">{result.recommendation}</AlertDescription>
-                </Alert>
-              </>
-            ) : (
-              <Card className="h-full flex items-center justify-center min-h-[400px]">
-                <CardContent className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center mb-4">
-                    <Camera className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No Analysis Yet</h3>
-                  <p className="text-muted-foreground max-w-xs mx-auto">
-                    Upload or capture a food image and click analyze to see detailed nutrition information
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-      </div>
-    </PremiumGate>
-  )
+               </div>
+            </div>
+         </div>
+      </PremiumGate>
+   )
 }

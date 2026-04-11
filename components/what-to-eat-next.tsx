@@ -95,71 +95,68 @@ export function WhatToEatNext({
   /* ── No meal found ── */
   if (!nextMeal) {
     return (
-      <Card className="border-dashed">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Utensils className="w-5 h-5 text-muted-foreground" />
-            What to Eat Next
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-center py-4 space-y-3">
+      <div className="p-10 space-y-6">
+        <div className="flex items-center gap-3">
+          <Utensils className="w-6 h-6 text-muted-foreground opacity-30" />
+          <p className="text-xl font-black uppercase tracking-tight text-muted-foreground opacity-30">What to Eat Next</p>
+        </div>
+        <div className="text-center py-10 space-y-6">
           {hasPlan === false || hasPlan === null ? (
             <>
-              <p className="text-sm text-muted-foreground">No active diet plan</p>
+              <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">No active structural protocol</p>
               <Link href="/diet-planner">
-                <Button variant="outline" size="sm">
-                  Create Diet Plan
-                  <ChevronRight className="w-4 h-4 ml-1" />
+                <Button size="lg" className="rounded-2xl px-8 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-xs font-black uppercase tracking-widest border-none">
+                  Architect Protocol
+                  <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
             </>
           ) : (
             <>
-              <p className="text-sm text-muted-foreground flex items-center gap-1.5 justify-center">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                All meals logged for today
+              <p className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-3 justify-center">
+                <CheckCircle className="w-5 h-5" />
+                METABOLIC SYNC COMPLETE
               </p>
-              <Button variant="outline" size="sm" onClick={fetchNextMeal}>
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                Refresh
+              <Button variant="ghost" className="text-xs font-black uppercase tracking-widest opacity-40 hover:opacity-100" onClick={fetchNextMeal}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh System
               </Button>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   /* ── Meal card ── */
   return (
-    <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Utensils className="w-5 h-5 text-primary" />
-            What to Eat Next
-          </CardTitle>
-          {nextMeal.is_tomorrow && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border">
-              Tomorrow
-            </span>
-          )}
+    <div className="p-10 space-y-8 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0 shadow-lg shadow-primary/10 border border-primary/20">
+            {getMealIcon(nextMeal.type)}
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-1 opacity-70">Sequential Nutrient Load</p>
+            <p className="text-3xl font-black uppercase tracking-tight text-foreground leading-none">{formatMealType(nextMeal.type)}</p>
+          </div>
         </div>
-      </CardHeader>
+        {nextMeal.is_tomorrow && (
+          <span className="text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full bg-muted border text-muted-foreground">
+            Tomorrow
+          </span>
+        )}
+      </div>
 
-      <CardContent className="space-y-3">
-        {/* Meal header */}
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-card border">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">{getMealIcon(nextMeal.type)}</div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between p-6 rounded-3xl bg-card border shadow-inner">
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-foreground">
-              {formatMealType(nextMeal.type)}
-            </p>
-            <p className="text-sm font-medium text-primary truncate">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 opacity-40">System Recommendation</p>
+            <p className="text-2xl font-black text-primary truncate leading-tight">
               {nextMeal.dish || "Healthy Meal"}
             </p>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-              <Clock className="w-3 h-3 flex-shrink-0" />
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2 opacity-60">
+              <Clock className="w-3.5 h-3.5" />
               {nextMeal.is_tomorrow ? `Tomorrow · ${nextMeal.time}` : nextMeal.time}
             </div>
           </div>
@@ -167,14 +164,14 @@ export function WhatToEatNext({
 
         {/* Ingredients */}
         {nextMeal.foods && nextMeal.foods.length > 0 && (
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">
-              Includes
+          <div className="space-y-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-40">
+              Required Components
             </p>
-            <ul className="space-y-1">
+            <ul className="grid grid-cols-1 gap-3">
               {nextMeal.foods.map((food, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm">
-                  <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+                <li key={i} className="flex items-center gap-4 text-xs font-black uppercase tracking-widest text-foreground/80">
+                  <div className="w-2 h-2 rounded-full bg-primary/40 shrink-0" />
                   {food}
                 </li>
               ))}
@@ -183,20 +180,20 @@ export function WhatToEatNext({
         )}
 
         {/* Nutrition grid */}
-        <div className="grid grid-cols-4 gap-2 pt-2 border-t">
+        <div className="grid grid-cols-4 gap-4 pt-8 border-t border-border">
           {[
-            { label: "Cal",    value: `${nextMeal.calories}`, color: "text-orange-600" },
-            { label: "Protein", value: `${nextMeal.protein}g`, color: "text-blue-600" },
-            { label: "Carbs",   value: `${nextMeal.carbs}g`,  color: "text-yellow-600" },
-            { label: "Fat",     value: `${nextMeal.fat}g`,    color: "text-green-600" },
+            { label: "Kcal",    value: `${nextMeal.calories}`, color: "text-orange-500" },
+            { label: "Prot", value: `${nextMeal.protein}g`, color: "text-blue-500" },
+            { label: "Carb",   value: `${nextMeal.carbs}g`,  color: "text-amber-500" },
+            { label: "Fat",     value: `${nextMeal.fat}g`,    color: "text-emerald-500" },
           ].map(({ label, value, color }) => (
-            <div key={label} className="text-center">
-              <p className="text-[10px] text-muted-foreground">{label}</p>
-              <p className={`text-sm font-bold ${color}`}>{value}</p>
+            <div key={label} className="text-center space-y-1">
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-40">{label}</p>
+              <p className={`text-sm font-black tracking-tight ${color}`}>{value}</p>
             </div>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

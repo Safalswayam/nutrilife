@@ -10,7 +10,7 @@ import { QuickActions } from "@/components/quick-actions"
 import { MacroBreakdown } from "@/components/nutrition-chart"
 import { EnhancedWaterIntake } from "@/components/enhanced-water-intake"
 import { WhatToEatNext } from "@/components/what-to-eat-next"
-import { Flame, Target, TrendingUp, Droplets, Activity, Utensils, Loader2, Sun, Sunrise, Sunset, Moon, X, Sparkles, Camera, Calculator, MessageCircle, Trophy, Zap } from "lucide-react"
+import { Flame, Target, TrendingUp, Droplets, Activity, Utensils, Loader2, Sun, Sunrise, Sunset, Moon, X, Sparkles, Camera, Calculator, MessageCircle, Trophy, Zap, ArrowRight, Star } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -20,6 +20,7 @@ import {
 } from "recharts"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 interface DashboardStats {
   today_calories: number
@@ -54,12 +55,11 @@ interface DashboardStats {
   }>
 }
 
-// ── Time helpers ──────────────────────────────────────────────────────────
 function getGreeting(hour: number) {
-  if (hour >= 5  && hour < 12) return { text: "Good morning",  icon: Sunrise }
-  if (hour >= 12 && hour < 17) return { text: "Good afternoon", icon: Sun    }
-  if (hour >= 17 && hour < 21) return { text: "Good evening",  icon: Sunset  }
-  return                               { text: "Good night",   icon: Moon    }
+  if (hour >= 5  && hour < 12) return { text: "Good morning",  icon: Sunrise, color: "text-amber-500" }
+  if (hour >= 12 && hour < 17) return { text: "Good afternoon", icon: Sun, color: "text-orange-500" }
+  if (hour >= 17 && hour < 21) return { text: "Good evening",  icon: Sunset, color: "text-indigo-500" }
+  return                               { text: "Good night",   icon: Moon, color: "text-purple-500" }
 }
 
 function getMealTypeByTime(hour: number): string {
@@ -81,7 +81,6 @@ function formatTime(d: Date) {
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
 }
 
-// ── Profile completeness helper ──────────────────────────────────────────────
 function getProfileCompletion(user: any): { percent: number; missing: string[] } {
   const fields = [
     { key: "name", label: "Full Name" },
@@ -112,7 +111,6 @@ export default function DashboardPage() {
   const [now, setNow] = useState(new Date())
   const [showGettingStarted, setShowGettingStarted] = useState(true)
 
-  // Dismiss getting started via localStorage
   useEffect(() => {
     const dismissed = localStorage.getItem("nutrilife_dismiss_getting_started")
     if (dismissed === "true") setShowGettingStarted(false)
@@ -123,7 +121,6 @@ export default function DashboardPage() {
     localStorage.setItem("nutrilife_dismiss_getting_started", "true")
   }
 
-  // Tick every minute
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000)
     return () => clearInterval(t)
@@ -135,8 +132,6 @@ export default function DashboardPage() {
   const mealNow    = useMemo(() => getMealTypeByTime(now.getHours()), [now])
   const profileCompletion = useMemo(() => getProfileCompletion(user), [user])
 
-
-  // FIX: Memoize fetchDashboardStats to prevent infinite loops
   const fetchDashboardStats = useCallback(async () => {
     if (!token) return
     
@@ -164,7 +159,6 @@ export default function DashboardPage() {
           goal: Number(fullStats.target_water ?? 8)
         })
 
-        // TRIGGER CONFETTI ON GOAL COMPLETION
         if (fullStats.daily_goal_percentage >= 100 && fullStats.target_calories > 0) {
           import('canvas-confetti').then((confetti) => {
             confetti.default({
@@ -184,14 +178,12 @@ export default function DashboardPage() {
     }
   }, [token])
 
-  // FIX: Proper useEffect with correct dependencies and fetch guard
   useEffect(() => {
     if (!user || !token) {
       router.push("/login")
       return
     }
     
-    // Prevent multiple fetches on mount
     if (!hasFetched.current) {
       hasFetched.current = true
       fetchDashboardStats()
@@ -208,12 +200,14 @@ export default function DashboardPage() {
 
   if (error || !stats) {
     return (
-      <div className="p-4 md:p-8">
-        <PageHeader
-          title="Welcome back!"
-          subtitle="Track your health journey and stay on top of your nutrition goals"
-        />
-        <div className="text-center text-muted-foreground">
+      <div className="p-4 md:p-8 space-y-8">
+        <div className="reveal-3d">
+          <PageHeader
+            title="Welcome back!"
+            subtitle="Track your health journey and stay on top of your nutrition goals"
+          />
+        </div>
+        <div className="text-center text-muted-foreground glass-card p-12 rounded-3xl reveal-3d">
           {error || "Unable to load dashboard data"}
         </div>
       </div>
@@ -223,420 +217,372 @@ export default function DashboardPage() {
   const isNewUser = stats ? (stats.today_calories === 0 && stats.recent_meals.length === 0 && stats.water_glasses === 0) : false
 
   return (
-    <div className="p-3 md:p-8 pb-24 md:pb-8">
+    <div className="p-3 md:p-8 pb-32 md:pb-12 space-y-8 max-w-7xl mx-auto">
       {/* Time-aware header */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-          <div className="flex items-center gap-2">
-            <greeting.icon className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-              {greeting.text}{user?.name ? ", " + user.name.split(" ")[0] : ""}!
-            </h1>
+      <div className="reveal-3d">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-8">
+          <div className="space-y-2">
+            <div className="flex items-center gap-4">
+              <div className={cn("p-4 rounded-3xl bg-card border shadow-xl shadow-primary/5", greeting.color)}>
+                <greeting.icon className="w-10 h-10" />
+              </div>
+              <h1 className="text-4xl md:text-7xl font-black tracking-tight text-foreground uppercase leading-tight">
+                {greeting.text}<br/><span className="text-primary">{user?.name ? user.name.split(" ")[0] : "Agent"}</span>
+              </h1>
+            </div>
+            <p className="text-muted-foreground text-sm font-black uppercase tracking-[0.2em] ml-1 opacity-60">
+              {mealNow === "breakfast" && "MORNING VITALS REQUIRED 🥑"}
+              {mealNow === "lunch"     && "MID-DAY METABOLIC SYNC 🍱"}
+              {mealNow === "dinner"    && "FINAL NUTRIENT LOAD 🥗"}
+              {mealNow === "snack"     && "SYSTEMIC METABOLIC PULSE 🍏"}
+            </p>
           </div>
-          <div className="text-right">
-            <p className="text-lg font-semibold text-foreground">{timeStr}</p>
-            <p className="text-xs text-muted-foreground">{dateStr}</p>
+          <div className="text-right bg-card p-8 rounded-[2.5rem] border shadow-xl shadow-primary/5 min-w-[240px]">
+            <p className="text-4xl font-black text-primary leading-none mb-2 tracking-tighter">{timeStr}</p>
+            <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40">{dateStr}</p>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground mt-1 ml-8">
-          {mealNow === "breakfast" && "Breakfast time — start your day right!"}
-          {mealNow === "lunch"     && "Lunchtime — refuel and keep going!"}
-          {mealNow === "dinner"    && "Dinner time — wind down with a healthy meal!"}
-          {mealNow === "snack"     && "Snack time — something light to keep you going!"}
-        </p>
       </div>
 
       {/* ── Profile Completion Banner ── */}
       {profileCompletion.percent < 100 && (
-        <Card className="mb-4 border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 dark:border-amber-800">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 text-amber-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold text-foreground">Complete your profile</p>
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{profileCompletion.percent}%</span>
+        <div className="reveal-3d">
+          <Card className="border shadow-xl shadow-amber-500/5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent overflow-hidden rounded-[2.5rem]">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 blur-[100px] -z-10"></div>
+            <CardContent className="py-8 px-8">
+              <div className="flex flex-col md:flex-row md:items-center gap-8">
+                <div className="w-20 h-20 rounded-3xl bg-amber-500/20 flex items-center justify-center shrink-0 shadow-3xl shadow-amber-500/20">
+                  <Star className="w-10 h-10 text-amber-500 animate-pulse" />
                 </div>
-                <Progress value={profileCompletion.percent} className="h-1.5 mb-1" />
-                <p className="text-xs text-muted-foreground">
-                  Missing: {profileCompletion.missing.slice(0, 3).join(", ")}{profileCompletion.missing.length > 3 ? ` +${profileCompletion.missing.length - 3} more` : ""}
-                </p>
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-2xl font-black uppercase text-foreground tracking-tight">Identity Optimization</p>
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white px-4 py-1.5 rounded-full shadow-lg shadow-amber-500/20">
+                      {profileCompletion.percent}% Synced
+                    </span>
+                  </div>
+                  <Progress value={profileCompletion.percent} className="h-2 rounded-full bg-amber-500/10" />
+                  <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-loose">
+                    Required fields for architectural precision: <span className="text-amber-500">{profileCompletion.missing.slice(0, 3).join(" · ")}</span>
+                  </p>
+                </div>
+                <Link href="/profile" className="shrink-0">
+                  <Button size="lg" className="h-14 px-8 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black uppercase tracking-[0.2em] rounded-2xl shadow-3xl shadow-amber-500/30">
+                    Sync Profile <ArrowRight className="ml-3 w-5 h-5" />
+                  </Button>
+                </Link>
               </div>
-              <Link href="/profile">
-                <Button size="sm" variant="outline" className="shrink-0 text-xs h-7 border-amber-300 hover:bg-amber-100 dark:border-amber-700">Complete →</Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ── Getting Started Card for New Users ── */}
       {isNewUser && showGettingStarted && (
-        <Card className="mb-6 border-primary/30 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent overflow-hidden relative">
-          <button
-            onClick={dismissGettingStarted}
-            className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted/80 text-muted-foreground transition-colors z-10"
-            aria-label="Dismiss getting started"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Sparkles className="w-5 h-5 text-primary" />
-              Welcome to NutriLife! Let's get started
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Complete these steps to unlock your personalized health journey</p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <Link href="/food-log" className="group">
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-sm transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
-                    <Utensils className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Log your first meal</p>
-                    <p className="text-xs text-muted-foreground">Track what you eat</p>
-                  </div>
-                </div>
-              </Link>
-              <Link href="/food-analysis" className="group">
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-sm transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
-                    <Camera className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Scan a food photo</p>
-                    <p className="text-xs text-muted-foreground">AI-powered analysis</p>
-                  </div>
-                </div>
-              </Link>
-              <Link href="/diet-planner" className="group">
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-sm transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-950/40 flex items-center justify-center shrink-0">
-                    <Calculator className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Get a diet plan</p>
-                    <p className="text-xs text-muted-foreground">Personalized for you</p>
-                  </div>
-                </div>
-              </Link>
-              <Link href="/health-assistant" className="group">
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-sm transition-all">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center shrink-0">
-                    <MessageCircle className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Ask the AI assistant</p>
-                    <p className="text-xs text-muted-foreground">Health tips & guidance</p>
-                  </div>
-                </div>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="reveal-3d">
+          <Card className="border-none glass-card bg-gradient-to-br from-primary/10 via-transparent to-transparent overflow-hidden">
+            <button
+              onClick={dismissGettingStarted}
+              className="absolute top-4 right-4 p-2 rounded-xl hover:bg-white/10 text-muted-foreground transition-colors z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-2xl font-black">
+                <Sparkles className="w-6 h-6 text-primary" />
+                Your Success Roadmap
+              </CardTitle>
+              <p className="text-muted-foreground font-medium">Follow these quick steps to master your nutrition today.</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { href: "/food-log", icon: Utensils, label: "Log first meal", sub: "Track vitals", color: "orange" },
+                  { href: "/food-analysis", icon: Camera, label: "Scan photo", sub: "AI Analysis", color: "blue" },
+                  { href: "/diet-planner", icon: Calculator, label: "Get a plan", sub: "Goal oriented", color: "green" },
+                  { href: "/health-assistant", icon: MessageCircle, label: "Ask the AI", sub: "Instant tips", color: "purple" }
+                ].map((step, i) => (
+                  <Link href={step.href} key={i} className="group">
+                    <div className="flex items-center gap-4 p-4 rounded-2xl glass-card hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
+                      <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner", 
+                        step.color === "orange" && "bg-orange-500/20 text-orange-500",
+                        step.color === "blue" && "bg-blue-500/20 text-blue-500",
+                        step.color === "green" && "bg-green-500/20 text-green-500",
+                        step.color === "purple" && "bg-purple-500/20 text-purple-500"
+                      )}>
+                        <step.icon className="w-6 h-6" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-foreground truncate">{step.label}</p>
+                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-tighter opacity-70">{step.sub}</p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ── Streak / Motivation Banner ── */}
       {stats && stats.daily_goal_percentage >= 100 && (
-        <Card className="mb-4 border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20 dark:border-yellow-800">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-yellow-100 dark:bg-yellow-900/50 flex items-center justify-center">
-                <Trophy className="w-5 h-5 text-yellow-600" />
+        <div className="reveal-3d">
+          <div className="bg-card p-8 rounded-[2.5rem] bg-gradient-to-r from-yellow-500/10 to-transparent border shadow-xl shadow-yellow-500/5">
+            <div className="flex items-center gap-8">
+              <div className="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/20 shadow-2xl animate-bounce-slow">
+                <Trophy className="w-10 h-10 text-yellow-500" />
               </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">🎉 Daily goal achieved!</p>
-                <p className="text-xs text-muted-foreground">You've hit your calorie target for today. Great discipline!</p>
+              <div className="space-y-1">
+                <h3 className="text-3xl font-black text-foreground">CRUSHING IT! 🔥</h3>
+                <p className="text-muted-foreground font-bold uppercase text-xs tracking-widest opacity-60">Daily metabolic target synchronized. Consistency is your catalyst.</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Hero Stats - Mobile: 2 cols, Desktop: 4 cols */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+      {/* Hero Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 reveal-3d">
         <StatCard
-          title="Calories"
+          title="Daily Fuel"
           value={stats.today_calories.toLocaleString()}
-          subtitle={`of ${stats.target_calories.toLocaleString()}`}
+          subtitle={`Total: ${stats.target_calories.toLocaleString()} kcal`}
           icon={Flame}
-          variant="primary"
+          variant="orange"
+          className="rounded-[2.5rem] shadow-xl shadow-orange-500/5 hover:-translate-y-2 transition-all duration-500"
           trend={stats.calorie_trend !== 0 ? { 
             value: Math.abs(stats.calorie_trend), 
-            label: "from yesterday", 
+            label: "vs prev", 
             positive: stats.calorie_trend < 0 
           } : undefined}
         />
         <StatCard
-          title="Daily Goal"
+          title="Objective Sync"
           value={`${stats.daily_goal_percentage}%`}
-          subtitle={stats.daily_goal_percentage < 50 ? "Keep going!" : stats.daily_goal_percentage < 90 ? "Almost there!" : "Great job!"}
+          subtitle={stats.daily_goal_percentage < 50 ? "Sync Progressing" : "Surgical Precision"}
           icon={Target}
-          variant="accent"
+          variant="green"
+          className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
         />
         <StatCard
-          title="Water"
+          title="Fluid Intake"
           value={`${stats.water_glasses}/${stats.target_water}`}
-          subtitle="glasses"
+          subtitle="Hydration Metrics"
           icon={Droplets}
+          variant="green"
+          className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
         />
         <StatCard
-          title="Meals"
+          title="Logged Vitals"
           value={stats.recent_meals.length}
-          subtitle="logged today"
+          subtitle="System Entries"
           icon={Utensils}
+          variant="green"
+          className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
         />
       </div>
 
-      {/* Main Content - Mobile: Stack, Desktop: Grid */}
-      <div className="space-y-6 md:grid md:grid-cols-3 md:gap-6 md:space-y-0">
-        {/* Main Column - 2/3 width on desktop */}
-        <div className="md:col-span-2 space-y-6">
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        {/* Main Column */}
+        <div className="lg:col-span-2 space-y-8">
           {/* Activity Overview */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" />
-                  Weekly Activity
-                </CardTitle>
-                <span className="text-xs text-muted-foreground">Last 7 days</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {stats.weekly_activity.some(d => d.calories > 0) ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={stats.weekly_activity} margin={{ top: 10, right: 4, left: -20, bottom: 0 }} barCategoryGap="28%">
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.03 145)" vertical={false} />
-                    <XAxis
-                      dataKey="day"
-                      tick={({ x, y, payload }) => {
-                        const entry = stats.weekly_activity.find(d => d.day === payload.value)
-                        return (
-                          <text
-                            x={x} y={y + 12}
-                            textAnchor="middle"
-                            fontSize={12}
-                            fontWeight={entry?.is_today ? 700 : 400}
-                            fill={entry?.is_today ? "oklch(0.5 0.15 145)" : "oklch(0.5 0.03 145)"}
-                          >
-                            {entry?.is_today ? `${payload.value}*` : payload.value}
-                          </text>
-                        )
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "oklch(0.5 0.03 145)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v}
-                    />
-                    {stats.avg_weekly_calories > 0 && (
-                      <ReferenceLine
-                        y={stats.avg_weekly_calories}
-                        stroke="oklch(0.5 0.15 145)"
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.5}
-                        label={{ value: "avg", position: "insideTopRight", fontSize: 10, fill: "oklch(0.5 0.03 145)" }}
-                      />
-                    )}
-                    <Tooltip
-                      cursor={{ fill: "oklch(0.95 0.02 145)", radius: 6 }}
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null
-                        const d = payload[0].payload
-                        return (
-                          <div className="bg-popover border border-border rounded-lg shadow-md px-3 py-2 text-sm">
-                            <p className="font-semibold text-foreground flex items-center gap-1">
-                              {d.day}{d.is_today && <span className="text-[10px] text-primary font-medium ml-1">Today</span>}
-                            </p>
-                            <p className="text-muted-foreground text-xs">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
-                            {d.calories > 0
-                              ? <p className="font-bold text-primary mt-0.5">{d.calories.toLocaleString()} kcal</p>
-                              : <p className="text-muted-foreground mt-0.5 italic text-xs">No meals logged</p>
-                            }
-                            {stats.target_calories > 0 && d.calories > 0 && (
-                              <p className="text-[11px] text-muted-foreground">
-                                {Math.round((d.calories / stats.target_calories) * 100)}% of daily goal
-                              </p>
-                            )}
-                          </div>
-                        )
-                      }}
-                    />
-                    <Bar dataKey="calories" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                      {stats.weekly_activity.map((entry, i) => (
-                        <Cell
-                          key={i}
-                          fill={
-                            entry.is_today
-                              ? "oklch(0.5 0.15 145)"      /* --primary: full app green */
-                              : entry.calories === 0
-                              ? "oklch(0.90 0.03 145)"     /* near-white muted stub */
-                              : "oklch(0.62 0.14 145)"     /* lighter green for past days */
-                          }
-                          fillOpacity={entry.calories === 0 ? 0.6 : 1}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[200px] flex flex-col items-center justify-center text-muted-foreground gap-2">
-                  <Activity className="w-8 h-8 opacity-30" />
-                  <p className="text-sm">No activity data yet — start logging meals!</p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">{stats.avg_weekly_calories.toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground">Avg. Calories</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">{stats.macros.protein}g</p>
-                  <p className="text-sm text-muted-foreground">Protein Today</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">{stats.macros.carbs}g</p>
-                  <p className="text-sm text-muted-foreground">Carbs Today</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Weight Progress Chart */}
-          {stats.weight_history && stats.weight_history.length > 0 && (
-            <Card>
-              <CardHeader>
+          <div className="reveal-3d">
+            <Card className="border shadow-2xl shadow-primary/5 rounded-[3rem] overflow-hidden">
+              <CardHeader className="p-10 pb-0">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                    Weight Progress
-                  </CardTitle>
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-4 text-3xl font-black uppercase tracking-tight">
+                      <Activity className="w-8 h-8 text-primary" />
+                      Momentum Matrix
+                    </CardTitle>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 ml-12">Temporal Calorie Velocity</p>
+                  </div>
+                  <div className="bg-primary/10 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-primary border border-primary/20">Operational</div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={stats.weight_history} margin={{ top: 10, right: 4, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.88 0.03 145)" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 11, fill: "oklch(0.5 0.03 145)" }}
-                      tickFormatter={(val) => new Date(val).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={['auto', 'auto']}
-                      tick={{ fontSize: 11, fill: "oklch(0.5 0.03 145)" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-                      formatter={(value: number) => [`${value} kg`, "Weight"]}
-                      labelFormatter={(label) => new Date(label).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="weight"
-                      stroke="oklch(0.5 0.15 145)"
-                      strokeWidth={3}
-                      dot={{ fill: "oklch(0.5 0.15 145)", strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <CardContent className="p-10 pt-6">
+                <div className="h-[320px] w-full mt-4">
+                  {stats.weekly_activity.some(d => d.calories > 0) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.weekly_activity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={8}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border/30" vertical={false} />
+                        <XAxis
+                          dataKey="day"
+                          tick={{ fontSize: 10, fontWeight: 900, fill: "currentColor" }}
+                          className="text-muted-foreground/50"
+                          axisLine={false}
+                          tickLine={false}
+                          dy={15}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10, fontWeight: 900, fill: "currentColor" }}
+                          className="text-muted-foreground/50"
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v}
+                        />
+                        <Tooltip
+                          cursor={{ fill: "currentColor", className: "text-primary/5", radius: 20 }}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null
+                            const d = payload[0].payload
+                            return (
+                              <div className="bg-card p-6 rounded-3xl shadow-4xl border border-border">
+                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 flex items-center justify-between gap-4">
+                                  {d.day} {d.is_today && <span className="bg-primary text-white px-2 py-0.5 rounded-md">TODAY</span>}
+                                </p>
+                                <p className="text-3xl font-black text-primary tracking-tighter">{d.calories.toLocaleString()} <span className="text-xs text-muted-foreground font-bold uppercase opacity-40">kcal</span></p>
+                              </div>
+                            )
+                          }}
+                        />
+                        <Bar dataKey="calories" radius={[15, 15, 0, 0]} maxBarSize={45}>
+                          {stats.weekly_activity.map((entry, i) => (
+                            <Cell
+                              key={i}
+                              fill={entry.is_today ? "var(--primary)" : "currentColor"}
+                              className={entry.is_today ? "" : "text-muted/30"}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-6">
+                      <div className="w-24 h-24 rounded-3xl bg-white/5 flex items-center justify-center border border-white/5">
+                        <Activity className="w-10 h-10 opacity-20" />
+                      </div>
+                      <div className="text-center space-y-1">
+                        <p className="font-black text-xl uppercase tracking-widest opacity-60">Null Data</p>
+                        <p className="text-xs font-bold opacity-30 uppercase tracking-widest">Awaiting systemic input</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-6 mt-12 pt-10 border-t border-white/5">
+                  <div className="text-center space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-40">Mean velocity</p>
+                    <p className="text-3xl font-black text-foreground tracking-tighter">{stats.avg_weekly_calories.toLocaleString()}</p>
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-40">Dominant Macro</p>
+                    <p className="text-3xl font-black text-primary tracking-tighter">PROTEIN</p>
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-40">Sync Streak</p>
+                    <p className="text-3xl font-black text-foreground tracking-tighter">05 <span className="text-xs opacity-40 font-bold uppercase">Days</span></p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-          )}
+          </div>
 
-          {/* Recent Meals */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Utensils className="w-5 h-5 text-primary" />
-                Recent Meals
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {stats.recent_meals && stats.recent_meals.length > 0 ? (
-                <div className="space-y-4">
-                  {stats.recent_meals.map((meal, index) => {
-                    const date = new Date(meal.logged_at)
-                    const timeStr = date.toLocaleTimeString('en-US', { 
-                      hour: 'numeric', 
-                      minute: '2-digit',
-                      hour12: true 
-                    })
-                    
-                    return (
-                      <div
-                        key={index}
-                        className="flex items-center gap-4 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
-                      >
-                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                          <span className="text-lg font-bold text-primary">
-                            {meal.food_name.charAt(0).toUpperCase()}
-                          </span>
+          {/* Weight & Meals Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 reveal-3d">
+            {/* Weight Chart */}
+            {stats.weight_history && stats.weight_history.length > 0 && (
+              <Card className="border shadow-xl shadow-primary/5 rounded-[2.5rem]">
+                <CardHeader className="p-8 pb-2">
+                  <CardTitle className="flex items-center gap-3 text-xl font-black">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Body Weight
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={stats.weight_history}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          hide
+                        />
+                        <YAxis
+                          domain={['auto', 'auto']}
+                          hide
+                        />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '24px', border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--foreground)' }}
+                          formatter={(value: number) => [`${value} kg`, "Weight"]}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="weight"
+                          stroke="var(--primary)"
+                          strokeWidth={4}
+                          dot={{ fill: "var(--primary)", strokeWidth: 2, r: 6 }}
+                          activeDot={{ r: 8, strokeWidth: 0 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Meals Box */}
+            <Card className="border shadow-xl shadow-primary/5 rounded-[2.5rem]">
+               <CardHeader className="p-8 pb-4">
+                  <CardTitle className="flex items-center gap-3 text-xl font-black">
+                    <Utensils className="w-5 h-5 text-primary" />
+                    Recent Vitals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {stats.recent_meals.slice(0, 3).map((meal, i) => (
+                      <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-primary uppercase">
+                          {meal.food_name.charAt(0)}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-foreground capitalize">{meal.food_name}</p>
-                            <span className="text-sm text-muted-foreground">{timeStr}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground capitalize">{meal.meal_type}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black truncate capitalize">{meal.food_name}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">{meal.meal_type}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-foreground">{meal.calories}</p>
-                          <p className="text-xs text-muted-foreground">kcal</p>
+                          <p className="text-sm font-black text-foreground">{meal.calories}</p>
+                          <p className="text-[9px] font-bold text-muted-foreground">KCAL</p>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Utensils className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No meals logged yet</p>
-                  <p className="text-sm">Start tracking by analyzing food!</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                    {stats.recent_meals.length === 0 && (
+                       <div className="text-center py-6 opacity-40">
+                         <p className="text-xs font-bold uppercase tracking-widest">No meals logged</p>
+                       </div>
+                    )}
+                  </div>
+                  <Link href="/food-log">
+                    <Button variant="ghost" className="w-full mt-4 text-xs font-black uppercase tracking-widest hover:bg-white/5">View Full Log</Button>
+                  </Link>
+                </CardContent>
+            </Card>
+          </div>
         </div>
 
-        {/* Sidebar Column - 1/3 width on desktop */}
-        <div className="space-y-6">
-          {/* Water Intake Widget */}
+        {/* Sidebar Column */}
+        <div className="space-y-10 reveal-3d">
           <EnhancedWaterIntake
             current={waterData.current}
             goal={waterData.goal}
-            onUpdate={(newValue: number) => {
-              setWaterData(prev => ({
-                ...prev,
-                current: newValue
-              }))
-            }}
+            className="border shadow-2xl shadow-primary/10 rounded-[3.5rem] overflow-hidden"
+            onUpdate={(newValue: number) => setWaterData(prev => ({ ...prev, current: newValue }))}
           />
           
-          {/* What to Eat Next */}
-          <WhatToEatNext/>
-
-          <QuickActions />
-          <MacroBreakdown 
-            protein={stats.macros.protein} 
-            carbs={stats.macros.carbs} 
-            fat={stats.macros.fat} 
-          />
-          <HealthTips />
+          <div className="bg-card rounded-[3.5rem] border shadow-xl shadow-primary/5 divide-y divide-border">
+            <WhatToEatNext />
+            <div className="p-10 space-y-12">
+               <QuickActions />
+               <MacroBreakdown 
+                 protein={stats.macros.protein} 
+                 carbs={stats.macros.carbs} 
+                 fat={stats.macros.fat} 
+               />
+            </div>
+            <HealthTips />
+          </div>
         </div>
       </div>
     </div>

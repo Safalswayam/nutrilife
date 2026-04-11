@@ -54,6 +54,7 @@ import {
   SwitchCamera,
   Share2,
   Download,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -673,38 +674,36 @@ export default function DietPlannerPage() {
 
   return (
     <>
-      <div className="p-3 md:p-8">
-        <PageHeader
-          title="Diet Planner"
-          subtitle="Calculate your BMI and get a personalized diet plan based on your goals"
-        />
+      <div className="p-3 md:p-8 space-y-8 max-w-7xl mx-auto">
+        <div className="reveal-3d">
+          <PageHeader
+            title="Surgical Diet Architect"
+            subtitle="Architecting your physical transformation with data-driven nutritional protocols."
+          />
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Form Section */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-primary" />
-                Your Profile
+          <Card className="lg:col-span-1 border-none glass-card rounded-[2.5rem] reveal-3d">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-2xl font-black flex items-center gap-3">
+                <Calculator className="w-6 h-6 text-primary" />
+                Physical Blueprint
               </CardTitle>
               <CardDescription>
                 Enter your details to calculate BMI and generate a personalized diet plan
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <CardContent className="p-8 pt-2">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* ── BODY PHOTO UPLOAD ──────────────────────────────────── */}
-                <div className="space-y-2 pb-2 border-b">
-                  <Label className="flex items-center gap-2 font-semibold">
+                <div className="space-y-4 pb-6 border-b border-white/5">
+                  <Label className="flex items-center gap-2 text-xs font-black uppercase text-muted-foreground tracking-widest ml-1">
                     <Camera className="w-4 h-4 text-primary" />
-                    Body Photo
-                    <span className="text-xs font-normal text-muted-foreground ml-1">(Optional)</span>
+                    Visual Progress
+                    <span className="text-[10px] font-bold opacity-40 ml-1">(Opt)</span>
                   </Label>
                   <BodyPhotoUpload onImageReady={handleImageReady} />
-                  <p className="text-xs text-muted-foreground">
-                    Upload or take a photo to track your physique progress alongside your plan.
-                    Large smartphone photos are automatically compressed.
-                  </p>
                 </div>
 
                 {/* Gender */}
@@ -960,88 +959,83 @@ export default function DietPlannerPage() {
                   </p>
                 </div>
 
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="w-4 h-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={!isFormValid || isLoading}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Calculator className="w-4 h-4 mr-2" />
-                      Generate Diet Plan
-                    </>
+                <div className="pt-4">
+                  {error && (
+                    <Alert variant="destructive" className="mb-4 rounded-2xl border-none bg-red-500/10 text-red-500">
+                      <AlertTriangle className="w-4 h-4" />
+                      <AlertDescription className="font-bold">{error}</AlertDescription>
+                    </Alert>
                   )}
-                </Button>
+
+                  <Button
+                    type="submit"
+                    disabled={!isFormValid || isLoading}
+                    className="w-full h-16 rounded-[1.5rem] text-xl font-black group shadow-3xl shadow-primary/20"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="w-6 h-6 mr-3 text-white group-hover:rotate-12 transition-transform" />
+                        Generate Protocol
+                      </>
+                    )}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
 
           {/* Results Section */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8 reveal-3d">
             {result ? (
               <>
                 {/* Fasting protocol badge (if active) */}
                 {formData.fastingPlan !== "none" && selectedFastingPlan && (
-                  <Alert className="bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800">
-                    <Moon className="w-4 h-4 text-indigo-600" />
-                    <AlertTitle className="text-indigo-800 dark:text-indigo-200">
-                      Fasting Protocol Active: {selectedFastingPlan.emoji} {selectedFastingPlan.name}
+                  <Alert className="bg-indigo-500/10 border-indigo-500/20 rounded-[1.5rem] border-none reveal-3d">
+                    <Moon className="w-4 h-4 text-indigo-500" />
+                    <AlertTitle className="text-indigo-500 font-black uppercase text-[10px] tracking-widest">
+                      Fasting Protocol Synchronized
                     </AlertTitle>
-                    <AlertDescription className="text-indigo-700 dark:text-indigo-300">
-                      This meal plan has been generated to fit your{" "}
-                      {selectedFastingPlan.fast_hours > 0
+                    <AlertDescription className="text-indigo-400 font-medium text-xs mt-1">
+                      Your meals have been condensed to fit your {selectedFastingPlan.fast_hours > 0
                         ? `${selectedFastingPlan.fast_hours}-hour fasting window`
-                        : "fasting schedule"}
-                      .
+                        : "fasting schedule"}.
                     </AlertDescription>
                   </Alert>
                 )}
 
                 {/* BMI and Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card className={cn("relative overflow-hidden", getBMIBgColor(result.bmi))}>
-                    <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground mb-1">Your BMI</p>
-                      <p className={cn("text-3xl font-bold", getBMIColor(result.bmi))}>{result.bmi}</p>
-                      <p className={cn("text-sm font-medium", getBMIColor(result.bmi))}>{result.bmiCategory}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 reveal-3d">
+                  <Card className={cn("border-none glass-card rounded-3xl relative overflow-hidden group hover:scale-[1.02] transition-transform", getBMIBgColor(result.bmi))}>
+                    <CardContent className="p-6">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2 opacity-60">Physical Index</p>
+                      <p className={cn("text-4xl font-black mb-1", getBMIColor(result.bmi))}>{result.bmi}</p>
+                      <p className={cn("text-xs font-black uppercase tracking-widest", getBMIColor(result.bmi))}>{result.bmiCategory}</p>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground mb-1">BMR</p>
-                      <p className="text-3xl font-bold text-foreground">{result.bmr}</p>
-                      <p className="text-sm text-muted-foreground">kcal/day</p>
+                  <Card className="border-none glass-card rounded-3xl hover:scale-[1.02] transition-transform">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2 opacity-60">Basal Metabolic Rate</p>
+                      <p className="text-4xl font-black text-foreground mb-1">{result.bmr}</p>
+                      <p className="text-xs font-bold text-muted-foreground uppercase opacity-40">kcal/day</p>
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardContent className="p-4">
-                      <p className="text-sm text-muted-foreground mb-1">TDEE</p>
-                      <p className="text-3xl font-bold text-foreground">{result.tdee}</p>
-                      <p className="text-sm text-muted-foreground">kcal/day</p>
+                  <Card className="border-none glass-card rounded-3xl hover:scale-[1.02] transition-transform">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2 opacity-60">Total Daily Expenditure</p>
+                      <p className="text-4xl font-black text-foreground mb-1">{result.tdee}</p>
+                      <p className="text-xs font-bold text-muted-foreground uppercase opacity-40">kcal/day</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-primary text-primary-foreground">
-                    <CardContent className="p-4">
-                      <p className="text-sm opacity-80 mb-1">Target</p>
-                      <p className="text-3xl font-bold">{result.targetCalories}</p>
-                      <p className="text-sm opacity-80">kcal/day</p>
+                  <Card className="border-none bg-primary text-primary-foreground rounded-3xl shadow-3xl shadow-primary/20 hover:scale-[1.02] transition-transform">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-2">Architect's Target</p>
+                      <p className="text-4xl font-black mb-1">{result.targetCalories}</p>
+                      <p className="text-xs font-bold uppercase opacity-60">kcal/day</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -1072,88 +1066,78 @@ export default function DietPlannerPage() {
                 )}
 
                 {/* Macros */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
+                <Card className="border-none glass-card rounded-[2.5rem] reveal-3d overflow-hidden">
+                  <CardHeader className="p-8 pb-4">
+                    <CardTitle className="text-xl font-black flex items-center gap-3">
                       <Flame className="w-5 h-5 text-primary" />
-                      Daily Macronutrient Targets
+                      Macronutrient Targets
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-8 pt-0">
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-4 rounded-xl bg-chart-1/10">
-                        <p className="text-3xl font-bold text-chart-1">{result.macros.protein}g</p>
-                        <p className="text-sm text-muted-foreground">Protein</p>
+                      <div className="text-center p-6 rounded-3xl bg-red-500/10 border border-red-500/5 group hover:bg-red-500/20 transition-colors">
+                        <p className="text-3xl font-black text-red-500">{result.macros.protein}g</p>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Protein</p>
                       </div>
-                      <div className="text-center p-4 rounded-xl bg-chart-2/10">
-                        <p className="text-3xl font-bold text-chart-2">{result.macros.carbs}g</p>
-                        <p className="text-sm text-muted-foreground">Carbohydrates</p>
+                      <div className="text-center p-6 rounded-3xl bg-amber-500/10 border border-amber-500/5 group hover:bg-amber-500/20 transition-colors">
+                        <p className="text-3xl font-black text-amber-500">{result.macros.carbs}g</p>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Carbs</p>
                       </div>
-                      <div className="text-center p-4 rounded-xl bg-chart-3/10">
-                        <p className="text-3xl font-bold text-chart-3">{result.macros.fat}g</p>
-                        <p className="text-sm text-muted-foreground">Fat</p>
+                      <div className="text-center p-6 rounded-3xl bg-blue-500/10 border border-blue-500/5 group hover:bg-blue-500/20 transition-colors">
+                        <p className="text-3xl font-black text-blue-500">{result.macros.fat}g</p>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Fat</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Warnings */}
-                {result.warnings.length > 0 && (
-                  <Alert className="bg-accent/10 border-accent/30">
-                    <AlertTriangle className="w-4 h-4 text-accent" />
-                    <AlertTitle className="text-accent-foreground">Important Notes</AlertTitle>
-                    <AlertDescription>
-                      <ul className="mt-2 space-y-1">
-                        {result.warnings.map((warning, index) => (
-                          <li key={index} className="text-sm text-foreground">{warning}</li>
-                        ))}
-                      </ul>
+                {result.warnings && result.warnings.length > 0 && (
+                  <Alert variant="destructive" className="border-none bg-red-500/10 text-red-500 rounded-[1.5rem] reveal-3d">
+                    <AlertTriangle className="w-5 h-5" />
+                    <AlertTitle className="font-black uppercase tracking-widest text-[10px]">Medical Advisory</AlertTitle>
+                    <AlertDescription className="mt-2 space-y-1 font-medium text-xs">
+                      {result.warnings.map((w, i) => <p key={i}>• {w}</p>)}
                     </AlertDescription>
                   </Alert>
                 )}
 
                 {/* Weekly Meal Plan */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="flex items-center gap-2">
+                <Card className="border-none glass-card rounded-[2.5rem] reveal-3d overflow-hidden">
+                  <CardHeader className="p-8 pb-4 flex flex-row items-center justify-between">
+                    <CardTitle className="text-xl font-black flex items-center gap-3">
                       <Utensils className="w-5 h-5 text-primary" />
-                      7-Day Meal Plan
+                      7-Day Nutritional Protocol
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => window.print()} title="Print or Save as PDF">
-                        <Download className="w-4 h-4 mr-1" /> Export
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => {
-                        navigator.clipboard.writeText("Check out my NutriLife diet plan! Join me at [Link coming soon]")
-                        toast.success("Share text copied to clipboard!")
-                      }}>
-                        <Share2 className="w-4 h-4 mr-1" /> Share
+                      <Button variant="outline" size="sm" onClick={() => window.print()} className="rounded-xl border-white/10 glass-card">
+                        <Download className="w-4 h-4 mr-2" /> Export
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {result.weeklyPlan.map((day) => (
-                      <div key={day.day} className="border border-border rounded-xl overflow-hidden">
+                  <CardContent className="p-8 pt-0 space-y-4">
+                    {result.weeklyPlan.map((day, idx) => (
+                      <div key={day.day} className="glass-card rounded-[1.5rem] overflow-hidden border-white/5 reveal-3d" style={{ animationDelay: `${idx * 50}ms` }}>
                         <button
                           onClick={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
-                          className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                          className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-colors"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <span className="font-bold text-primary">{day.day.charAt(0)}</span>
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center font-black text-primary text-xl">
+                              {day.day.charAt(0)}
                             </div>
                             <div className="text-left">
-                              <p className="font-medium text-foreground">{day.day}</p>
-                              <p className="text-sm text-muted-foreground">{day.meals.length} meals</p>
+                              <p className="font-black text-lg">{day.day}</p>
+                              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{day.meals.length} distinct scheduled meals</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-6">
                             <div className="text-right">
-                              <p className="font-semibold text-foreground">{day.totalCalories}</p>
-                              <p className="text-xs text-muted-foreground">kcal</p>
+                              <p className="text-xl font-black text-foreground">{day.totalCalories}</p>
+                              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target kcal</p>
                             </div>
                             {expandedDay === day.day ? (
-                              <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                              <ChevronUp className="w-5 h-5 text-primary" />
                             ) : (
                               <ChevronDown className="w-5 h-5 text-muted-foreground" />
                             )}
@@ -1161,29 +1145,37 @@ export default function DietPlannerPage() {
                         </button>
 
                         {expandedDay === day.day && (
-                          <div className="border-t border-border p-4 space-y-4 bg-muted/30">
+                          <div className="border-t border-white/5 p-6 space-y-6 bg-white/5 animate-in slide-in-from-top-2 duration-300">
                             {day.meals.map((meal, mealIndex) => (
-                              <div key={mealIndex} className="bg-card p-4 rounded-lg">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div>
-                                    <h4 className="font-semibold text-foreground">{meal.meal}</h4>
-                                    <p className="text-sm font-medium text-primary">{meal.dish}</p>
-                                  </div>
-                                  <span className="text-sm text-muted-foreground">{meal.time}</span>
+                              <div key={mealIndex} className="glass-card p-6 rounded-3xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                  <Utensils className="w-12 h-12" />
                                 </div>
-                                <ul className="text-sm text-muted-foreground mb-3 space-y-1">
-                                  {meal.foods.map((food, foodIndex) => (
-                                    <li key={foodIndex} className="flex items-center gap-2">
-                                      <CheckCircle className="w-3 h-3 text-primary" />
-                                      {food}
-                                    </li>
-                                  ))}
-                                </ul>
-                                <div className="flex flex-wrap gap-2">
-                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-1/20 text-chart-1">{meal.calories} kcal</span>
-                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-2/20 text-chart-2">{meal.protein}g protein</span>
-                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-3/20 text-chart-3">{meal.carbs}g carbs</span>
-                                  <span className="px-2 py-1 text-xs rounded-full bg-chart-4/20 text-chart-4">{meal.fat}g fat</span>
+                                <div className="flex items-start justify-between mb-4">
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Clock className="w-3.5 h-3.5 text-primary" />
+                                      <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{meal.time}</span>
+                                    </div>
+                                    <h4 className="text-xl font-black text-foreground">{meal.meal}</h4>
+                                    <p className="text-sm font-bold text-primary mt-1">{meal.dish}</p>
+                                  </div>
+                                </div>
+                                <div className="space-y-4">
+                                  <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
+                                    {meal.foods.map((food, foodIndex) => (
+                                      <li key={foodIndex} className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-primary/50"></div>
+                                        {food}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <div className="flex flex-wrap gap-2 pt-4 border-t border-white/5">
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-red-500/10 text-red-500 border border-red-500/10">{meal.protein}g P</span>
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/10">{meal.carbs}g C</span>
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/10">{meal.fat}g F</span>
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-primary/10 text-primary border border-primary/10 ml-auto">{meal.calories} kcal</span>
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -1195,19 +1187,19 @@ export default function DietPlannerPage() {
                 </Card>
 
                 {/* Tips */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Lightbulb className="w-5 h-5 text-accent" />
-                      Personalized Tips
+                <Card className="border-none glass-card rounded-[2.5rem] reveal-3d overflow-hidden">
+                  <CardHeader className="p-8 pb-4">
+                    <CardTitle className="text-xl font-black flex items-center gap-3">
+                      <Lightbulb className="w-5 h-5 text-amber-500" />
+                      Strategic Insights
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <CardContent className="p-8 pt-0">
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {result.tips.map((tip, index) => (
-                        <li key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                          <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-sm text-foreground">{tip}</span>
+                        <li key={index} className="flex items-start gap-4 p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                          <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                          <span className="text-sm font-medium text-muted-foreground leading-relaxed">{tip}</span>
                         </li>
                       ))}
                     </ul>
@@ -1215,15 +1207,14 @@ export default function DietPlannerPage() {
                 </Card>
               </>
             ) : (
-              <Card className="flex items-center justify-center min-h-[500px]">
-                <CardContent className="text-center py-12">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-muted flex items-center justify-center mb-6">
-                    <Calculator className="w-10 h-10 text-muted-foreground" />
+              <Card className="flex items-center justify-center min-h-[500px] border-none glass-card rounded-[3rem] border-dashed border-2 border-white/5 opacity-50">
+                <CardContent className="text-center py-12 space-y-6">
+                  <div className="w-24 h-24 mx-auto rounded-full bg-white/5 flex items-center justify-center mb-4">
+                    <Calculator className="w-12 h-12 text-muted-foreground opacity-30" />
                   </div>
-                  <h3 className="text-xl font-semibold text-foreground mb-2">Get Your Personalized Diet Plan</h3>
-                  <p className="text-muted-foreground max-w-md mx-auto">
-                    Fill in your details on the left to calculate your BMI and receive a customized 7-day meal plan
-                    tailored to your goals and metabolism type.
+                  <h3 className="text-2xl font-black opacity-60">Architect Awaiting Specs</h3>
+                  <p className="text-muted-foreground font-medium max-w-md mx-auto">
+                    Configure your physical profile on the left to generate a surgical nutritional protocol tailored to your unique metabolism.
                   </p>
                 </CardContent>
               </Card>

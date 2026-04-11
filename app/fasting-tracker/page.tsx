@@ -61,66 +61,88 @@ function RingTimer({
 }) {
   const { h, m, s } = splitSecs(seconds)
   const pct = goalSeconds > 0 ? Math.min(100, (seconds / goalSeconds) * 100) : 0
-  const R = 80
+  const R = 85
   const C = 2 * Math.PI * R
   const offset = C * (1 - pct / 100)
 
   return (
-    <div className="flex flex-col items-center py-2">
-      <div className="relative w-52 h-52">
+    <div className="flex flex-col items-center py-6">
+      <div className="relative w-64 h-64">
+        {/* Outer Glow */}
+        <div className={cn(
+          "absolute inset-0 rounded-full transition-all duration-1000",
+          isActive ? "shadow-[0_0_50px_-10px_rgba(99,102,241,0.3)]" : ""
+        )} />
+
         <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#6366f1" />
+              <stop offset="100%" stopColor="#a855f7" />
+            </linearGradient>
+            <filter id="glow">
+               <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+               <feMerge>
+                   <feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/>
+               </feMerge>
+            </filter>
+          </defs>
           {/* Track ring */}
           <circle
             cx="100" cy="100" r={R}
-            fill="none" strokeWidth="10"
-            className="stroke-muted"
+            fill="none" strokeWidth="8"
+            className="stroke-white/5"
           />
           {/* Progress ring */}
           <circle
             cx="100" cy="100" r={R}
-            fill="none" strokeWidth="10"
+            fill="none" strokeWidth="8"
             stroke="url(#ringGrad)"
             strokeLinecap="round"
             strokeDasharray={C}
             strokeDashoffset={offset}
-            style={{ transition: "stroke-dashoffset 0.8s ease" }}
+            filter={isActive ? "url(#glow)" : ""}
+            style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
           />
-          <defs>
-            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#6366f1" />
-              <stop offset="100%" stopColor="#8b5cf6" />
-            </linearGradient>
-          </defs>
         </svg>
 
         {/* Center content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-          <Moon className="w-6 h-6 text-indigo-400" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+          {isActive ? (
+            <div className="animate-pulse">
+               <Moon className="w-8 h-8 text-indigo-400" />
+            </div>
+          ) : (
+             <Zap className="w-8 h-8 text-muted-foreground/30" />
+          )}
 
           {isActive ? (
             /* Live clock digits */
-            <div className="flex items-end gap-0.5 font-mono">
+            <div className="flex items-baseline gap-1">
               {[{ v: h, l: "h" }, { v: m, l: "m" }, { v: s, l: "s" }].map(({ v, l }, i) => (
-                <React.Fragment key={l}>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground tabular-nums leading-none">{v}</div>
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-widest">{l}</div>
-                  </div>
-                  {i < 2 && <div className="text-xl font-bold text-muted-foreground leading-none mb-3">:</div>}
-                </React.Fragment>
+                <div key={l} className="flex items-baseline">
+                   <span className="text-4xl font-black tabular-nums tracking-tight">{v}</span>
+                   <span className="text-[10px] font-black uppercase text-muted-foreground ml-0.5">{l}</span>
+                   {i < 2 && <span className="text-xl font-black text-white/10 mx-0.5">:</span>}
+                </div>
               ))}
             </div>
           ) : (
             /* Idle state */
             <div className="text-center">
-              <div className="text-sm font-semibold text-muted-foreground">Ready</div>
-              <div className="text-xs text-muted-foreground/60">to fast</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">System Idle</div>
+              <div className="text-sm font-black uppercase tracking-tighter">Ready to Fast</div>
             </div>
           )}
 
           {/* Percentage */}
-          <div className={cn("text-xs font-medium mt-1", isActive ? "text-indigo-600" : "text-muted-foreground/50")}>
-            {Math.round(pct)}%
+          <div className={cn(
+            "text-[10px] font-black uppercase tracking-widest py-1 px-3 rounded-full border transition-all duration-500",
+            isActive
+              ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+              : "bg-white/5 text-muted-foreground/40 border-white/5"
+          )}>
+            {Math.round(pct)}% Complete
           </div>
         </div>
       </div>
@@ -233,21 +255,23 @@ export default function FastingTrackerPage() {
 
   return (
     <div className="p-3 md:p-8">
-      <PageHeader
-        title="Fasting Tracker"
-        subtitle="Track your intermittent fasting sessions and monitor progress"
-      />
+      <div className="reveal-3d">
+        <PageHeader
+          title="Metabolic Phase Tracker"
+          subtitle="Synchronizing systemic homeostasis through intermittent fasting protocols."
+        />
+      </div>
 
       {error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mb-6 border-none glass-card bg-red-500/10 text-red-500 rounded-2xl reveal-3d">
           <AlertTriangle className="w-4 h-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="font-bold">{error}</AlertDescription>
         </Alert>
       )}
       {success && (
-        <Alert className="mb-4 bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
-          <CheckCircle className="w-4 h-4 text-green-600" />
-          <AlertDescription className="text-green-700 dark:text-green-300">{success}</AlertDescription>
+        <Alert className="mb-6 border-none glass-card bg-green-500/10 text-green-500 rounded-2xl reveal-3d">
+           <CheckCircle className="w-4 h-4" />
+           <AlertDescription className="font-bold">{success}</AlertDescription>
         </Alert>
       )}
 
@@ -258,49 +282,42 @@ export default function FastingTrackerPage() {
 
           {/* Main timer card — always shown, switches state */}
           <Card className={cn(
-            "transition-all",
-            activeSession
-              ? "border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30"
-              : ""
+            "border-none glass-card rounded-[2.5rem] overflow-hidden transition-all duration-500 reveal-3d",
+            activeSession && "bg-white/5 ring-1 ring-indigo-500/20 shadow-3xl shadow-indigo-500/10"
           )}>
-            <CardHeader className="pb-2">
+            <CardHeader className="p-8 pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className={cn(
-                  "flex items-center gap-2",
-                  activeSession ? "text-indigo-800 dark:text-indigo-200" : ""
+                  "text-2xl font-black uppercase tracking-tighter flex items-center gap-3",
+                  activeSession ? "text-indigo-400" : ""
                 )}>
-                  <Moon className="w-5 h-5" />
-                  {activeSession ? "Fasting in Progress" : "Start Fasting"}
+                  <Moon className="w-6 h-6" />
+                  {activeSession ? "Phase Protocol: Active" : "Phase Initiation"}
                 </CardTitle>
 
                 {activeSession && (
-                  <div className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-black uppercase tracking-widest text-indigo-400">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
                     </span>
-                    Live
+                    Live Sync
                   </div>
                 )}
               </div>
 
-              <CardDescription className={activeSession ? "text-indigo-700 dark:text-indigo-400" : ""}>
+              <CardDescription className={cn("text-xs font-bold uppercase tracking-widest opacity-40", activeSession ? "text-indigo-300" : "")}>
                 {activeSession
-                  ? `${activeSession.plan.emoji} ${activeSession.plan.name}`
+                  ? `Protocol ${activeSession.plan.emoji} ${activeSession.plan.name}`
                   : savedPlan && savedPlan.id !== "none"
-                    ? `Using: ${savedPlan.emoji} ${savedPlan.name}`
-                    : "Select a plan from the right panel to begin"}
+                    ? `Queued Protocol: ${savedPlan.emoji} ${savedPlan.name}`
+                    : "Initialize protocol in the structural panel"}
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              {/* ── Ring timer (always rendered, 0% when idle) ── */}
-              <div className={cn(
-                "rounded-xl py-2",
-                activeSession
-                  ? "bg-white/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900"
-                  : "bg-muted/30 border"
-              )}>
+            <CardContent className="p-8 pt-0 space-y-8">
+              {/* ── Ring timer ── */}
+              <div className="relative">
                 <RingTimer
                   seconds={elapsed}
                   goalSeconds={goalSeconds}
@@ -311,59 +328,44 @@ export default function FastingTrackerPage() {
 
               {/* Progress info when active */}
               {activeSession && activeSession.goal_hours > 0 && (
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>
-                    Started: {new Date(activeSession.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  {remaining > 0
-                    ? <span>{splitSecs(remaining).h}:{splitSecs(remaining).m} remaining</span>
-                    : <span className="text-green-600 font-medium">Goal reached!</span>
-                  }
+                <div className="flex justify-between items-center px-6 py-4 rounded-2xl bg-white/5 border border-white/5 reveal-3d">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Began</span>
+                    <span className="text-sm font-bold">{new Date(activeSession.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                  <div className="h-8 w-px bg-white/10" />
+                  <div className="flex flex-col text-right">
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Status</span>
+                    {remaining > 0
+                      ? <span className="text-sm font-bold text-indigo-400">{splitSecs(remaining).h}h {splitSecs(remaining).m}m Left</span>
+                      : <span className="text-sm font-black text-green-500 uppercase">Threshold Met</span>
+                    }
+                  </div>
                 </div>
               )}
 
               {/* Goal reached */}
               {goalReached && (
-                <Alert className="bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30">
-                  <Trophy className="w-4 h-4 text-yellow-600" />
-                  <AlertDescription className="text-yellow-700 dark:text-yellow-300 font-semibold">
-                    Goal reached! You can break your fast now.
+                <Alert className="border-none glass-card bg-green-500/10 text-green-500 rounded-2xl animate-bounce">
+                  <Trophy className="w-4 h-4" />
+                  <AlertDescription className="font-black uppercase text-xs tracking-widest">
+                    Metabolic Goal Achieved. Break fast authorized.
                   </AlertDescription>
                 </Alert>
               )}
 
-              {/* Start/end times when active */}
-              {activeSession && (
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="p-3 rounded-lg bg-white/60 dark:bg-indigo-950/40">
-                    <p className="text-muted-foreground text-xs">Started</p>
-                    <p className="font-semibold">
-                      {new Date(activeSession.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  {activeSession.target_end_time && (
-                    <div className="p-3 rounded-lg bg-white/60 dark:bg-indigo-950/40">
-                      <p className="text-muted-foreground text-xs">Target End</p>
-                      <p className="font-semibold">
-                        {new Date(activeSession.target_end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Idle — plan preview */}
               {!activeSession && savedPlan && savedPlan.id !== "none" && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-4 reveal-3d">
                   {savedPlan.fast_hours > 0 && (
                     <>
-                      <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg p-2.5 text-center">
-                        <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300">{savedPlan.fast_hours}h</p>
-                        <p className="text-xs text-muted-foreground">Fasting window</p>
+                      <div className="glass-card bg-indigo-500/5 rounded-2xl p-6 border-white/5 text-center">
+                        <p className="text-3xl font-black text-indigo-500">{savedPlan.fast_hours}h</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Fasting Period</p>
                       </div>
-                      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2.5 text-center">
-                        <p className="text-lg font-bold text-green-700 dark:text-green-300">{savedPlan.eat_hours}h</p>
-                        <p className="text-xs text-muted-foreground">Eating window</p>
+                      <div className="glass-card bg-emerald-500/5 rounded-2xl p-6 border-white/5 text-center">
+                        <p className="text-3xl font-black text-emerald-500">{savedPlan.eat_hours}h</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Refeed Period</p>
                       </div>
                     </>
                   )}
@@ -371,44 +373,42 @@ export default function FastingTrackerPage() {
               )}
 
               {/* CTA button */}
-              {activeSession ? (
-                <Button onClick={endFasting} disabled={ending} variant="destructive" className="w-full" size="lg">
-                  {ending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Ending...</>
-                          : <><Square className="w-4 h-4 mr-2" />End Fasting Session</>}
-                </Button>
-              ) : (
-                <Button
-                  onClick={startFasting}
-                  disabled={starting || !savedPlanId || savedPlanId === "none"}
-                  className="w-full" size="lg"
-                >
-                  {starting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Starting...</>
-                            : <><Play className="w-4 h-4 mr-2" />Start Fasting Session</>}
-                </Button>
-              )}
-
-              {!activeSession && (!savedPlanId || savedPlanId === "none") && (
-                <p className="text-xs text-center text-muted-foreground">
-                  Select a fasting plan from the list on the right to start.
-                </p>
-              )}
+              <div className="reveal-3d">
+                {activeSession ? (
+                  <Button onClick={endFasting} disabled={ending} variant="destructive" className="w-full h-16 rounded-[1.5rem] text-lg font-black shadow-3xl shadow-red-500/20 transition-all active:scale-95" size="lg">
+                    {ending ? <Loader2 className="w-6 h-6 animate-spin" />
+                            : <><Square className="w-5 h-5 mr-3" /> Terminate Session</>}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={startFasting}
+                    disabled={starting || !savedPlanId || savedPlanId === "none"}
+                    className="w-full h-16 rounded-[1.5rem] text-lg font-black shadow-3xl shadow-primary/20 transition-all active:scale-95" size="lg"
+                  >
+                    {starting ? <Loader2 className="w-6 h-6 animate-spin" />
+                              : <><Play className="w-5 h-5 mr-3" /> Initiate Protocol</>}
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {/* Stats */}
           {stats && stats.total_sessions > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 reveal-3d">
               {[
-                { label: "Total Sessions", value: stats.total_sessions,            Icon: Calendar,   color: "text-blue-600",   bg: "bg-blue-50 dark:bg-blue-950/20" },
-                { label: "Completed",      value: stats.completed_sessions,         Icon: Trophy,     color: "text-yellow-600", bg: "bg-yellow-50 dark:bg-yellow-950/20" },
-                { label: "Avg Duration",   value: `${stats.avg_duration_hours}h`,   Icon: Clock,      color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-950/20" },
-                { label: "Success Rate",   value: `${stats.success_rate_percent}%`, Icon: TrendingUp, color: "text-green-600",  bg: "bg-green-50 dark:bg-green-950/20" },
-              ].map(({ label, value, Icon, color, bg }) => (
-                <Card key={label}>
-                  <CardContent className={cn("p-4 text-center rounded-xl", bg)}>
-                    <Icon className={cn("w-5 h-5 mx-auto mb-1", color)} />
-                    <p className="text-2xl font-bold text-foreground">{value}</p>
-                    <p className="text-xs text-muted-foreground">{label}</p>
+                { label: "Total Syncs",   value: stats.total_sessions,            Icon: Calendar,   color: "text-blue-400" },
+                { label: "Goals Met",    value: stats.completed_sessions,         Icon: Trophy,     color: "text-amber-400" },
+                { label: "Avg Duration", value: `${stats.avg_duration_hours}h`,   Icon: Clock,      color: "text-indigo-400" },
+                { label: "Success Rate", value: `${stats.success_rate_percent}%`, Icon: TrendingUp, color: "text-emerald-400" },
+              ].map(({ label, value, Icon, color }) => (
+                <Card key={label} className="border-none glass-card rounded-3xl overflow-hidden hover:scale-[1.05] transition-transform">
+                  <CardContent className="p-6 text-center">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mx-auto mb-3">
+                       <Icon className={cn("w-5 h-5", color)} />
+                    </div>
+                    <p className="text-2xl font-black text-foreground mb-1">{value}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">{label}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -417,33 +417,36 @@ export default function FastingTrackerPage() {
 
           {/* History */}
           {history.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
+            <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3 opacity-60">
                   <Calendar className="w-5 h-5 text-primary" />
-                  Recent Sessions
+                  Temporal Archives
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {history.slice(0, 7).map(session => (
-                    <div key={session.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{session.plan_emoji}</span>
+              <CardContent className="p-8 pt-0">
+                <div className="space-y-3">
+                  {history.slice(0, 7).map((session, idx) => (
+                    <div key={session.id} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all reveal-3d" style={{animationDelay: `${idx*50}ms`}}>
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl drop-shadow-lg">{session.plan_emoji}</span>
                         <div>
-                          <p className="font-medium text-sm">{session.plan_name}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-black text-sm uppercase tracking-tight">{session.plan_name}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-40">
                             {session.start_time
                               ? new Date(session.start_time).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                               : "—"}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-muted-foreground">{session.duration_hours}h</span>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                           <p className="text-xs font-black">{session.duration_hours}h</p>
+                           <p className="text-[8px] font-black uppercase opacity-40">Duration</p>
+                        </div>
                         {session.completed
-                          ? <CheckCircle className="w-4 h-4 text-green-500" />
-                          : <AlertTriangle className="w-4 h-4 text-orange-400" />}
+                          ? <div className="p-1 px-2 rounded-lg bg-green-500/10"><CheckCircle className="w-4 h-4 text-green-500" /></div>
+                          : <div className="p-1 px-2 rounded-lg bg-amber-500/10"><AlertTriangle className="w-4 h-4 text-amber-500" /></div>}
                       </div>
                     </div>
                   ))}
@@ -454,58 +457,57 @@ export default function FastingTrackerPage() {
         </div>
 
         {/* ══ RIGHT: Plan selector ══ */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Moon className="w-4 h-4 text-indigo-500" />
-                Choose Your Fasting Plan
+        <div className="space-y-6 reveal-3d">
+          <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3 opacity-60">
+                <Moon className="w-4 h-4 text-indigo-400" />
+                Protocols
               </CardTitle>
-              <CardDescription>Tap a plan to select it as your default.</CardDescription>
+              <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40">Select a systemic synchronization strategy.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 max-h-[700px] overflow-y-auto pr-1">
+            <CardContent className="p-8 pt-0 space-y-3 max-h-[700px] overflow-y-auto pr-1">
               {allPlans.map(plan => (
                 <button
                   key={plan.id}
                   onClick={() => savePlan(plan.id)}
                   className={cn(
-                    "w-full text-left rounded-xl border p-3 transition-all",
+                    "w-full text-left rounded-3xl border border-white/5 p-5 transition-all group reveal-3d",
                     savedPlanId === plan.id
-                      ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40"
-                      : "border-border hover:border-indigo-300 hover:bg-muted/40"
+                      ? "bg-indigo-500/10 border-indigo-500/30"
+                      : "bg-white/5 hover:bg-white/10"
                   )}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-sm flex items-center gap-1.5">
-                      <span>{plan.emoji}</span>
-                      <span>{plan.name}</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-black text-sm flex items-center gap-2">
+                      <span className="text-xl group-hover:scale-125 transition-transform">{plan.emoji}</span>
+                      <span className="uppercase tracking-tight">{plan.name}</span>
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      <Badge className={cn("text-xs font-medium border-0", difficultyColor[plan.difficulty] || difficultyColor["None"])}>
-                        {plan.difficulty}
-                      </Badge>
-                      {savedPlanId === plan.id && <CheckCircle className="w-4 h-4 text-indigo-500" />}
+                    <Badge className={cn("text-[8px] font-black uppercase tracking-widest border-none px-2 py-0.5", 
+                      plan.difficulty === "Easy" ? "bg-green-500/20 text-green-400" :
+                      plan.difficulty === "Moderate" ? "bg-amber-500/20 text-amber-400" :
+                      "bg-red-500/20 text-red-400"
+                    )}>
+                      {plan.difficulty}
+                    </Badge>
+                  </div>
+
+                  <p className="text-[10px] font-medium text-muted-foreground line-clamp-2 leading-relaxed mb-4">{plan.description}</p>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                       <Moon className="w-3 h-3" /> {plan.fast_hours}h
+                    </div>
+                    <div className="w-1 h-1 rounded-full bg-white/10" />
+                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                       <Sun className="w-3 h-3" /> {plan.eat_hours}h
                     </div>
                   </div>
 
-                  <p className="text-xs text-muted-foreground line-clamp-2">{plan.description}</p>
-
-                  {plan.fast_hours > 0 && (
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                        <Moon className="w-3 h-3" />{plan.fast_hours}h fast
-                      </span>
-                      <span className="text-muted-foreground text-xs">·</span>
-                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                        <Sun className="w-3 h-3" />{plan.eat_hours}h eat
-                      </span>
-                    </div>
-                  )}
-
-                  {savedPlanId === plan.id && plan.benefits.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {plan.benefits.slice(0, 3).map((b, i) => (
-                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                  {savedPlanId === plan.id && (
+                    <div className="flex flex-wrap gap-1 mt-4 pt-4 border-t border-white/5">
+                      {plan.benefits.slice(0, 2).map((b, i) => (
+                        <span key={i} className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground">
                           {b}
                         </span>
                       ))}

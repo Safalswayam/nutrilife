@@ -260,25 +260,27 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-4 md:p-8">
-      <PageHeader
-        title="Profile & Settings"
-        subtitle="Manage your personal information, health goals, and app preferences"
-      />
+    <div className="p-3 md:p-8">
+      <div className="reveal-3d">
+        <PageHeader
+          title="Digital Identity Nexus"
+          subtitle="Architecting your physical blueprint and systemic performance parameters."
+        />
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
         {/* ── Left Sidebar ── */}
         <div className="space-y-6">
 
           {/* Profile photo card */}
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+            <CardContent className="p-8">
               <div className="flex flex-col items-center text-center">
 
                 {/* Avatar with camera hover overlay */}
-                <div className="relative mb-3 group">
-                  <div className="w-24 h-24 rounded-full overflow-hidden ring-2 ring-border bg-primary/10 flex items-center justify-center select-none">
+                <div className="relative mb-6 group">
+                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/10 bg-white/5 flex items-center justify-center select-none shadow-3xl shadow-primary/20 transition-all duration-500 group-hover:scale-105 group-hover:border-primary/50">
                     {imagePreview ? (
                       <img
                         src={imagePreview}
@@ -286,7 +288,7 @@ export default function ProfilePage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-2xl font-bold text-primary">{initials}</span>
+                      <span className="text-4xl font-black text-primary">{initials}</span>
                     )}
                   </div>
 
@@ -362,16 +364,18 @@ export default function ProfilePage() {
                   JPG, PNG, GIF or WebP · Max 5 MB
                 </p>
 
-                <h3 className="text-lg font-semibold text-foreground">{profile.name || "User"}</h3>
-                <p className="text-sm text-muted-foreground">{profile.email}</p>
+                <div className="space-y-1">
+                  <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{profile.name || "UNIDENTIFIED USER"}</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">{profile.email}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Tab navigation */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-2">
+          <Card className="border-none glass-card rounded-[2rem] overflow-hidden reveal-3d">
+            <CardContent className="p-2">
+              <div className="space-y-1">
                 {tabs.map((tab) => {
                   const Icon = tab.icon
                   return (
@@ -379,14 +383,17 @@ export default function ProfilePage() {
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left",
+                        "w-full flex items-center justify-between px-6 py-4 rounded-[1.5rem] transition-all group",
                         activeTab === tab.id
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground hover:bg-muted"
+                          ? "bg-primary text-primary-foreground shadow-3xl shadow-primary/20"
+                          : "text-foreground hover:bg-white/5 opacity-60 hover:opacity-100"
                       )}
                     >
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{tab.label}</span>
+                      <div className="flex items-center gap-4">
+                        <Icon className={cn("w-5 h-5", activeTab === tab.id ? "animate-pulse" : "")} />
+                        <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
+                      </div>
+                      <div className={cn("w-1.5 h-1.5 rounded-full bg-white opacity-0 transition-all", activeTab === tab.id ? "opacity-100" : "group-hover:opacity-30")} />
                     </button>
                   )
                 })}
@@ -395,102 +402,107 @@ export default function ProfilePage() {
           </Card>
 
           {/* Achievements */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
+          <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 opacity-60">
                 <Target className="w-4 h-4 text-primary" />
-                Achievements
+                Evolution Badges
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            <CardContent className="p-8 pt-0">
+              <div className="grid grid-cols-3 gap-3">
                 {[
-                  { emoji: "🍽️", label: "First Meal Logged", done: true },
-                  { emoji: "📋", label: "Diet Plan Created", done: !!profile?.goal && profile.goal !== "maintain" },
-                  { emoji: "🌙", label: "First Fast Completed", done: false },
-                  { emoji: "💧", label: "Water Goal Hit", done: false },
-                  { emoji: "📸", label: "Profile Photo Added", done: !!profile?.profile_image },
-                  { emoji: "⭐", label: "7-Day Streak", done: false },
+                  { emoji: "🍽️", label: "First Sync", done: true },
+                  { emoji: "📋", label: "Architect", done: !!profile?.goal && profile.goal !== "maintain" },
+                  { emoji: "🌙", label: "Zephyr", done: false },
+                  { emoji: "💧", label: "Hydra", done: false },
+                  { emoji: "📸", label: "Vanguard", done: !!profile?.profile_image },
+                  { emoji: "⭐", label: "Legend", done: false },
                 ].map((badge) => (
-                  <div key={badge.label} className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${badge.done ? "bg-primary/10" : "bg-muted opacity-50"}`}>
-                      {badge.emoji}
-                    </div>
-                    <span className={`text-sm ${badge.done ? "font-medium text-foreground" : "text-muted-foreground line-through"}`}>
-                      {badge.label}
-                    </span>
-                    {badge.done && <CheckCircle className="w-3.5 h-3.5 text-primary ml-auto" />}
+                  <div key={badge.label} className={cn(
+                    "relative flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all group",
+                    badge.done ? "border-primary/20 bg-primary/5 shadow-inner" : "border-white/5 opacity-30 grayscale"
+                  )}>
+                    <div className="text-2xl group-hover:scale-110 transition-transform">{badge.emoji}</div>
+                    <span className="text-[8px] font-black uppercase tracking-tight text-center leading-none">{badge.label}</span>
+                    {badge.done && (
+                       <div className="absolute -top-1 -right-1">
+                          <CheckCircle className="w-3 h-3 text-primary fill-background" />
+                       </div>
+                    )}
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Account</CardTitle>
-              <CardDescription>Use this button anytime you want to sign out.</CardDescription>
-            </CardHeader>
-            <CardContent>
+          {/* Account */}
+          <Card className="border-none glass-card rounded-[2rem] overflow-hidden reveal-3d">
+            <CardContent className="p-6">
               <Button
                 variant="destructive"
-                className="w-full"
+                className="w-full h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-3xl shadow-red-500/20"
                 onClick={handleLogout}
                 disabled={loggingOut}
               >
                 {loggingOut
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Logging out...</>
-                  : <><LogOut className="w-4 h-4 mr-2" />Log out</>}
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Terminating Session…</>
+                  : <><LogOut className="w-4 h-4 mr-2" />Terminate Session</>}
               </Button>
             </CardContent>
           </Card>
         </div>
 
         {/* ── Main Content ── */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-8">
           {saved && (
-            <Alert className="mb-6 bg-primary/10 border-primary/20">
-              <CheckCircle className="w-4 h-4 text-primary" />
-              <AlertDescription className="text-foreground">Profile updated successfully!</AlertDescription>
+            <Alert className="border-none glass-card bg-green-500/10 text-green-500 rounded-2xl reveal-3d">
+              <CheckCircle className="w-4 h-4" />
+              <AlertDescription className="font-black uppercase text-xs tracking-widest">Profile divergence synchronized successfully.</AlertDescription>
             </Alert>
           )}
           {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant="destructive" className="border-none glass-card bg-red-500/10 text-red-500 rounded-2xl reveal-3d">
+              <AlertDescription className="font-black uppercase text-xs tracking-widest">{error}</AlertDescription>
             </Alert>
           )}
 
           {activeTab === "profile" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
                   <User className="w-5 h-5 text-primary" />
-                  Personal Information
+                  Physical Blueprint
                 </CardTitle>
-                <CardDescription>Update your personal details and physical measurements</CardDescription>
+                <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40">Define your structural parameters for metabolic optimization.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={profile.name}
-                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                      placeholder="John Doe"
-                    />
-                  </div>
+              <CardContent className="p-8 pt-0 space-y-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {[
+                    { id: "name",   label: "Full Name",   type: "text"   },
+                    { id: "email",  label: "Primary Comms", type: "email", disabled: true },
+                    { id: "age",    label: "Biological Age",   type: "number" },
+                    { id: "height", label: "Vertical Scale (cm)", type: "number" },
+                    { id: "weight", label: "Mass Index (kg)", type: "number" },
+                  ].map(field => (
+                    <div key={field.id} className="space-y-3">
+                       <Label htmlFor={field.id} className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{field.label}</Label>
+                       <Input
+                         id={field.id}
+                         type={field.type}
+                         disabled={field.disabled}
+                         value={profile[field.id as keyof UserProfile] as string}
+                         onChange={(e) => setProfile({ ...profile, [field.id]: e.target.value })}
+                         className={cn("h-12 rounded-xl bg-white/5 border-white/5 focus:border-primary/50 transition-all font-bold", field.disabled && "opacity-50")}
+                       />
+                    </div>
+                  ))}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" value={profile.email} disabled className="bg-muted" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="gender">Gender</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="gender" className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Gender Identification</Label>
                     <Select value={profile.gender} onValueChange={(v) => setProfile({ ...profile, gender: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
-                      <SelectContent>
+                      <SelectTrigger className="h-12 rounded-xl bg-white/5 border-white/5 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent className="glass-card border-white/10 rounded-xl">
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="female">Female</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
@@ -498,68 +510,38 @@ export default function ProfilePage() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="age">Age</Label>
-                    <Input
-                      id="age" type="number"
-                      value={profile.age}
-                      onChange={(e) => setProfile({ ...profile, age: e.target.value })}
-                      placeholder="28"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="height">Height (cm)</Label>
-                    <Input
-                      id="height" type="number"
-                      value={profile.height}
-                      onChange={(e) => setProfile({ ...profile, height: e.target.value })}
-                      placeholder="175"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="weight">Weight (kg)</Label>
-                    <Input
-                      id="weight" type="number" step="0.1"
-                      value={profile.weight}
-                      onChange={(e) => setProfile({ ...profile, weight: e.target.value })}
-                      placeholder="72"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="activity">Activity Level</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="activity" className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Kinetic Frequency</Label>
                     <Select value={profile.activity_level} onValueChange={(v) => setProfile({ ...profile, activity_level: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select activity level" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sedentary">Sedentary (Little/no exercise)</SelectItem>
-                        <SelectItem value="light">Light (1-3 days/week)</SelectItem>
-                        <SelectItem value="moderate">Moderate (3-5 days/week)</SelectItem>
-                        <SelectItem value="active">Active (6-7 days/week)</SelectItem>
-                        <SelectItem value="very_active">Very Active (Athlete)</SelectItem>
+                      <SelectTrigger className="h-12 rounded-xl bg-white/5 border-white/5 font-bold"><SelectValue placeholder="Select activity" /></SelectTrigger>
+                      <SelectContent className="glass-card border-white/10 rounded-xl">
+                        <SelectItem value="sedentary">Sedentary (Minimum)</SelectItem>
+                        <SelectItem value="light">Light (1-3 days)</SelectItem>
+                        <SelectItem value="moderate">Moderate (3-5 days)</SelectItem>
+                        <SelectItem value="active">Active (6-7 days)</SelectItem>
+                        <SelectItem value="very_active">Very Active (Elite)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="metabolism">Metabolism Type</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="metabolism" className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Metabolic Velocity</Label>
                     <Select value={profile.metabolism_type} onValueChange={(v) => setProfile({ ...profile, metabolism_type: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select metabolism" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fast">Fast</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="slow">Slow</SelectItem>
+                      <SelectTrigger className="h-12 rounded-xl bg-white/5 border-white/5 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent className="glass-card border-white/10 rounded-xl">
+                        <SelectItem value="fast">Accelerated</SelectItem>
+                        <SelectItem value="normal">Standard</SelectItem>
+                        <SelectItem value="slow">Steady</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4">
-                  <Button onClick={handleSave} disabled={saving} size="lg">
+                <div className="flex justify-end border-t border-white/5 pt-8">
+                  <Button onClick={handleSave} disabled={saving} className="h-14 px-10 rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-3xl shadow-primary/20">
                     {saving
-                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-                      : <><Save className="w-4 h-4 mr-2" />Save Changes</>
+                      ? <><Loader2 className="w-5 h-5 mr-3 animate-spin" />Syncing…</>
+                      : <><Save className="w-5 h-5 mr-3" />Synchronize Physical Blueprint</>
                     }
                   </Button>
                 </div>
@@ -568,73 +550,71 @@ export default function ProfilePage() {
           )}
 
           {activeTab === "goals" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
                   <Target className="w-5 h-5 text-primary" />
-                  Health Goals
+                  Strategic Objectives
                 </CardTitle>
-                <CardDescription>Define your health and fitness objectives</CardDescription>
+                <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40">Define the terminal state for your physiological evolution.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="goal">Primary Goal</Label>
+              <CardContent className="p-8 pt-0 space-y-8">
+                <div className="space-y-3">
+                  <Label htmlFor="goal" className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Primary Trajectory</Label>
                   <Select value={profile.goal} onValueChange={(v) => setProfile({ ...profile, goal: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select your goal" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lose">Lose Weight</SelectItem>
-                      <SelectItem value="lose_fast">Lose Weight Fast</SelectItem>
-                      <SelectItem value="maintain">Maintain Weight</SelectItem>
-                      <SelectItem value="gain">Gain Weight</SelectItem>
-                      <SelectItem value="gain_muscle">Gain Muscle</SelectItem>
+                    <SelectTrigger className="h-14 rounded-xl bg-white/5 border-white/5 font-bold text-lg"><SelectValue placeholder="Select objective" /></SelectTrigger>
+                    <SelectContent className="glass-card border-white/10 rounded-xl">
+                      <SelectItem value="lose">Mass Reduction (Standard)</SelectItem>
+                      <SelectItem value="lose_fast">Mass Reduction (Aggressive)</SelectItem>
+                      <SelectItem value="maintain">Homeostasis (Maintain)</SelectItem>
+                      <SelectItem value="gain">Mass Augmentation (Standard)</SelectItem>
+                      <SelectItem value="gain_muscle">Structural Augmentation (Hypertrophy)</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-muted-foreground">
-                    This will help us calculate your personalized calorie and macro targets
-                  </p>
                 </div>
 
-                <div className="rounded-lg bg-muted/50 p-6">
-                  <h4 className="font-semibold text-foreground mb-4">Goal Description</h4>
-                  <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="rounded-[2rem] bg-white/5 border border-white/5 p-8 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
+                  <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Trajectory Analysis</h4>
+                  <div className="space-y-4 text-sm font-medium">
                     {profile.goal === "lose" && (
-                      <div>
-                        <p className="font-medium text-foreground">Moderate Weight Loss</p>
-                        <p>Aim for 0.5kg per week with a balanced deficit of 500 calories per day.</p>
+                      <div className="space-y-1">
+                        <p className="text-lg font-black text-indigo-400">Balanced Mass Reduction</p>
+                        <p className="text-muted-foreground leading-relaxed">Targeting -0.5kg/week. Strategic deficit of 500 kcal optimized for sustainable fat oxidation while preserving lean tissue.</p>
                       </div>
                     )}
                     {profile.goal === "lose_fast" && (
-                      <div>
-                        <p className="font-medium text-foreground">Rapid Weight Loss</p>
-                        <p>Aim for 0.75kg per week with a deficit of 750 calories per day. Consult a professional.</p>
+                      <div className="space-y-1">
+                        <p className="text-lg font-black text-red-400">Aggressive Mass Reduction</p>
+                        <p className="text-muted-foreground leading-relaxed">Targeting -0.75kg/week. Deficit of 750 kcal. Requires high metabolic awareness and micronutrient precision.</p>
                       </div>
                     )}
                     {profile.goal === "maintain" && (
-                      <div>
-                        <p className="font-medium text-foreground">Maintain Weight</p>
-                        <p>Keep your current weight by eating at maintenance calories.</p>
-                      </div>
+                       <div className="space-y-1">
+                         <p className="text-lg font-black text-emerald-400">Systemic Homeostasis</p>
+                         <p className="text-muted-foreground leading-relaxed">Caloric equilibrium. Maintaining current structural mass with optimized nutrient timing and recovery protocols.</p>
+                       </div>
                     )}
                     {profile.goal === "gain" && (
-                      <div>
-                        <p className="font-medium text-foreground">Gain Weight</p>
-                        <p>Aim for 0.25-0.5kg per week with a surplus of 300 calories per day.</p>
+                      <div className="space-y-1">
+                        <p className="text-lg font-black text-amber-400">Controlled Mass Augmentation</p>
+                        <p className="text-muted-foreground leading-relaxed">Targeting +0.3kg/week. Surplus of 300 kcal to maximize mitochondrial density and systemic scale.</p>
                       </div>
                     )}
                     {profile.goal === "gain_muscle" && (
-                      <div>
-                        <p className="font-medium text-foreground">Build Muscle</p>
-                        <p>Gain lean muscle with 400 calorie surplus and high protein intake (30% of calories).</p>
+                      <div className="space-y-1">
+                        <p className="text-lg font-black text-primary">Structural Hypertrophy</p>
+                        <p className="text-muted-foreground leading-relaxed">Systemic surplus of 400 kcal. Optimized protein synthesis (1.8g/kg) and focused anabolic stimulation for maximum hypertrophy.</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4">
-                  <Button onClick={handleSave} disabled={saving} size="lg">
+                <div className="flex justify-end border-t border-white/5 pt-8">
+                  <Button onClick={handleSave} disabled={saving} className="h-14 px-10 rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-3xl shadow-primary/20">
                     {saving
-                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-                      : <><Save className="w-4 h-4 mr-2" />Save Changes</>
+                      ? <><Loader2 className="w-5 h-5 mr-3 animate-spin" />Syncing…</>
+                      : <><Save className="w-5 h-5 mr-3" />Commit Trajectory</>
                     }
                   </Button>
                 </div>
@@ -644,20 +624,23 @@ export default function ProfilePage() {
         </div>
 
         {/* Legal & Support Footer */}
-        <div className="mt-8 border-t border-border pt-6">
-          <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Legal & Support</p>
-          <div className="flex flex-wrap gap-3">
-            <a href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5" /> Terms & Conditions
-            </a>
-            <span className="text-border">·</span>
-            <a href="/support" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5">
-              <LifeBuoy className="w-3.5 h-3.5" /> Support & Telegram
-            </a>
+        <div className="mt-16 border-t border-white/5 pt-12 flex flex-col md:flex-row items-center justify-between gap-8 reveal-3d">
+          <div className="space-y-4 text-center md:text-left">
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">System Support & Framework</p>
+             <div className="flex flex-wrap justify-center md:justify-start gap-6">
+               <a href="/terms" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-2">
+                 <FileText className="w-3.5 h-3.5" /> Protocols
+               </a>
+               <a href="/support" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-2">
+                 <LifeBuoy className="w-3.5 h-3.5" /> Intelligence Network
+               </a>
+             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            NutriLife · Built by Safal Swayam · KIIT University
-          </p>
+          <div className="text-center md:text-right space-y-2">
+             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Architectural Reference</p>
+             <p className="text-xs font-black uppercase text-primary tracking-tighter">NutriLife Premium · KIIT University</p>
+             <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-[0.2em]">Safal Swayam · Built for Human Optimization</p>
+          </div>
         </div>
       </div>
     </div>

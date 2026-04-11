@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -159,130 +160,145 @@ export default function SubscriptionPage() {
   )
 
   return (
-    <div className="container mx-auto px-4 py-6 md:py-16 max-w-7xl">
+    <div className="p-3 md:p-8 space-y-12 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="text-center mb-12">
-        <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 text-sm px-4 py-1">Premium Plans</Badge>
-        <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Unlock AI-powered food analysis, advanced analytics, and priority support. Cancel anytime.
+      <div className="text-center reveal-3d space-y-6">
+        <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full glass-card border-none bg-primary/10 text-primary mb-4">
+           <Crown className="w-4 h-4" />
+           <span className="text-[10px] font-black uppercase tracking-[0.2em]">Ascension Protocol</span>
+        </div>
+        <h1 className="text-4xl md:text-7xl font-black tracking-tight text-foreground uppercase leading-none">
+          Elevate Your <br/><span className="text-primary">Metabolic State</span>
+        </h1>
+        <p className="text-lg text-muted-foreground font-medium max-w-2xl mx-auto opacity-70">
+          Unshackle the full potential of your physiological data with AI-Powered Vitals and Systems Optimization.
         </p>
-        <p className="text-sm text-primary font-medium mt-3 flex items-center justify-center gap-2">
-          <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-primary" /></span>
-          Join 2,000+ users tracking their health with NutriLife
-        </p>
+        <div className="flex items-center justify-center gap-6 pt-4">
+           {[
+             { label: "2K+ Optimized", icon: Zap },
+             { label: "AI Synchronized", icon: Sparkles },
+             { label: "Global Standard", icon: ShieldCheck }
+           ].map((item, i) => (
+             <div key={i} className="flex items-center gap-2 opacity-40">
+                <item.icon className="w-4 h-4 text-primary" />
+                <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+             </div>
+           ))}
+        </div>
       </div>
 
       {/* Active subscription banner */}
       {currentSubscription && (
-        <div className="max-w-2xl mx-auto mb-10">
-          <Card className="border-primary bg-primary/5">
-            <CardContent className="pt-5 pb-5">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Crown className="w-5 h-5 text-primary" />
+        <div className="max-w-3xl mx-auto reveal-3d">
+          <div className="glass-card rounded-[2.5rem] bg-gradient-to-r from-primary/20 via-primary/5 to-transparent border-none p-1 shadow-3xl shadow-primary/20">
+            <div className="bg-background/40 backdrop-blur-3xl rounded-[2.3rem] p-8">
+              <div className="flex items-center justify-between flex-wrap gap-6">
+                <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner">
+                    <Crown className="w-8 h-8 text-primary animate-pulse" />
                   </div>
-                  <div>
-                    <p className="font-semibold">Active: {currentSubscription.plan_name}</p>
-                    <p className="text-sm text-muted-foreground">{currentSubscription.days_remaining} days remaining</p>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary">Status: Authorized</p>
+                    <p className="text-2xl font-black text-foreground uppercase">{currentSubscription.plan_name}</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">{currentSubscription.days_remaining} units of time remaining in current cycle</p>
                   </div>
                 </div>
-                <Badge className="bg-primary text-white">Premium Active</Badge>
+                <div className="px-6 py-2 rounded-full border-2 border-primary/30 text-primary text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                  System Active
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Price toggle */}
-      <div className="flex items-center justify-center gap-3 mb-10">
-        <Label className={!showMonthly ? "font-semibold" : "text-muted-foreground"}>Total Price</Label>
-        <Switch checked={showMonthly} onCheckedChange={setShowMonthly} />
-        <Label className={showMonthly ? "font-semibold" : "text-muted-foreground"}>Per Month</Label>
+      <div className="flex items-center justify-center gap-3 reveal-3d">
+        <Label className={cn("text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all", !showMonthly ? "bg-white/10 text-foreground" : "text-muted-foreground opacity-40")}>Total Magnitude</Label>
+        <Switch checked={showMonthly} onCheckedChange={setShowMonthly} className="data-[state=checked]:bg-primary" />
+        <Label className={cn("text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all", showMonthly ? "bg-white/10 text-foreground" : "text-muted-foreground opacity-40")}>Monthly Cycle</Label>
       </div>
 
       {/* Pricing cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
         {plans.map((plan) => {
           const isBest = !!plan.badge?.includes("Best")
           const isPopular = !!plan.badge?.includes("Popular")
           const isProcessing = processing && selectedPlan === plan.id
 
           return (
-            <Card key={plan.id} className={`relative flex flex-col transition-all duration-200 ${
-              isBest ? "border-2 border-primary shadow-xl scale-105 z-10"
-              : isPopular ? "border-2 border-orange-400 shadow-lg"
-              : "border hover:shadow-md"
-            }`}>
-              {plan.badge && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                  <Badge className={`px-4 py-1 text-sm ${isBest ? "bg-primary text-white" : "bg-orange-500 text-white"}`}>
-                    {plan.badge}
-                  </Badge>
-                </div>
-              )}
+            <div key={plan.id} className="reveal-3d">
+              <Card className={cn(
+                "relative h-full flex flex-col border-none glass-card rounded-[3rem] overflow-hidden transition-all duration-500 hover:-translate-y-4 group",
+                isBest ? "shadow-3xl shadow-primary/30 ring-2 ring-primary/50" : "opacity-80 hover:opacity-100"
+              )}>
+                {plan.badge && (
+                  <div className="absolute -top-0 left-0 right-0 h-1 bg-primary" />
+                )}
+                
+                <CardHeader className="text-center p-10 pb-4">
+                  <div className="mx-auto mb-6 w-16 h-16 rounded-[1.5rem] bg-white/5 border border-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    {getPlanIcon(plan.duration_months)}
+                  </div>
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2">{plan.badge || "Standard Tier"}</h3>
+                  <CardTitle className="text-2xl font-black uppercase tracking-tight">{plan.name}</CardTitle>
+                </CardHeader>
 
-              <CardHeader className="text-center pt-8 pb-2">
-                <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  {getPlanIcon(plan.duration_months)}
-                </div>
-                <CardTitle className="text-xl">{plan.name}</CardTitle>
-                <CardDescription>{plan.duration_months} months of premium access</CardDescription>
-              </CardHeader>
-
-              <CardContent className="text-center flex-1">
-                <div className="mb-6">
-                  {!showMonthly ? (
-                    <>
-                      {plan.discount_amount > 0 && (
-                        <p className="text-sm text-muted-foreground line-through mb-1">{fmt(plan.base_price)}</p>
-                      )}
-                      <div className="flex items-baseline justify-center gap-1 mb-2">
-                        <span className="text-4xl font-bold">{fmt(plan.final_price)}</span>
-                        <span className="text-muted-foreground text-sm">total</span>
+                <CardContent className="px-10 flex-1 flex flex-col text-center">
+                  <div className="mb-10">
+                    {!showMonthly ? (
+                      <div>
+                        {plan.discount_amount > 0 && (
+                          <p className="text-xs font-bold text-muted-foreground line-through opacity-40">{fmt(plan.base_price)}</p>
+                        )}
+                        <div className="flex items-baseline justify-center gap-1">
+                          <span className="text-6xl font-black text-foreground">{fmt(plan.final_price)}</span>
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">{plan.duration_months} Month Access</p>
+                        {plan.discount_amount > 0 && (
+                          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-500 text-[9px] font-black uppercase tracking-widest">
+                            Save {fmt(plan.discount_amount)} ({plan.savings_percentage}%)
+                          </div>
+                        )}
                       </div>
-                      {plan.discount_amount > 0 && (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                          Save {fmt(plan.discount_amount)} ({plan.savings_percentage}% off)
-                        </Badge>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-baseline justify-center gap-1 mb-2">
-                        <span className="text-4xl font-bold">{fmt(plan.monthly_equivalent)}</span>
-                        <span className="text-muted-foreground text-sm">/month</span>
+                    ) : (
+                      <div>
+                        <div className="flex items-baseline justify-center gap-1">
+                          <span className="text-6xl font-black text-foreground">{fmt(plan.monthly_equivalent)}</span>
+                          <span className="text-xl font-black text-muted-foreground uppercase">/mo</span>
+                        </div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-4">
+                          Accumulated {fmt(plan.final_price)} per cycle
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Billed {fmt(plan.final_price)} for {plan.duration_months} months
-                      </p>
-                    </>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <ul className="space-y-2 text-left mb-4">
-                  {plan.features.map((f, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                      <span className="text-sm">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
+                  <div className="space-y-4 mb-8 text-left border-t border-white/5 pt-8">
+                    {plan.features.map((f, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                        <span className="text-xs font-bold text-muted-foreground/80 tracking-tight leading-relaxed">{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
 
-              <CardFooter className="pt-0">
-                <Button
-                  className="w-full" size="lg"
-                  variant={isBest ? "default" : "outline"}
-                  onClick={() => handleSubscribe(plan.id)}
-                  disabled={processing || !!currentSubscription}
-                >
-                  {isProcessing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing...</>
-                    : currentSubscription ? "Current Plan" : "Start My Health Journey →"}
-                </Button>
-              </CardFooter>
-            </Card>
+                <CardFooter className="p-10 pt-0">
+                  <Button
+                    className={cn(
+                       "w-full h-16 rounded-[1.5rem] text-sm font-black uppercase tracking-[0.2em] shadow-3xl transition-all",
+                       isBest ? "bg-primary hover:bg-primary/90 shadow-primary/20" : "bg-white/5 hover:bg-white/10 shadow-black/10"
+                    )}
+                    onClick={() => handleSubscribe(plan.id)}
+                    disabled={processing || !!currentSubscription}
+                  >
+                    {isProcessing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Syncing…</>
+                      : currentSubscription ? "Tier Verified" : "Initiate Protocol"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
           )
         })}
       </div>
@@ -295,81 +311,41 @@ export default function SubscriptionPage() {
       </div>
 
       {/* What's included */}
-      <div className="max-w-4xl mx-auto mt-16">
-        <h2 className="text-2xl font-bold text-center mb-8">What's Included</h2>
-        <Card><CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2"><Crown className="w-5 h-5 text-primary" />Premium Features</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {["AI-Powered Food Analysis","Advanced Nutrition Analytics","Full Meal History & Tracking","Priority Support"].map(f => (
-                  <li key={f} className="flex items-center gap-2"><Check className="w-4 h-4 text-primary" />{f}</li>
+      <div className="max-w-4xl mx-auto reveal-3d">
+        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-center mb-12 opacity-40">System Architecture Breakdown</h2>
+        <div className="glass-card rounded-[3rem] p-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="space-y-6">
+              <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3"><Crown className="w-6 h-6 text-primary" /> Premium Protocols</h3>
+              <div className="space-y-4">
+                {["AI-Powered Vision Analysis","Advanced Metabolic Analytics","Deep History Temporal View","Synchronized Priority Support"].map(f => (
+                  <div key={f} className="flex items-center gap-3">
+                     <div className="w-2 h-2 rounded-full bg-primary" />
+                     <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">{f}</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2"><Check className="w-5 h-5 text-green-500" />Always Free</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {["Diet Planner","Water Intake Tracking","Basic Dashboard","Profile Management","Manual Calorie Logging"].map(f => (
-                  <li key={f} className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" />{f}</li>
+            <div className="space-y-6 md:border-l md:border-white/5 md:pl-12">
+              <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3 opacity-60"><Check className="w-6 h-6 text-green-500" /> Fundamental Vitals</h3>
+              <div className="space-y-4">
+                {["Systemic Diet Planner","Fluid Intake Temporal Track","Core Dashboard Matrix","Biological Profile Logic","Manual Data Entry"].map(f => (
+                  <div key={f} className="flex items-center gap-3">
+                     <div className="w-2 h-2 rounded-full bg-green-500" />
+                     <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50">{f}</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           </div>
-        </CardContent></Card>
-      </div>
-
-      {/* Testimonials */}
-      <div className="max-w-5xl mx-auto mt-16">
-        <h2 className="text-2xl font-bold text-center mb-8">What Our Users Say</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            {
-              name: "Priya S.",
-              location: "Bangalore",
-              quote: "NutriLife's AI food analyzer is incredible! I just take a photo and it tracks everything. Lost 8kg in 3 months.",
-              result: "Lost 8kg",
-            },
-            {
-              name: "Rahul M.",
-              location: "Delhi",
-              quote: "The personalized diet plans are spot-on for Indian food. The fasting tracker keeps me accountable every day.",
-              result: "Gained muscle",
-            },
-            {
-              name: "Sneha K.",
-              location: "Mumbai",
-              quote: "Best health app I've used. The Health Assistant answered all my nutrition questions better than Google!",
-              result: "Healthier lifestyle",
-            },
-          ].map((t) => (
-            <Card key={t.name} className="relative">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-1 mb-3">
-                  {[1,2,3,4,5].map(s => (
-                    <svg key={s} className="w-4 h-4 text-yellow-400 fill-yellow-400" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                  ))}
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4 italic">"{t.quote}"</p>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.location}</p>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">{t.result}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
         </div>
       </div>
 
-      <div className="text-center mt-12 text-sm text-muted-foreground">
-        Questions? Visit{" "}
-        <Link href="/support" className="text-primary underline underline-offset-4">
-          Support & Telegram
+      <div className="text-center reveal-3d space-y-4">
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Direct System Inquiries</p>
+        <Link href="/support" className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl glass-card text-xs font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white transition-all">
+          Internal Communication Network →
         </Link>
-        {" "}for help.
       </div>
     </div>
   )

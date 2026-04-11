@@ -364,30 +364,36 @@ function AccordionSection({ section }: { section: Section }) {
 
 export default function TermsPage() {
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto">
-      <PageHeader
-        title="Terms & Conditions"
-        subtitle={`Effective Date: ${EFFECTIVE_DATE}`}
-      />
+    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-8">
+      <div className="reveal-3d">
+        <PageHeader
+          title="Terms & Conditions"
+          subtitle={`System Authorization Protocol · Last Sync: ${EFFECTIVE_DATE}`}
+        />
+      </div>
 
       {/* Intro card */}
-      <Card className="mb-6 bg-primary/5 border-primary/20">
-        <CardContent className="pt-5">
-          <div className="flex gap-3">
-            <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            <div className="text-sm text-muted-foreground leading-relaxed">
-              By creating an account or using <span className="font-semibold text-foreground">NutriLife</span>,
-              you agree to these Terms of Service. Please read each section carefully. If you have questions,
-              contact us on our Telegram support channel.
+      <div className="reveal-3d">
+        <Card className="border-none glass-card bg-primary/5 rounded-[2rem]">
+          <CardContent className="pt-6">
+            <div className="flex gap-4">
+              <FileText className="w-6 h-6 text-primary shrink-0" />
+              <div className="text-xs font-bold text-muted-foreground leading-relaxed uppercase tracking-wider">
+                By creating an account or using <span className="font-black text-foreground">NutriLife</span>,
+                you agree to these Terms of Service. Please read each section carefully. If you have questions,
+                contact us on our Telegram support channel.
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Sections */}
-      <div className="space-y-3 mb-8">
+      <div className="space-y-4 mb-8">
         {sections.map((section) => (
-          <AccordionSection key={section.id} section={section} />
+          <div key={section.id} className="reveal-3d">
+             <AccordionSection section={section} />
+          </div>
         ))}
       </div>
 

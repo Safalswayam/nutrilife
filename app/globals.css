@@ -164,6 +164,66 @@
   background: var(--ring);
 }
 
+/* Premium Backgrounds */
+.bg-mesh {
+  background-color: var(--background);
+  background-image: 
+    radial-gradient(at 0% 0%, oklch(0.5 0.15 145 / 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, oklch(0.65 0.18 85 / 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, oklch(0.6 0.15 230 / 0.05) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, oklch(0.55 0.22 25 / 0.05) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+.bg-noise {
+  position: relative;
+}
+
+.bg-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  pointer-events: none;
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+  filter: contrast(150%) brightness(100%);
+  z-index: -1;
+}
+
+/* Glassmorphism */
+.glass-card {
+  @apply bg-card/60 backdrop-blur-xl border border-white/10 dark:border-white/5;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 3D Scroll Reveal */
+@keyframes reveal-3d {
+  from {
+    opacity: 0;
+    transform: perspective(2000px) rotateX(25deg) translateY(100px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(2000px) rotateX(0deg) translateY(0) scale(1);
+  }
+}
+
+.reveal-3d {
+  view-timeline-name: --section;
+  view-timeline-axis: block;
+  animation-timeline: --section;
+  animation-name: reveal-3d;
+  animation-range: entry 10% cover 30%;
+  animation-fill-mode: both;
+}
+
+/* Fallback for browsers that don't support view-timeline */
+@supports not (view-timeline-name: --section) {
+  .reveal-3d {
+    animation: reveal-3d 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}
+
 /* Gradient backgrounds */
 .gradient-health {
   background: linear-gradient(135deg, oklch(0.55 0.16 145) 0%, oklch(0.65 0.18 85) 100%);

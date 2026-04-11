@@ -127,7 +127,7 @@ const wellnessQuestions = [
 // ── Time-aware greeting helpers ────────────────────────────────────────────
 function getTimeGreeting(): string {
   const hour = new Date().getHours()
-  if (hour >= 5  && hour < 12) return "Good morning"
+  if (hour >= 5 && hour < 12) return "Good morning"
   if (hour >= 12 && hour < 17) return "Good afternoon"
   if (hour >= 17 && hour < 21) return "Good evening"
   return "Good night"
@@ -144,8 +144,8 @@ function getTodayString(): string {
 
 function getTimeBasedHealthTip(): string {
   const hour = new Date().getHours()
-  if (hour >= 5  && hour < 9)  return "Morning tip: Start with a glass of warm water and light stretching."
-  if (hour >= 9  && hour < 12) return "Mid-morning: A healthy snack can keep your energy steady."
+  if (hour >= 5 && hour < 9) return "Morning tip: Start with a glass of warm water and light stretching."
+  if (hour >= 9 && hour < 12) return "Mid-morning: A healthy snack can keep your energy steady."
   if (hour >= 12 && hour < 14) return "Lunchtime: Eat mindfully and include protein and vegetables."
   if (hour >= 14 && hour < 17) return "Afternoon: Stay hydrated — drink water before you feel thirsty."
   if (hour >= 17 && hour < 20) return "Evening: A short walk after dinner aids digestion."
@@ -155,9 +155,9 @@ function getTimeBasedHealthTip(): string {
 // ──────────────────────────────────────────────────────────────────────────
 
 export default function HealthAssistantPage() {
-  const _greeting   = getTimeGreeting()
-  const _today      = getTodayString()
-  const _healthTip  = getTimeBasedHealthTip()
+  const _greeting = getTimeGreeting()
+  const _today = getTodayString()
+  const _healthTip = getTimeBasedHealthTip()
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -251,7 +251,7 @@ export default function HealthAssistantPage() {
 
       let data
       const contentType = response.headers.get("content-type")
-      
+
       try {
         if (contentType?.includes("application/json")) {
           data = await response.json()
@@ -259,7 +259,7 @@ export default function HealthAssistantPage() {
           const text = await response.text()
           console.error("[v0] Response is not JSON. Got:", contentType)
           console.error("[v0] Response body:", text.substring(0, 500))
-          
+
           throw new Error(
             `API Error: Expected JSON response but got ${contentType || 'unknown type'}. ` +
             `This usually means:\n` +
@@ -315,9 +315,9 @@ export default function HealthAssistantPage() {
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       console.error("[v0] Health chat error:", error)
-      
+
       let errorContent = ""
-      
+
       if (error instanceof TypeError && error.message === "Failed to fetch") {
         errorContent = "Unable to connect to the health assistant service. Please make sure the backend server is running on http://localhost:8000. You can start it with: uvicorn api.index:app --reload"
       } else if (error instanceof Error) {
@@ -325,7 +325,7 @@ export default function HealthAssistantPage() {
       } else {
         errorContent = "I apologize, but I encountered an error. Please try again or rephrase your question."
       }
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -460,9 +460,9 @@ export default function HealthAssistantPage() {
   }
 
   const clearConversation = () => {
-    const newGreeting   = getTimeGreeting()
-    const newToday      = getTodayString()
-    const newHealthTip  = getTimeBasedHealthTip()
+    const newGreeting = getTimeGreeting()
+    const newToday = getTodayString()
+    const newHealthTip = getTimeBasedHealthTip()
     setMessages([
       {
         id: "welcome-new",
@@ -531,14 +531,14 @@ export default function HealthAssistantPage() {
           </TabsTrigger>
         </TabsList>
 
-<TabsContent value="chat" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            {/* Main Chat Area */}
-            <Card className="lg:col-span-3 flex flex-col h-[calc(100dvh-160px)] min-h-[800px]">
-              <CardHeader className="pb-3 border-b border-border flex-shrink-0">
+        <TabsContent value="chat" className="mt-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Chat Area */}
+            <Card className="lg:col-span-3 h-[800px] flex flex-col border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+              <CardHeader className="pb-4 border-b border-white/5 flex-shrink-0 bg-white/5">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="p-2 rounded-full bg-primary/10">
+                  <CardTitle className="flex items-center gap-3 text-xl font-black uppercase tracking-widest">
+                    <div className="p-2.5 rounded-2xl bg-primary/20">
                       <Sparkles className="w-5 h-5 text-primary" />
                     </div>
                     Health Assistant
@@ -549,38 +549,29 @@ export default function HealthAssistantPage() {
                       size="icon"
                       onClick={exportConversation}
                       title="Export conversation"
+                      className="hover:bg-white/10 rounded-xl"
                     >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={clearConversation}
-                      title="Clear conversation"
-                    >
-                      <Trash2 className="w-4 h-4" />
+                      <Download className="w-5 h-5 opacity-60" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-
-              {/* Messages */}
-              <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((message) => (
+              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                {messages.map((message, index) => (
                   <div
-                    key={message.id}
+                    key={index}
                     className={cn(
-                      "flex gap-3",
-                      message.role === "user" ? "flex-row-reverse" : "flex-row"
+                      "flex gap-4",
+                      message.role === "user" ? "justify-end" : "justify-start"
                     )}
                   >
                     {/* Avatar */}
                     <div
                       className={cn(
-                        "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-sm",
+                        "flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl glass-card",
                         message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-gradient-to-br from-primary/20 to-accent/20 text-primary"
+                          ? "bg-primary text-primary-foreground border-none"
+                          : "bg-white/5 text-primary border-white/10"
                       )}
                     >
                       {message.role === "user" ? (
@@ -629,8 +620,8 @@ export default function HealthAssistantPage() {
                               {message.severity === "high"
                                 ? "Requires Attention"
                                 : message.severity === "medium"
-                                ? "Moderate Concern"
-                                : "Low Concern"}
+                                  ? "Moderate Concern"
+                                  : "Low Concern"}
                             </div>
                           )}
 
@@ -783,45 +774,45 @@ export default function HealthAssistantPage() {
                 )}
 
                 <div ref={messagesEndRef} />
-              </CardContent>
+              </div>
 
               {/* Input Area */}
-              <div className="p-4 border-t border-border flex-shrink-0 space-y-3">
+              <div className="p-8 border-t border-white/5 flex-shrink-0 space-y-4 bg-white/5">
                 {/* Quick Action Buttons */}
-                <div className="flex gap-2 overflow-x-auto pb-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none no-scrollbar">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-shrink-0 bg-transparent"
+                    className="flex-shrink-0 glass-card border-white/10 rounded-xl"
                     onClick={() => setShowBodySelector(true)}
                   >
-                    <Activity className="w-4 h-4 mr-1" />
-                    Body Map
+                    <Activity className="w-4 h-4 mr-2 text-primary" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Map Discomfort</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-shrink-0 bg-transparent"
+                    className="flex-shrink-0 glass-card border-white/10 rounded-xl"
                     onClick={() => setShowWellnessCheck(true)}
                   >
-                    <Heart className="w-4 h-4 mr-1" />
-                    Wellness Check
+                    <Heart className="w-4 h-4 mr-2 text-red-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Wellness Check</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-shrink-0 bg-transparent"
+                    className="flex-shrink-0 glass-card border-white/10 rounded-xl"
                     onClick={() => sendMessage("What are some healthy habits I should follow?")}
                   >
-                    <Dumbbell className="w-4 h-4 mr-1" />
-                    Healthy Tips
+                    <Dumbbell className="w-4 h-4 mr-2 text-blue-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Habit Protocols</span>
                   </Button>
                 </div>
 
                 {/* Nutrition-focused quick-ask prompts for new users */}
                 {messages.length <= 1 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Popular Questions</p>
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Strategic Queries</p>
                     <div className="flex flex-wrap gap-2">
                       {[
                         "What should I eat for breakfast today?",
@@ -835,7 +826,7 @@ export default function HealthAssistantPage() {
                           key={prompt}
                           variant="outline"
                           size="sm"
-                          className="text-xs h-8 bg-primary/5 hover:bg-primary/10 border-primary/20 hover:border-primary/40 text-foreground transition-colors"
+                          className="text-[10px] h-8 rounded-full border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/20 font-bold transition-all"
                           onClick={() => sendMessage(prompt)}
                         >
                           {prompt}
@@ -845,26 +836,26 @@ export default function HealthAssistantPage() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <Input
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Describe your symptoms or ask a health question..."
+                    placeholder="Describe symptoms or query intelligence..."
                     disabled={isLoading}
-                    className="flex-1"
+                    className="flex-1 h-14 rounded-2xl glass-card border-white/10 pl-6 text-sm font-medium"
                   />
                   <Button
                     onClick={() => sendMessage()}
                     disabled={!input.trim() || isLoading}
                     size="icon"
-                    className="shadow-lg"
+                    className="w-14 h-14 rounded-2xl shadow-3xl shadow-primary/20"
                   >
                     {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      <Send className="w-4 h-4" />
+                      <Send className="w-5 h-5" />
                     )}
                   </Button>
                 </div>
@@ -872,29 +863,29 @@ export default function HealthAssistantPage() {
             </Card>
 
             {/* Sidebar */}
-            <div className="space-y-6">
+            <div className="space-y-8 reveal-3d">
               {/* Symptom Categories */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <HelpCircle className="w-5 h-5 text-primary" />
-                    Quick Symptoms
+              <Card className="border-none glass-card rounded-[2rem] overflow-hidden">
+                <CardHeader className="p-6 pb-2">
+                  <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2 opacity-60">
+                    <HelpCircle className="w-4 h-4 text-primary" />
+                    Neural Mapping
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="p-6 pt-2 space-y-6">
                   {symptomCategories.map((category) => (
-                    <div key={category.category}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <category.icon className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium">{category.category}</span>
+                    <div key={category.category} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <category.icon className="w-3.5 h-3.5 text-primary opacity-60" />
+                        <span className="text-xs font-black uppercase tracking-widest opacity-40">{category.category}</span>
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {category.symptoms.map((symptom) => (
                           <Button
                             key={symptom}
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="text-xs h-7 bg-muted/50 hover:bg-primary/10 hover:text-primary"
+                            className="text-[10px] h-7 rounded-lg border-white/5 bg-white/5 hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-all font-bold"
                             onClick={() => handleSymptomWithDuration(symptom)}
                             disabled={isLoading}
                           >
@@ -908,14 +899,12 @@ export default function HealthAssistantPage() {
               </Card>
 
               {/* Disclaimer */}
-              <Card className="bg-muted/30">
-                <CardContent className="pt-4">
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-muted-foreground">
-                      This assistant provides general health information only. It is not a
-                      substitute for professional medical advice, diagnosis, or treatment.
-                      Always consult a healthcare provider for medical concerns.
+              <Card className="border-none glass-card rounded-[1.5rem] bg-amber-500/5">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-[10px] font-medium text-amber-500/80 leading-relaxed uppercase tracking-widest">
+                      Protocol: AI Diagnostics are for architectural reference only. Not a medical substitute.
                     </p>
                   </div>
                 </CardContent>
@@ -924,26 +913,28 @@ export default function HealthAssistantPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="wellness" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Heart className="w-5 h-5 text-primary" />
-                  Today&apos;s Wellness
+        <TabsContent value="wellness" className="mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 reveal-3d">
+            <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black flex items-center gap-3">
+                  <Heart className="w-5 h-5 text-red-500" />
+                  Vitality Matrix
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="p-8 pt-0 space-y-8">
                 {wellnessQuestions.map((q) => {
                   const value = wellnessData[q.key as keyof WellnessData]
                   return (
-                    <div key={q.key} className="space-y-2">
+                    <div key={q.key} className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <q.icon className={cn("w-4 h-4", getWellnessColor(value))} />
-                          <span className="text-sm font-medium">{q.label.split("?")[0]}</span>
+                        <div className="flex items-center gap-3">
+                          <div className={cn("p-2 rounded-xl bg-white/5", getWellnessColor(value).replace("text-", "bg-").replace("-600", "/10"))}>
+                            <q.icon className={cn("w-4 h-4", getWellnessColor(value))} />
+                          </div>
+                          <span className="text-sm font-black uppercase tracking-widest opacity-60">{q.label.split("?")[0]}</span>
                         </div>
-                        <span className={cn("text-sm font-bold", getWellnessColor(value))}>
+                        <span className={cn("text-lg font-black", getWellnessColor(value))}>
                           {value}%
                         </span>
                       </div>
@@ -956,46 +947,42 @@ export default function HealthAssistantPage() {
                         step={5}
                         className="cursor-pointer"
                       />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>{q.lowLabel}</span>
-                        <span>{q.highLabel}</span>
-                      </div>
                     </div>
                   )
                 })}
-                <Button className="w-full mt-4" onClick={handleWellnessComplete}>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Get Wellness Insights
+                <Button className="w-full h-14 rounded-2xl text-lg font-black shadow-3xl shadow-primary/20" onClick={handleWellnessComplete}>
+                  <Sparkles className="w-5 h-5 mr-3" />
+                  Analyze Wellness State
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-primary" />
-                  Wellness Tips
+                  Intelligence Briefings
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-8 pt-0 space-y-4">
                 {[
-                  { icon: Sun, title: "Morning Routine", tip: "Start with 5 minutes of stretching" },
-                  { icon: Droplets, title: "Stay Hydrated", tip: "Drink 8 glasses of water daily" },
-                  { icon: Apple, title: "Eat Colorful", tip: "Include 5 servings of fruits & veggies" },
-                  { icon: Moon, title: "Quality Sleep", tip: "Aim for 7-9 hours each night" },
-                  { icon: Brain, title: "Mental Health", tip: "Practice 10 mins of mindfulness" },
+                  { icon: Sun, title: "Morning Protocol", tip: "Initiate metabolic activation with somatic stretching" },
+                  { icon: Droplets, title: "Hydration Sync", tip: "Maintain 2.5L systemic fluid homeostasis" },
+                  { icon: Apple, title: "Nutrient Density", tip: "Optimize micronutrient absorption with polymorphic vegetables" },
+                  { icon: Moon, title: "Nocturnal Reset", tip: "Enforce 8h deep-cycle cellular restoration" },
+                  { icon: Brain, title: "Neural Calm", tip: "Execute 10m cognitive divergence protocols" },
                 ].map((item) => (
                   <div
                     key={item.title}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                    className="flex items-start gap-4 p-5 rounded-[1.5rem] bg-white/5 hover:bg-white/10 transition-all cursor-pointer border border-white/5 reveal-3d"
                     onClick={() => sendMessage(`Tell me more about ${item.title.toLowerCase()}`)}
                   >
-                    <div className="p-2 rounded-full bg-primary/10">
-                      <item.icon className="w-4 h-4 text-primary" />
+                    <div className="p-3 rounded-2xl bg-primary/10 text-primary">
+                      <item.icon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium">{item.title}</h4>
-                      <p className="text-xs text-muted-foreground">{item.tip}</p>
+                      <h4 className="text-sm font-black uppercase tracking-widest mb-1">{item.title}</h4>
+                      <p className="text-xs font-medium text-muted-foreground leading-relaxed">{item.tip}</p>
                     </div>
                   </div>
                 ))}
@@ -1004,55 +991,54 @@ export default function HealthAssistantPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="history" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+        <TabsContent value="history" className="mt-8">
+          <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black flex items-center gap-3">
                 <Clock className="w-5 h-5 text-primary" />
-                Symptom History
+                Diagnostic Archives
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-8 pt-0">
               {symptomHistory.length === 0 ? (
-                <div className="text-center py-8">
-                  <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No symptoms tracked yet</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Your symptom history will appear here as you chat
-                  </p>
+                <div className="text-center py-16 opacity-40">
+                  <Activity className="w-16 h-16 mx-auto mb-4" />
+                  <p className="font-black uppercase tracking-widest text-[10px]">No Neural Logs Detected</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {symptomHistory
                     .slice()
                     .reverse()
                     .map((entry, index) => (
                       <div
                         key={index}
-                        className="p-4 rounded-lg border border-border bg-card"
+                        className="p-6 rounded-[2rem] border border-white/5 bg-white/5 hover:bg-white/10 transition-all reveal-3d"
+                        style={{ animationDelay: `${index * 50}ms` }}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">
-                            {entry.date.toLocaleDateString()} at{" "}
-                            {entry.date.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60">Timestamp</span>
+                            <span className="text-xs font-bold font-mono">
+                              {entry.date.toLocaleDateString()} · {entry.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
                           <span
                             className={cn(
-                              "text-xs px-2 py-1 rounded-full",
-                              getSeverityColor(entry.severity)
+                              "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                              getSeverityColor(entry.severity).includes("red") ? "bg-red-500/10 text-red-500" :
+                                getSeverityColor(entry.severity).includes("yellow") ? "bg-amber-500/10 text-amber-500" :
+                                  "bg-green-500/10 text-green-500"
                             )}
                           >
-                            {entry.severity}
+                            {entry.severity} Severity
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {entry.symptoms.map((symptom, i) => (
                             <span
                               key={i}
-                              className="px-2 py-1 text-xs rounded-full bg-muted text-foreground"
+                              className="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-white/5 border border-white/5 text-foreground"
                             >
                               {symptom}
                             </span>
@@ -1129,7 +1115,7 @@ export default function HealthAssistantPage() {
                 <Slider
                   value={[
                     wellnessData[
-                      wellnessQuestions[wellnessStep].key as keyof WellnessData
+                    wellnessQuestions[wellnessStep].key as keyof WellnessData
                     ],
                   ]}
                   onValueChange={(val) =>
@@ -1148,7 +1134,7 @@ export default function HealthAssistantPage() {
                   <span className="font-bold text-primary">
                     {
                       wellnessData[
-                        wellnessQuestions[wellnessStep].key as keyof WellnessData
+                      wellnessQuestions[wellnessStep].key as keyof WellnessData
                       ]
                     }
                     %

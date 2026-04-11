@@ -10,14 +10,16 @@ import { Droplets, Plus, Minus, Settings, Target, TrendingUp, Loader2 } from "lu
 import { useAuth } from "@/lib/auth-context"
 import { getApiUrl } from "@/lib/api"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 interface EnhancedWaterIntakeProps {
   current?: number
   goal?: number
   onUpdate?: (newValue: number) => void
+  className?: string
 }
 
-export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: initialGoal }: EnhancedWaterIntakeProps) {
+export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: initialGoal, className }: EnhancedWaterIntakeProps) {
   const { token } = useAuth()
   const [current, setCurrent] = useState(initialCurrent ?? 0)
   const [goal, setGoal] = useState(initialGoal ?? 8)
@@ -81,7 +83,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
 
       if (data.success) {
         setCurrent(data.current)
-        
+
         // Show celebration when goal reached
         if (data.goal_reached && !previousGoalReached) {
           setShowCelebration(true)
@@ -93,7 +95,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
             ? `Added 1 glass! (${data.current}/${data.goal})`
             : `Removed 1 glass (${data.current}/${data.goal})`
         )
-        
+
         onUpdate?.(data.current)
       } else {
         // Revert on failure
@@ -140,9 +142,9 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
   const safeCurrent = Number(current ?? 0)
   const safeGoal = Number(goal ?? 1)
   const percentage =
-  safeGoal > 0
-    ? Math.min(100, (safeCurrent / safeGoal) * 100)
-    : 0
+    safeGoal > 0
+      ? Math.min(100, (safeCurrent / safeGoal) * 100)
+      : 0
 
   const isGoalReached = current >= goal
   const previousGoalReached = (safeCurrent - 1) >= safeGoal
@@ -162,7 +164,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
 
   return (
     <>
-      <Card className={`transition-all ${isGoalReached ? "border-primary bg-primary/5" : ""}`}>
+      <Card className={cn("transition-all", isGoalReached ? "border-primary bg-primary/5" : "", className)}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -189,11 +191,10 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
               <div className="absolute inset-0 rounded-b-3xl border-4 border-blue-200 bg-gradient-to-b from-transparent to-blue-50/20 overflow-hidden">
                 {/* Water Fill */}
                 <div
-                  className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ease-out ${
-                    isGoalReached
+                  className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ease-out ${isGoalReached
                       ? "bg-gradient-to-t from-primary to-primary/70"
                       : "bg-gradient-to-t from-blue-400 to-blue-300"
-                  }`}
+                    }`}
                   style={{ height: `${fillHeight}%` }}
                 >
                   {/* Water Wave Effect */}
@@ -242,9 +243,8 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
                 cx="80"
                 cy="80"
                 r="70"
-                className={`fill-none stroke-[8] transition-all duration-500 ${
-                  isGoalReached ? "stroke-primary" : "stroke-blue-500"
-                }`}
+                className={`fill-none stroke-[8] transition-all duration-500 ${isGoalReached ? "stroke-primary" : "stroke-blue-500"
+                  }`}
                 strokeDasharray={`${2 * Math.PI * 70}`}
                 strokeDashoffset={`${2 * Math.PI * 70 * (1 - percentage / 100)}`}
                 strokeLinecap="round"
@@ -321,8 +321,8 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
                 {current === 0
                   ? "Start your hydration journey!"
                   : current < goal / 2
-                  ? "Keep going! You're making progress"
-                  : "Almost there! Stay hydrated"}
+                    ? "Keep going! You're making progress"
+                    : "Almost there! Stay hydrated"}
               </p>
             </div>
           )}
