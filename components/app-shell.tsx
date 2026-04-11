@@ -5,6 +5,7 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { SidebarNav, MobileNav, MobileHeader } from "@/components/sidebar-nav"
+import { FeedbackWidget } from "@/components/feedback-widget"
 import { Loader2 } from "lucide-react"
 
 const AUTH_PAGES = ["/login", "/signup"]
@@ -54,6 +55,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile bottom tab bar */}
       <MobileNav />
+
+      {/* Global Feedback Widget */}
+      {!isAuthPage && <FeedbackWidget />}
     </div>
   )
 }

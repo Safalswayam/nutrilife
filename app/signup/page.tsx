@@ -1,453 +1,467 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { getApiUrl } from "@/lib/api"
-import { PageHeader } from "@/components/page-header"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
   User,
-  Settings,
-  Save,
-  CheckCircle,
-  Target,
+  ArrowRight,
+  Shield,
+  Apple,
+  Heart,
   Loader2,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 
-interface UserProfile {
-  name: string
-  email: string
-  gender: string
-  age: number | string
-  height: number | string
-  weight: number | string
-  activity_level: string
-  metabolism_type: string
-  goal: string
+const normalizeGmail = (value: string) => {
+  const normalized = value.trim().toLowerCase()
+
+  if (normalized.endsWith("@googlemail.com")) {
+    return `${normalized.slice(0, -15)}@gmail.com`
+  }
+
+  return normalized
 }
 
-export default function ProfilePage() {
-  const { user, token } = useAuth()
-  const router = useRouter()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"profile" | "goals">("profile")
+const isValidGmail = (value: string) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(normalizeGmail(value))
 
-  useEffect(() => {
-    if (!user || !token) {
-      router.push("/login")
+const getPasswordError = (value: string) => {
+  if (value.length < 8) return "Password must be at least 8 characters long"
+  if (!/[A-Z]/.test(value)) return "Password must include at least one uppercase letter"
+  if (!/[a-z]/.test(value)) return "Password must include at least one lowercase letter"
+  if (!/\d/.test(value)) return "Password must include at least one number"
+  return ""
+}
+
+export default function SignupPage() {
+  const { register, verifyEmail, resendVerification } = useAuth()
+  const router = useRouter()
+
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState("")
+  const [verificationCode, setVerificationCode] = useState("")
+  const [isVerificationStep, setIsVerificationStep] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isResending, setIsResending] = useState(false)
+  const [error, setError] = useState("")
+  const [message, setMessage] = useState("")
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const normalizedEmail = normalizeGmail(email)
+    const passwordError = getPasswordError(password)
+
+    if (!normalizedEmail || !password || !name.trim()) {
+      setError("Please fill in all fields")
       return
     }
-    fetchProfile()
-  }, [user, token])
 
-  const fetchProfile = async () => {
+    if (!isValidGmail(normalizedEmail)) {
+      setError("Direct sign up only accepts valid Gmail addresses.")
+      return
+    }
+
+    if (passwordError) {
+      setError(passwordError)
+      return
+    }
+
     try {
-      setLoading(true)
-      const response = await fetch(getApiUrl("/api/profile"), {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+      setIsLoading(true)
+      setError("")
+      setMessage("")
+
+      const result = await register({
+        email: normalizedEmail,
+        password,
+        name: name.trim(),
       })
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch profile")
+      if (!result.success) {
+        setError(result.error || "Registration failed. Please try again.")
+        return
       }
 
-      const data = await response.json()
-      if (data.success) {
-        setProfile({
-          name: data.profile.name || "",
-          email: data.profile.email || "",
-          gender: data.profile.gender || "male",
-          age: data.profile.age || "",
-          height: data.profile.height || "",
-          weight: data.profile.weight || "",
-          activity_level: data.profile.activity_level || "moderate",
-          metabolism_type: data.profile.metabolism_type || "normal",
-          goal: data.profile.goal || "maintain",
-        })
+      if (result.requiresVerification) {
+        const pendingEmail = result.verificationEmail || normalizedEmail
+        setVerificationEmail(pendingEmail)
+        setEmail(pendingEmail)
+        setIsVerificationStep(true)
+        setVerificationCode("")
+        setMessage(result.message || `We sent a 6-digit code to ${pendingEmail}.`)
+        return
       }
-    } catch (err) {
-      console.error("Profile fetch error:", err)
-      setError("Failed to load profile")
+
+      router.push("/onboarding")
+    } catch {
+      setError("An unexpected error occurred. Please try again.")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const handleSave = async () => {
-    if (!profile || !token) return
+  const handleVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (verificationCode.length !== 6) {
+      setError("Enter the 6-digit verification code sent to your Gmail.")
+      return
+    }
 
     try {
-      setSaving(true)
-      setError(null)
-      
-      const response = await fetch(getApiUrl("/api/profile"), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: profile.name,
-          gender: profile.gender,
-          age: profile.age ? parseInt(profile.age.toString()) : null,
-          height: profile.height ? parseFloat(profile.height.toString()) : null,
-          weight: profile.weight ? parseFloat(profile.weight.toString()) : null,
-          activity_level: profile.activity_level,
-          metabolism_type: profile.metabolism_type,
-          goal: profile.goal,
-        }),
-      })
+      setIsLoading(true)
+      setError("")
+      setMessage("")
 
-      if (!response.ok) {
-        throw new Error("Failed to update profile")
+      const result = await verifyEmail(verificationEmail, verificationCode)
+
+      if (!result.success) {
+        setError(result.error || "Email verification failed.")
+        return
       }
 
-      const data = await response.json()
-      if (data.success) {
-        setSaved(true)
-        setTimeout(() => setSaved(false), 3000)
-      }
-    } catch (err) {
-      console.error("Profile update error:", err)
-      setError("Failed to save profile")
+      router.push("/onboarding")
+    } catch {
+      setError("An unexpected error occurred. Please try again.")
     } finally {
-      setSaving(false)
+      setIsLoading(false)
     }
   }
 
-  const tabs = [
-    { id: "profile" as const, label: "Profile", icon: User },
-    { id: "goals" as const, label: "Health Goals", icon: Target },
-  ]
+  const handleResendCode = async () => {
+    try {
+      setIsResending(true)
+      setError("")
+      setMessage("")
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    )
+      const result = await resendVerification(verificationEmail)
+
+      if (!result.success) {
+        setError(result.error || "Could not resend the verification code.")
+        return
+      }
+
+      setVerificationCode("")
+      setMessage(result.message || `A new verification code was sent to ${verificationEmail}.`)
+    } catch {
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setIsResending(false)
+    }
   }
 
-  if (!profile) {
-    return (
-      <div className="p-4 md:p-8">
-        <PageHeader
-          title="Profile & Settings"
-          subtitle="Manage your personal information and health goals"
-        />
-        <div className="text-center text-muted-foreground">
-          {error || "Unable to load profile data"}
-        </div>
-      </div>
-    )
+  const handleUseDifferentEmail = () => {
+    setIsVerificationStep(false)
+    setVerificationCode("")
+    setVerificationEmail("")
+    setError("")
+    setMessage("")
   }
 
   return (
-    <div className="p-4 md:p-8">
-      <PageHeader
-        title="Profile & Settings"
-        subtitle="Manage your personal information, health goals, and app preferences"
-      />
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+      <div className="hidden lg:flex flex-col justify-between bg-primary p-12 text-primary-foreground relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Left Sidebar - Profile Card & Tabs */}
-        <div className="space-y-6">
-          {/* Profile Card */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <User className="w-12 h-12 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold text-foreground">
-                  {profile.name || "User"}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  {profile.email}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tab Navigation */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-2">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left",
-                        activeTab === tab.id
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground hover:bg-muted"
-                      )}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{tab.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="relative z-10 flex items-center gap-3 mb-12">
+          <Image
+            src="/nutrilife-icon.png"
+            alt="NutriLife"
+            width={48}
+            height={48}
+            priority
+            className="rounded-xl shadow-lg ring-2 ring-white/20"
+          />
+          <div>
+            <p className="text-2xl font-black tracking-tight text-white">NutriLife</p>
+            <p className="text-[10px] text-white/70 tracking-widest uppercase font-bold">Track Your Health</p>
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="lg:col-span-3">
-          {saved && (
-            <Alert className="mb-6 bg-primary/10 border-primary/20">
-              <CheckCircle className="w-4 h-4 text-primary" />
-              <AlertDescription className="text-foreground">
-                Profile updated successfully!
-              </AlertDescription>
-            </Alert>
-          )}
+        <div className="relative z-10 max-w-md my-auto space-y-12">
+          <div className="space-y-4">
+            <h1 className="text-4xl lg:text-5xl font-black leading-tight text-white mb-6">
+              Start your health journey today.
+            </h1>
+            <p className="text-lg text-white/80 text-pretty">
+              Join thousands of users tracking their nutrition and achieving their goals with AI-powered guidance.
+            </p>
+          </div>
 
-          {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 text-white/90">
+              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                <Apple className="h-5 w-5" />
+              </div>
+              <span>AI-Powered Food Analysis</span>
+            </div>
 
-          {activeTab === "profile" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-primary" />
-                  Personal Information
-                </CardTitle>
-                <CardDescription>
-                  Update your personal details and physical measurements
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 text-white/90">
+              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                <Heart className="h-5 w-5" />
+              </div>
+              <span>Personalized Health Goals</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 flex items-center gap-2 text-white/60 text-sm">
+          <Shield className="h-4 w-4" />
+          <span>Your data is completely private</span>
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-16 bg-background">
+        <div className="w-full max-w-md space-y-6 mx-auto">
+          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
+            <Image
+              src="/nutrilife-icon.png"
+              alt="NutriLife"
+              width={48}
+              height={48}
+              priority
+              className="rounded-xl shadow-md"
+            />
+            <div>
+              <p className="text-2xl font-black text-foreground tracking-tight">NutriLife</p>
+              <p className="text-[10px] text-muted-foreground tracking-widest uppercase font-bold">Track Your Health</p>
+            </div>
+          </div>
+
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="space-y-1 pb-4">
+              <CardTitle className="text-3xl font-bold">
+                {isVerificationStep ? "Verify your Gmail" : "Create an account"}
+              </CardTitle>
+              <CardDescription>
+                {isVerificationStep
+                  ? `Enter the 6-digit code sent to ${verificationEmail}.`
+                  : "Enter your details to get started"}
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              {error && (
+                <Alert variant="destructive" className="mb-4 bg-destructive/10 border-destructive/20">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {message && (
+                <Alert className="mb-4 border-primary/20 bg-primary/5">
+                  <AlertDescription>{message}</AlertDescription>
+                </Alert>
+              )}
+
+              {isVerificationStep ? (
+                <form onSubmit={handleVerifySubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="verification-email">Gmail</Label>
                     <Input
-                      id="name"
-                      value={profile.name}
-                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                      placeholder="John Doe"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      value={profile.email}
+                      id="verification-email"
+                      type="email"
+                      value={verificationEmail}
                       disabled
                       className="bg-muted"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select value={profile.gender} onValueChange={(value) => setProfile({ ...profile, gender: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-3">
+                    <Label htmlFor="verification-code">Verification Code</Label>
+                    <div className="flex justify-center">
+                      <InputOTP
+                        id="verification-code"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={setVerificationCode}
+                        autoFocus
+                      >
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Only verified Gmail addresses can finish direct sign up.
+                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="age">Age</Label>
-                    <Input
-                      id="age"
-                      type="number"
-                      value={profile.age}
-                      onChange={(e) => setProfile({ ...profile, age: e.target.value })}
-                      placeholder="28"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="height">Height (cm)</Label>
-                    <Input
-                      id="height"
-                      type="number"
-                      value={profile.height}
-                      onChange={(e) => setProfile({ ...profile, height: e.target.value })}
-                      placeholder="175"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="weight">Weight (kg)</Label>
-                    <Input
-                      id="weight"
-                      type="number"
-                      step="0.1"
-                      value={profile.weight}
-                      onChange={(e) => setProfile({ ...profile, weight: e.target.value })}
-                      placeholder="72"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="activity">Activity Level</Label>
-                    <Select value={profile.activity_level} onValueChange={(value) => setProfile({ ...profile, activity_level: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select activity level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sedentary">Sedentary (Little/no exercise)</SelectItem>
-                        <SelectItem value="light">Light (1-3 days/week)</SelectItem>
-                        <SelectItem value="moderate">Moderate (3-5 days/week)</SelectItem>
-                        <SelectItem value="active">Active (6-7 days/week)</SelectItem>
-                        <SelectItem value="very_active">Very Active (Athlete)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="metabolism">Metabolism Type</Label>
-                    <Select value={profile.metabolism_type} onValueChange={(value) => setProfile({ ...profile, metabolism_type: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select metabolism" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fast">Fast</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="slow">Slow</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-4">
-                  <Button onClick={handleSave} disabled={saving} size="lg">
-                    {saving ? (
+                  <Button type="submit" className="w-full" disabled={isLoading || verificationCode.length !== 6}>
+                    {isLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Verifying...
                       </>
                     ) : (
                       <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
+                        Verify and Continue
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {activeTab === "goals" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-primary" />
-                  Health Goals
-                </CardTitle>
-                <CardDescription>
-                  Define your health and fitness objectives
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="goal">Primary Goal</Label>
-                  <Select value={profile.goal} onValueChange={(value) => setProfile({ ...profile, goal: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your goal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lose">Lose Weight</SelectItem>
-                      <SelectItem value="lose_fast">Lose Weight Fast</SelectItem>
-                      <SelectItem value="maintain">Maintain Weight</SelectItem>
-                      <SelectItem value="gain">Gain Weight</SelectItem>
-                      <SelectItem value="gain_muscle">Gain Muscle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground">
-                    This will help us calculate your personalized calorie and macro targets
-                  </p>
-                </div>
-
-                <div className="rounded-lg bg-muted/50 p-6">
-                  <h4 className="font-semibold text-foreground mb-4">Goal Description</h4>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    {profile.goal === "lose" && (
-                      <div>
-                        <p className="font-medium text-foreground">Moderate Weight Loss</p>
-                        <p>Aim for 0.5kg per week with a balanced deficit of 500 calories per day.</p>
-                      </div>
-                    )}
-                    {profile.goal === "lose_fast" && (
-                      <div>
-                        <p className="font-medium text-foreground">Rapid Weight Loss</p>
-                        <p>Aim for 0.75kg per week with a deficit of 750 calories per day. Consult a professional.</p>
-                      </div>
-                    )}
-                    {profile.goal === "maintain" && (
-                      <div>
-                        <p className="font-medium text-foreground">Maintain Weight</p>
-                        <p>Keep your current weight by eating at maintenance calories.</p>
-                      </div>
-                    )}
-                    {profile.goal === "gain" && (
-                      <div>
-                        <p className="font-medium text-foreground">Gain Weight</p>
-                        <p>Aim for 0.25-0.5kg per week with a surplus of 300 calories per day.</p>
-                      </div>
-                    )}
-                    {profile.goal === "gain_muscle" && (
-                      <div>
-                        <p className="font-medium text-foreground">Build Muscle</p>
-                        <p>Gain lean muscle with 400 calorie surplus and high protein intake (30% of calories).</p>
-                      </div>
-                    )}
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 bg-transparent"
+                      onClick={handleResendCode}
+                      disabled={isLoading || isResending}
+                    >
+                      {isResending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Resend Code"
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={handleUseDifferentEmail}
+                      disabled={isLoading || isResending}
+                    >
+                      Use Different Gmail
+                    </Button>
                   </div>
-                </div>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        type="text"
+                        placeholder="John Doe"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                <div className="flex justify-end pt-4">
-                  <Button onClick={handleSave} disabled={saving} size="lg">
-                    {saving ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Gmail</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="name@gmail.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Direct sign up only works with real Gmail addresses that you can verify.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 pr-10"
+                        required
+                        minLength={8}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Use at least 8 characters with uppercase, lowercase, and a number.
+                    </p>
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending verification code...
                       </>
                     ) : (
                       <>
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
+                        Sign Up
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>
+                </form>
+              )}
+            </CardContent>
+
+            <CardFooter className="flex flex-col space-y-4 pt-0">
+              <div className="relative w-full">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Already have an account?</span>
+                </div>
+              </div>
+
+              <Link href="/login" className="w-full">
+                <Button variant="outline" className="w-full bg-transparent">
+                  Sign in instead
+                </Button>
+              </Link>
+            </CardFooter>
+          </Card>
+
+          <p className="text-center text-sm text-muted-foreground">
+            By creating an account, you agree to our{" "}
+            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>

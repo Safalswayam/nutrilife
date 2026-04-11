@@ -818,6 +818,33 @@ export default function HealthAssistantPage() {
                   </Button>
                 </div>
 
+                {/* Nutrition-focused quick-ask prompts for new users */}
+                {messages.length <= 1 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Popular Questions</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "What should I eat for breakfast today?",
+                        "How many calories do I need to lose 5kg?",
+                        "What foods are high in protein?",
+                        "Is intermittent fasting right for me?",
+                        "How much water should I drink daily?",
+                        "Best post-workout meal ideas?",
+                      ].map((prompt) => (
+                        <Button
+                          key={prompt}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-8 bg-primary/5 hover:bg-primary/10 border-primary/20 hover:border-primary/40 text-foreground transition-colors"
+                          onClick={() => sendMessage(prompt)}
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <Input
                     ref={inputRef}

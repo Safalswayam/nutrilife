@@ -148,6 +148,27 @@ def notify_new_subscription(user_id: int, name: str, email: str,
     send_async("\n".join(lines))
 
 
+def notify_feedback(content: str, name: str = "Anonymous", email: str = "Not provided") -> None:
+    """Called when someone submits the feedback widget."""
+    now = datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+    lines = [
+        "💬 <b>New Feedback Received!</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        f"👤 <b>From:</b> {escape(str(name))}",
+        f"📧 <b>Email:</b> {escape(str(email))}",
+        "",
+        f"📝 <b>Message:</b>",
+        f"<i>{escape(str(content))}</i>",
+        "",
+        f"🕐 <b>Time:</b> {now} IST",
+        "━━━━━━━━━━━━━━━━━━",
+        "📊 <i>NutriLife Admin Panel</i>",
+    ]
+
+    send_async("\n".join(lines))
+
+
 def notify_server_start() -> None:
     """Called once when the FastAPI server starts."""
     now = datetime.now().strftime("%d %b %Y, %I:%M %p")

@@ -13,7 +13,13 @@ import re
 import os
 import sys
 import math
+import ipaddress
+import smtplib
+import ssl
+import httpx
 import razorpay
+from email.message import EmailMessage
+from email.utils import formataddr
 
 # ── Ensure the api/ directory is on sys.path ────────────────────────────────
 _API_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -42,6 +48,7 @@ try:
         notify_new_user_email,
         notify_new_user_google,
         notify_new_subscription,
+        notify_feedback,
         notify_server_start,
     )
     TELEGRAM_ENABLED = True
@@ -107,7 +114,9 @@ def detailed_health():
     return {
         "api": "healthy",
         "database": db_status,
-        "openai": "configured" if (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")) else "not configured"
+        "openai": "configured" if (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")) else "not configured",
+        "smtp": "configured" if is_email_verification_configured() else "not configured",
+        "email_delivery": get_email_delivery_mode()
     }
 
 OPENROUTER_API_KEY = (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
@@ -209,6 +218,29 @@ DB_CONFIG = {
 db_pool = None
 db_initialized = False
 
+ALLOWED_DIRECT_SIGNUP_DOMAINS = {"gmail.com"}
+EMAIL_VERIFICATION_CODE_TTL_MINUTES = max(5, int(os.getenv("EMAIL_VERIFICATION_CODE_TTL_MINUTES", "10")))
+EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS = max(
+    30,
+    int(os.getenv("EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS", "60"))
+)
+EMAIL_VERIFICATION_MAX_ATTEMPTS = max(3, int(os.getenv("EMAIL_VERIFICATION_MAX_ATTEMPTS", "5")))
+
+SMTP_HOST = (os.getenv("SMTP_HOST") or "smtp.gmail.com").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = (os.getenv("SMTP_USERNAME") or "").strip()
+SMTP_PASSWORD = re.sub(r"\s+", "", os.getenv("SMTP_PASSWORD") or "")
+SMTP_FROM_EMAIL = (os.getenv("SMTP_FROM_EMAIL") or SMTP_USERNAME).strip()
+SMTP_FROM_NAME = (os.getenv("SMTP_FROM_NAME") or "NutriLife").strip()
+SMTP_USE_TLS = (os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"})
+SMTP_USE_SSL = (os.getenv("SMTP_USE_SSL", "false").strip().lower() in {"1", "true", "yes"})
+RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
+BREVO_API_KEY = (os.getenv("BREVO_API_KEY") or "").strip()
+EMAIL_API_TIMEOUT_SECONDS = max(10, int(os.getenv("EMAIL_API_TIMEOUT_SECONDS", "20")))
+ALLOW_CONSOLE_EMAIL_VERIFICATION = (
+    os.getenv("ALLOW_CONSOLE_EMAIL_VERIFICATION", "true").strip().lower() not in {"0", "false", "no"}
+)
+
 def init_db_pool():
     global db_pool, db_initialized
     if db_initialized and db_pool is not None:
@@ -286,6 +318,21 @@ def init_database():
             user_agent VARCHAR(500),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """)
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS email_verifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            code_hash VARCHAR(255) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            attempts INT NOT NULL DEFAULT 0,
+            used_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_email_verifications_user (user_id, created_at),
+            INDEX idx_email_verifications_active (user_id, used_at, expires_at)
         )
         """)
 
@@ -519,6 +566,8 @@ def init_database():
             ("google_id",                   "VARCHAR(255)"),
             ("profile_image",               "MEDIUMTEXT"),      # stores base64 image data URL
             ("auth_provider",               "VARCHAR(50) DEFAULT 'email'"),
+            ("email_verified",              "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("email_verified_at",           "DATETIME NULL"),
             ("is_premium",                  "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("subscription_expires_at",     "DATETIME"),
             ("fasting_plan",               "VARCHAR(50) DEFAULT 'none'"),
@@ -661,9 +710,23 @@ def sanitize_input(value: str, max_length: int = 500) -> str:
     value = value.replace('\x00', '')
     return value[:max_length].strip()
 
+def normalize_email(email: str) -> str:
+    normalized = (email or "").strip().lower()
+    if normalized.endswith("@googlemail.com"):
+        normalized = f"{normalized[:-15]}@gmail.com"
+    return normalized
+
 def validate_email(email: str) -> bool:
+    email = normalize_email(email)
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email)) and len(email) <= 254
+
+def validate_gmail_address(email: str) -> bool:
+    email = normalize_email(email)
+    if not validate_email(email):
+        return False
+    _, _, domain = email.partition("@")
+    return domain in ALLOWED_DIRECT_SIGNUP_DOMAINS
 
 def validate_password_strength(password: str) -> tuple:
     if len(password) < 8:
@@ -677,6 +740,276 @@ def validate_password_strength(password: str) -> tuple:
     if not re.search(r'\d', password):
         return False, "Password must contain at least one number"
     return True, "Password is strong"
+
+def generate_verification_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+def is_resend_configured() -> bool:
+    return bool(RESEND_API_KEY and SMTP_FROM_EMAIL)
+
+def is_brevo_configured() -> bool:
+    return bool(BREVO_API_KEY and SMTP_FROM_EMAIL)
+
+def is_email_verification_configured() -> bool:
+    return bool(SMTP_HOST and SMTP_PORT and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM_EMAIL)
+
+def get_email_delivery_mode() -> str:
+    if is_resend_configured():
+        return "resend"
+    if is_brevo_configured():
+        return "brevo"
+    if is_email_verification_configured():
+        return "smtp"
+    if ALLOW_CONSOLE_EMAIL_VERIFICATION:
+        return "console-fallback"
+    return "not configured"
+
+def is_local_request(request: Request) -> bool:
+    client_host = (request.client.host if request.client else "") or ""
+    url_host = (request.url.hostname or "") if request.url else ""
+
+    for host in (client_host, url_host):
+        if not host:
+            continue
+        if host in {"127.0.0.1", "::1", "localhost"}:
+            return True
+        try:
+            if ipaddress.ip_address(host).is_loopback:
+                return True
+        except ValueError:
+            continue
+
+    return False
+
+def build_verification_email_content(email: str, name: str, code: str) -> tuple[str, str, str, str]:
+    recipient_name = sanitize_input(name, 100) or "there"
+    subject = f"{SMTP_FROM_NAME} verification code"
+    text_body = (
+        f"Hi {recipient_name},\n\n"
+        f"Your NutriLife verification code is {code}.\n"
+        f"It expires in {EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.\n\n"
+        "If you didn't request this, you can ignore this email."
+    )
+    html_body = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; color: #111827;">
+            <p>Hi {recipient_name},</p>
+            <p>Your NutriLife verification code is:</p>
+            <p style="font-size: 28px; font-weight: bold; letter-spacing: 8px;">{code}</p>
+            <p>This code expires in {EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.</p>
+            <p>If you didn't request this, you can ignore this email.</p>
+          </body>
+        </html>
+    """
+    return recipient_name, subject, text_body, html_body
+
+def send_email_verification_code(email: str, name: str, code: str) -> None:
+    if not is_email_verification_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Email verification is not configured on the server. Add SMTP settings before using direct sign up."
+        )
+
+    recipient_name, subject, text_body, html_body = build_verification_email_content(email, name, code)
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
+    msg["To"] = email
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    try:
+        use_ssl = SMTP_USE_SSL or SMTP_PORT == 465
+        smtp_client = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+
+        with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+            server.ehlo()
+            if not use_ssl and SMTP_USE_TLS:
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"Email verification send error: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't send a verification code right now. Please try again in a moment."
+        )
+
+def send_resend_verification_code(email: str, name: str, code: str) -> None:
+    if not is_resend_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Resend email delivery is not configured on the server."
+        )
+
+    _, subject, text_body, html_body = build_verification_email_content(email, name, code)
+
+    try:
+        response = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL)),
+                "to": [email],
+                "subject": subject,
+                "text": text_body,
+                "html": html_body,
+            },
+            timeout=EMAIL_API_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        details = ""
+        is_sandbox_error = False
+        if isinstance(exc, httpx.HTTPStatusError):
+            details = exc.response.text[:500]
+            if exc.response.status_code == 403 and "verify a domain" in details:
+                is_sandbox_error = True
+        
+        print(f"Resend verification send error: {exc} {details}".strip())
+        
+        if is_sandbox_error:
+            # We raise a specific exception that deliver_verification_code can catch
+            raise Exception(f"Resend Sandbox Limitation: Only authorized recipients allowed. {details}")
+            
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't send a verification code right now via Resend."
+        )
+
+def send_brevo_verification_code(email: str, name: str, code: str) -> None:
+    if not is_brevo_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Brevo email delivery is not configured on the server."
+        )
+
+    recipient_name, subject, text_body, html_body = build_verification_email_content(email, name, code)
+
+    try:
+        response = httpx.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "accept": "application/json",
+                "api-key": BREVO_API_KEY,
+                "content-type": "application/json",
+            },
+            json={
+                "sender": {
+                    "name": SMTP_FROM_NAME,
+                    "email": SMTP_FROM_EMAIL,
+                },
+                "to": [{
+                    "email": email,
+                    "name": recipient_name,
+                }],
+                "subject": subject,
+                "textContent": text_body,
+                "htmlContent": html_body,
+            },
+            timeout=EMAIL_API_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        details = ""
+        if isinstance(exc, httpx.HTTPStatusError):
+            details = exc.response.text[:500]
+        print(f"Brevo verification send error: {exc} {details}".strip())
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't send a verification code right now. Please check your email provider setup and try again."
+        )
+
+def create_email_verification_record(cur, user_id: int) -> str:
+    cur.execute("""
+        SELECT id, created_at
+        FROM email_verifications
+        WHERE user_id = %s
+          AND used_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, (user_id,))
+    latest_code = cur.fetchone()
+
+    if latest_code and latest_code.get("created_at"):
+        elapsed = (datetime.now() - latest_code["created_at"]).total_seconds()
+        if elapsed < EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS:
+            wait_seconds = int(math.ceil(EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed))
+            raise HTTPException(
+                status_code=429,
+                detail=f"Please wait {wait_seconds} seconds before requesting another verification code."
+            )
+
+    cur.execute("""
+        UPDATE email_verifications
+        SET used_at = NOW()
+        WHERE user_id = %s
+          AND used_at IS NULL
+    """, (user_id,))
+
+    code = generate_verification_code()
+    cur.execute("""
+        INSERT INTO email_verifications (user_id, code_hash, expires_at)
+        VALUES (%s, %s, %s)
+    """, (
+        user_id,
+        hash_token(code),
+        datetime.now() + timedelta(minutes=EMAIL_VERIFICATION_CODE_TTL_MINUTES)
+    ))
+    return code
+
+def deliver_verification_code(email: str, name: str, code: str, request: Request) -> str:
+    errors = []
+    
+    if is_resend_configured():
+        try:
+            send_resend_verification_code(email, name, code)
+            return "We sent a 6-digit verification code to your Gmail address."
+        except Exception as e:
+            errors.append(f"Resend failure: {str(e)}")
+            print(f"Resend delivery failed, trying fallbacks: {e}")
+
+    if is_brevo_configured():
+        try:
+            send_brevo_verification_code(email, name, code)
+            return "We sent a 6-digit verification code to your Gmail address."
+        except Exception as e:
+            errors.append(f"Brevo failure: {str(e)}")
+            print(f"Brevo delivery failed, trying fallbacks: {e}")
+
+    if is_email_verification_configured():
+        try:
+            send_email_verification_code(email, name, code)
+            return "We sent a 6-digit verification code to your Gmail address."
+        except Exception as e:
+            errors.append(f"SMTP failure: {str(e)}")
+            print(f"SMTP delivery failed, trying fallbacks: {e}")
+
+    if ALLOW_CONSOLE_EMAIL_VERIFICATION and is_local_request(request):
+        print("\n" + "="*60)
+        print(f"VERIFICATION CODE for {email}: {code}")
+        print("="*60 + "\n")
+        return (
+            "Resend is in Sandbox Mode. "
+            "For testing, your 6-digit verification code has been printed in the API terminal."
+        )
+
+    error_msg = "Could not deliver verification email. "
+    if errors:
+        # Check if any error was a sandbox error
+        if any("Sandbox" in err for err in errors):
+            error_msg = "Resend is in Sandbox Mode and cannot send to this recipient. "
+    
+    raise HTTPException(
+        status_code=503,
+        detail=f"{error_msg}Add SMTP settings or verify a domain on Resend. Code printed to console if in local dev."
+    )
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
@@ -749,9 +1082,12 @@ class RegisterRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email_field(cls, v: str) -> str:
-        if not validate_email(v):
-          raise ValueError("Invalid email format")
-        return v.lower().strip()
+        normalized = normalize_email(v)
+        if not validate_email(normalized):
+            raise ValueError("Invalid email format")
+        if not validate_gmail_address(normalized):
+            raise ValueError("Only Gmail addresses are allowed for direct sign up")
+        return normalized
 
     @field_validator("name")
     @classmethod
@@ -759,6 +1095,37 @@ class RegisterRequest(BaseModel):
         if not v or len(v.strip()) < 2:
           raise ValueError("Name must be at least 2 characters")
         return sanitize_input(v, 100)
+
+class VerifyEmailRequest(BaseModel):
+    email: str
+    code: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v: str) -> str:
+        normalized = normalize_email(v)
+        if not validate_email(normalized):
+            raise ValueError("Invalid email format")
+        return normalized
+
+    @field_validator("code")
+    @classmethod
+    def validate_code_field(cls, v: str) -> str:
+        code = re.sub(r"\s+", "", v or "")
+        if not re.fullmatch(r"\d{6}", code):
+            raise ValueError("Verification code must be 6 digits")
+        return code
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v: str) -> str:
+        normalized = normalize_email(v)
+        if not validate_email(normalized):
+            raise ValueError("Invalid email format")
+        return normalized
 
 class LoginRequest(BaseModel):
     email: str
@@ -769,6 +1136,8 @@ class AuthResponse(BaseModel):
     message: str
     token: Optional[str] = None
     user: Optional[dict] = None
+    requires_verification: bool = False
+    verification_email: Optional[str] = None
 
 class UpdateProfileRequest(BaseModel):
     name: Optional[str] = None
@@ -865,6 +1234,11 @@ class DayPlan(BaseModel):
     afternoon_snack: Meal
     dinner: Meal
     total_calories: int
+
+class FeedbackRequest(BaseModel):
+    message: str
+    name: Optional[str] = "Anonymous"
+    email: Optional[str] = "Not provided"
 
 class BMIResult(BaseModel):
     bmi: float
@@ -1149,6 +1523,20 @@ def api_health_check():
     return health_status
 
 
+@app.post("/api/feedback")
+def submit_feedback(data: FeedbackRequest):
+    try:
+        notify_feedback(
+            content=data.message,
+            name=data.name,
+            email=data.email
+        )
+        return {"success": True, "message": "Feedback sent to admin"}
+    except Exception as e:
+        print(f"Feedback error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send feedback")
+
+
 @app.get("/api/db-test")
 def db_test():
     try:
@@ -1188,56 +1576,75 @@ def register(data: RegisterRequest, request: Request):
             raise HTTPException(status_code=400, detail=message)
 
         conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute("SELECT id FROM users WHERE email = %s", (data.email,))
-        if cur.fetchone():
-            raise HTTPException(status_code=400, detail="Email already registered")
+        cur = conn.cursor(dictionary=True)
 
         cur.execute("""
-            INSERT INTO users (email, password_hash, name, gender, age, height, weight)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (
-            data.email,
-            hash_password(data.password),
-            data.name,
-            data.gender,
-            data.age,
-            data.height,
-            data.weight
-        ))
+            SELECT id, auth_provider, COALESCE(email_verified, TRUE) AS email_verified
+            FROM users
+            WHERE email = %s
+        """, (data.email,))
+        existing_user = cur.fetchone()
 
-        user_id = cur.lastrowid
+        password_hash = hash_password(data.password)
 
-        token = generate_token()
-        cur.execute("""
-            INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (
-            user_id,
-            hash_token(token),
-            datetime.now() + timedelta(days=7),
-            request.client.host if request.client else None,
-            request.headers.get("user-agent", "")[:500]
-        ))
+        if existing_user:
+            if existing_user.get("auth_provider") == "google":
+                raise HTTPException(
+                    status_code=400,
+                    detail="This Gmail address is already linked to Google Sign-In. Use Google to continue."
+                )
+            if existing_user.get("email_verified", True):
+                raise HTTPException(status_code=400, detail="Email already registered")
 
+            user_id = existing_user["id"]
+            cur.execute("""
+                UPDATE users
+                SET password_hash = %s,
+                    name = %s,
+                    gender = %s,
+                    age = %s,
+                    height = %s,
+                    weight = %s,
+                    email_verified = FALSE,
+                    email_verified_at = NULL
+                WHERE id = %s
+            """, (
+                password_hash,
+                data.name,
+                data.gender,
+                data.age,
+                data.height,
+                data.weight,
+                user_id
+            ))
+        else:
+            cur.execute("""
+                INSERT INTO users (
+                    email, password_hash, name, gender, age, height, weight,
+                    auth_provider, email_verified, email_verified_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'email', FALSE, NULL)
+            """, (
+                data.email,
+                password_hash,
+                data.name,
+                data.gender,
+                data.age,
+                data.height,
+                data.weight
+            ))
+            user_id = cur.lastrowid
+
+        code = create_email_verification_record(cur, user_id)
+        verification_message = deliver_verification_code(data.email, data.name, code, request)
         conn.commit()
 
         # ── Telegram: notify admin of new registration ─────────────────────
-        notify_new_user_email(
-            user_id=user_id,
-            name=data.name,
-            email=data.email,
-            gender=getattr(data, "gender", None),
-            age=getattr(data, "age", None),
-            ip=request.client.host if request.client else None,
-        )
-
         return AuthResponse(
             success=True,
-            message="Registration successful",
-            token=token,
-            user={"id": user_id, "email": data.email, "name": data.name}
+            message=verification_message,
+            requires_verification=True,
+            verification_email=data.email
         )
 
     except HTTPException:
@@ -1264,18 +1671,198 @@ def register(data: RegisterRequest, request: Request):
             conn.close()
 
 
+@app.post("/api/auth/verify-email", response_model=AuthResponse)
+def verify_email(data: VerifyEmailRequest, request: Request):
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("""
+            SELECT id, email, name, gender, age, auth_provider,
+                   COALESCE(email_verified, TRUE) AS email_verified
+            FROM users
+            WHERE email = %s
+        """, (data.email,))
+        user = cur.fetchone()
+
+        if not user or user.get("auth_provider") != "email":
+            raise HTTPException(status_code=400, detail="No email verification is pending for this account.")
+
+        if user.get("email_verified", True):
+            raise HTTPException(status_code=400, detail="This email is already verified. Please sign in.")
+
+        cur.execute("""
+            SELECT id, code_hash, expires_at, attempts
+            FROM email_verifications
+            WHERE user_id = %s
+              AND used_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (user["id"],))
+        verification = cur.fetchone()
+
+        if not verification:
+            raise HTTPException(status_code=400, detail="No active verification code found. Request a new one.")
+
+        if verification["expires_at"] < datetime.now():
+            cur.execute("UPDATE email_verifications SET used_at = NOW() WHERE id = %s", (verification["id"],))
+            conn.commit()
+            raise HTTPException(status_code=400, detail="Verification code expired. Request a new one.")
+
+        if verification["attempts"] >= EMAIL_VERIFICATION_MAX_ATTEMPTS:
+            cur.execute("UPDATE email_verifications SET used_at = NOW() WHERE id = %s", (verification["id"],))
+            conn.commit()
+            raise HTTPException(status_code=400, detail="Too many invalid attempts. Request a new code.")
+
+        if verification["code_hash"] != hash_token(data.code):
+            next_attempts = verification["attempts"] + 1
+            if next_attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS:
+                cur.execute("""
+                    UPDATE email_verifications
+                    SET attempts = %s, used_at = NOW()
+                    WHERE id = %s
+                """, (next_attempts, verification["id"]))
+            else:
+                cur.execute("""
+                    UPDATE email_verifications
+                    SET attempts = %s
+                    WHERE id = %s
+                """, (next_attempts, verification["id"]))
+            conn.commit()
+
+            if next_attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS:
+                raise HTTPException(status_code=400, detail="Too many invalid attempts. Request a new code.")
+            raise HTTPException(status_code=400, detail="Invalid verification code.")
+
+        cur.execute("""
+            UPDATE users
+            SET email_verified = TRUE,
+                email_verified_at = NOW()
+            WHERE id = %s
+        """, (user["id"],))
+
+        cur.execute("""
+            UPDATE email_verifications
+            SET used_at = NOW()
+            WHERE user_id = %s
+              AND used_at IS NULL
+        """, (user["id"],))
+
+        token = generate_token()
+        cur.execute("""
+            INSERT INTO sessions (user_id, token_hash, expires_at, ip_address, user_agent)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            user["id"],
+            hash_token(token),
+            datetime.now() + timedelta(days=7),
+            request.client.host if request.client else None,
+            request.headers.get("user-agent", "")[:500]
+        ))
+
+        conn.commit()
+
+        notify_new_user_email(
+            user_id=user["id"],
+            name=user["name"],
+            email=user["email"],
+            gender=user.get("gender"),
+            age=user.get("age"),
+            ip=request.client.host if request.client else None,
+        )
+
+        return AuthResponse(
+            success=True,
+            message="Email verified successfully",
+            token=token,
+            user={"id": user["id"], "email": user["email"], "name": user["name"]}
+        )
+
+    except HTTPException:
+        if conn:
+            conn.rollback()
+        raise
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Email verification error: {e}")
+        raise HTTPException(status_code=500, detail="Email verification failed")
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+@app.post("/api/auth/resend-verification", response_model=AuthResponse)
+def resend_verification(data: ResendVerificationRequest, request: Request):
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("""
+            SELECT id, email, name, auth_provider, COALESCE(email_verified, TRUE) AS email_verified
+            FROM users
+            WHERE email = %s
+        """, (data.email,))
+        user = cur.fetchone()
+
+        if not user or user.get("auth_provider") != "email":
+            raise HTTPException(status_code=400, detail="No email verification is pending for this account.")
+
+        if user.get("email_verified", True):
+            raise HTTPException(status_code=400, detail="This email is already verified. Please sign in.")
+
+        code = create_email_verification_record(cur, user["id"])
+        verification_message = deliver_verification_code(user["email"], user["name"], code, request)
+        conn.commit()
+
+        return AuthResponse(
+            success=True,
+            message=verification_message,
+            requires_verification=True,
+            verification_email=user["email"]
+        )
+
+    except HTTPException:
+        if conn:
+            conn.rollback()
+        raise
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Resend verification error: {e}")
+        raise HTTPException(status_code=500, detail="Could not resend verification code")
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(data: LoginRequest, request: Request):
     conn = None
     cur = None
 
     try:
-        email = data.email.lower().strip()
+        email = normalize_email(data.email)
         conn = get_db()
         cur = conn.cursor(dictionary=True)
 
         cur.execute("""
             SELECT id, email, name, password_hash, is_active,
+                   auth_provider, COALESCE(email_verified, TRUE) AS email_verified,
                    failed_login_attempts, locked_until
             FROM users WHERE email = %s
         """, (email,))
@@ -1300,6 +1887,12 @@ def login(data: LoginRequest, request: Request):
             conn.commit()
 
             raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        if user.get("auth_provider") == "email" and not user.get("email_verified", True):
+            raise HTTPException(
+                status_code=403,
+                detail="Please verify your Gmail address before logging in. Request a new code from the sign up page if needed."
+            )
 
         cur.execute("""
             UPDATE users SET failed_login_attempts=0, locked_until=NULL WHERE id=%s

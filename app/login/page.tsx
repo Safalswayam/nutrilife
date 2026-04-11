@@ -35,11 +35,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-
+  
+  // Forgot password states
+  const [isForgotOpen, setIsForgotOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState("")
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotMessage, setForgotMessage] = useState("")
+  
   // Redirect if already authenticated — must be in useEffect, not render
   useEffect(() => {
     if (isAuthenticated) {
-      router.push("/")
+      router.push("/dashboard")
     }
   }, [isAuthenticated, router])
 
@@ -56,12 +62,39 @@ export default function LoginPage() {
     console.log("[v0] Login result:", result)
 
     if (result.success) {
-      router.push("/")
+      router.push("/dashboard")
     } else {
       setError(result.error || "Login failed")
     }
 
     setIsLoading(false)
+  }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!forgotEmail) return
+    
+    setForgotLoading(true)
+    setForgotMessage("")
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail })
+      })
+      
+      const data = await response.json()
+      if (response.ok) {
+        setForgotMessage(data.message || "Reset link sent!")
+      } else {
+        setForgotMessage("Failed to process request. Please try again.")
+      }
+    } catch (err) {
+      setForgotMessage("Network error. Please try again.")
+    } finally {
+      setForgotLoading(false)
+    }
   }
 
   return (
@@ -216,6 +249,16 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotOpen(true)}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-4"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
@@ -249,7 +292,11 @@ export default function LoginPage() {
                   try {
                     const result = await loginWithGoogle(credentialResponse.credential!)
                     if (result.success) {
-                      router.push("/")
+                      if (result.is_new_user) {
+                        router.push("/onboarding")
+                      } else {
+                        router.push("/dashboard")
+                      }
                     } else {
                       setError(result.error || "Google login failed")
                     }
@@ -295,6 +342,50 @@ export default function LoginPage() {
 
         </div>
       </div>
+      
+      {/* Forgot Password Modal */}
+      {isForgotOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <Card className="w-full max-w-md shadow-2xl border-border animate-in fade-in zoom-in-95 duration-200">
+            <CardHeader>
+              <CardTitle>Reset Password</CardTitle>
+              <CardDescription>
+                Enter your email address to receive a secure password reset link.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                {forgotMessage && (
+                  <Alert className={forgotMessage.includes("sent") ? "bg-primary/10 border-primary/20 text-primary" : "bg-destructive/10 border-destructive/20 text-destructive"}>
+                    <AlertDescription>{forgotMessage}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="forgot-email">Email</Label>
+                  <Input 
+                    id="forgot-email"
+                    type="email" 
+                    placeholder="name@example.com" 
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button type="button" variant="ghost" onClick={() => { setIsForgotOpen(false); setForgotMessage(""); }}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={forgotLoading || !forgotEmail}>
+                    {forgotLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Send Link
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
     </div>
   )
 }

@@ -25,7 +25,15 @@ interface AuthContextType {
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   loginWithGoogle: (credential: string) => Promise<{ success: boolean; error?: string; is_new_user?: boolean }>
-  register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>
+  register: (data: RegisterData) => Promise<{
+    success: boolean
+    error?: string
+    message?: string
+    requiresVerification?: boolean
+    verificationEmail?: string
+  }>
+  verifyEmail: (email: string, code: string) => Promise<{ success: boolean; error?: string }>
+  resendVerification: (email: string) => Promise<{ success: boolean; error?: string; message?: string }>
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<{ success: boolean; error?: string }>
   refreshUser: () => Promise<void>
@@ -127,14 +135,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: data.detail || "Registration failed" }
       }
 
+      if (data.requires_verification) {
+        return {
+          success: true,
+          message: data.message,
+          requiresVerification: true,
+          verificationEmail: data.verification_email,
+        }
+      }
+
+      if (data.token) {
+        localStorage.setItem("nutrilife_token", data.token)
+        setToken(data.token)
+        setUser(data.user)
+      }
+
+      return { success: true, message: data.message }
+    } catch (error) {
+      console.error("[v0] Register fetch error:", error)
+      return { success: false, error: error instanceof Error ? error.message : "Network error. Please try again." }
+    }
+  }
+
+  const verifyEmail = async (email: string, code: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        return { success: false, error: data.detail || "Email verification failed" }
+      }
+
       localStorage.setItem("nutrilife_token", data.token)
       setToken(data.token)
       setUser(data.user)
 
       return { success: true }
     } catch (error) {
-      console.error("[v0] Register fetch error:", error)
-      return { success: false, error: error instanceof Error ? error.message : "Network error. Please try again." }
+      return { success: false, error: "Network error. Please try again." }
+    }
+  }
+
+  const resendVerification = async (email: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        return { success: false, error: data.detail || "Could not resend verification code" }
+      }
+
+      return { success: true, message: data.message }
+    } catch (error) {
+      return { success: false, error: "Network error. Please try again." }
     }
   }
 
@@ -223,6 +286,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     loginWithGoogle,
     register,
+    verifyEmail,
+    resendVerification,
     logout,
     updateProfile,
     refreshUser,

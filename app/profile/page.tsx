@@ -394,6 +394,38 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
+          {/* Achievements */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Target className="w-4 h-4 text-primary" />
+                Achievements
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { emoji: "🍽️", label: "First Meal Logged", done: true },
+                  { emoji: "📋", label: "Diet Plan Created", done: !!profile?.goal && profile.goal !== "maintain" },
+                  { emoji: "🌙", label: "First Fast Completed", done: false },
+                  { emoji: "💧", label: "Water Goal Hit", done: false },
+                  { emoji: "📸", label: "Profile Photo Added", done: !!profile?.profile_image },
+                  { emoji: "⭐", label: "7-Day Streak", done: false },
+                ].map((badge) => (
+                  <div key={badge.label} className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${badge.done ? "bg-primary/10" : "bg-muted opacity-50"}`}>
+                      {badge.emoji}
+                    </div>
+                    <span className={`text-sm ${badge.done ? "font-medium text-foreground" : "text-muted-foreground line-through"}`}>
+                      {badge.label}
+                    </span>
+                    {badge.done && <CheckCircle className="w-3.5 h-3.5 text-primary ml-auto" />}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Account</CardTitle>

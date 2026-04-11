@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -21,26 +21,28 @@ import {
   X,
   Moon,
   Loader2,
+  LifeBuoy,
+  Sun,
 } from "lucide-react"
 
 const navItems = [
-  { title: "Dashboard",       href: "/",                icon: Home         },
-  { title: "Food Log",        href: "/food-log",        icon: ClipboardList },
-  { title: "Food Analysis",   href: "/food-analysis",   icon: Camera       },
-  { title: "Health Assistant",href: "/health-assistant",icon: MessageCircle},
-  { title: "Diet Planner",    href: "/diet-planner",    icon: Calculator   },
-  { title: "Fasting Tracker", href: "/fasting-tracker", icon: Moon         },
-  { title: "Subscription",    href: "/subscription",    icon: Crown        },
-  { title: "Profile",         href: "/profile",         icon: User         },
+  { title: "Dashboard", href: "/dashboard", icon: Home },
+  { title: "Food Log", href: "/food-log", icon: ClipboardList },
+  { title: "Food Analysis", href: "/food-analysis", icon: Camera },
+  { title: "Health Assistant", href: "/health-assistant", icon: MessageCircle },
+  { title: "Diet Planner", href: "/diet-planner", icon: Calculator },
+  { title: "Fasting Tracker", href: "/fasting-tracker", icon: Moon },
+  { title: "Subscription", href: "/subscription", icon: Crown },
+  { title: "Profile", href: "/profile", icon: User },
 ]
 
 // Bottom nav shows 5 most-used items
 const bottomNavItems = [
-  { title: "Home",     href: "/",                icon: Home          },
-  { title: "Health Assistant",href: "/health-assistant",icon: MessageCircle},
-  { title: "Camera",   href: "/food-analysis",   icon: Camera        },
-  { title: "Diet",     href: "/diet-planner",    icon: Calculator    },
-  { title: "Profile",  href: "/profile",         icon: User          },
+  { title: "Home", href: "/dashboard", icon: Home },
+  { title: "Health Assistant", href: "/health-assistant", icon: MessageCircle },
+  { title: "Camera", href: "/food-analysis", icon: Camera },
+  { title: "Diet", href: "/diet-planner", icon: Calculator },
+  { title: "Profile", href: "/profile", icon: User },
 ]
 
 export function SidebarNav() {
@@ -59,21 +61,34 @@ export function SidebarNav() {
     }
   }
 
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"))
+  }, [])
+
+  const toggleTheme = () => {
+    const next = !isDark
+    setIsDark(next)
+    document.documentElement.classList.toggle("dark", next)
+    localStorage.setItem("theme", next ? "dark" : "light")
+  }
+
   return (
     <aside className="hidden md:flex flex-col w-64 bg-sidebar text-sidebar-foreground min-h-screen fixed left-0 top-0">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-sidebar-border">
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
         <Image
           src="/nutrilife-icon.png"
           alt="NutriLife"
-          width={44}
-          height={44}
+          width={38}
+          height={38}
           priority
-          className="rounded-xl"
+          className="rounded-xl shrink-0"
         />
-        <div>
-          <p className="text-base font-bold text-sidebar-foreground leading-tight">NutriLife</p>
-          <p className="text-[10px] text-sidebar-foreground/60 tracking-widest uppercase">Track Your Health</p>
+        <div className="flex flex-col justify-center translate-y-[1px]">
+          <p className="text-lg font-bold text-sidebar-foreground leading-none mb-1">NutriLife</p>
+          <p className="text-[9px] text-sidebar-foreground/60 tracking-[0.2em] uppercase leading-none">Track Your Health</p>
         </div>
       </div>
 
@@ -102,21 +117,33 @@ export function SidebarNav() {
         </ul>
       </nav>
 
+      {/* Theme toggle */}
+      <div className="px-4 py-2">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+        </button>
+      </div>
+
       {/* User section */}
       <div className="px-4 py-6 border-t border-sidebar-border">
         {isAuthenticated && user ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-sidebar-accent/50 text-left">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-semibold overflow-hidden flex-shrink-0">
+            <div className="flex items-center gap-3 w-full p-3 rounded-xl bg-sidebar-accent/30 border border-sidebar-accent/50 text-left">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-sidebar-primary text-sidebar-primary-foreground font-semibold overflow-hidden shrink-0 shadow-sm">
                 {user.profile_image ? (
                   <img src={user.profile_image} alt={user.name} className="w-full h-full object-cover" />
                 ) : (
                   user.name?.charAt(0).toUpperCase() || "U"
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>
-                <p className="text-xs text-sidebar-foreground/70 truncate">{user.email}</p>
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="text-sm font-semibold text-sidebar-foreground truncate">{user.name}</p>
+                <p className="text-[11px] text-sidebar-foreground/70 truncate">{user.email}</p>
               </div>
             </div>
 

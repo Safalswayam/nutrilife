@@ -111,6 +111,8 @@ ALTER TABLE users
 ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE,
 ADD COLUMN IF NOT EXISTS profile_image VARCHAR(500),
 ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(50) DEFAULT 'email',
+ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS email_verified_at DATETIME NULL,
 ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS subscription_expires_at DATETIME NULL,
 ADD COLUMN IF NOT EXISTS daily_water_goal INT DEFAULT 8;
@@ -118,6 +120,19 @@ ADD COLUMN IF NOT EXISTS daily_water_goal INT DEFAULT 8;
 -- Add index for Google ID
 CREATE INDEX IF NOT EXISTS idx_google_id ON users(google_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_status ON users(is_premium, subscription_expires_at);
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    used_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_email_verifications_user (user_id, created_at),
+    INDEX idx_email_verifications_active (user_id, used_at, expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
 -- 6. UPDATE WATER LOGS TABLE  

@@ -5,6 +5,7 @@ import React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { getApiUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -51,6 +52,8 @@ import {
   X,
   Upload,
   SwitchCamera,
+  Share2,
+  Download,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -1111,11 +1114,22 @@ export default function DietPlannerPage() {
 
                 {/* Weekly Meal Plan */}
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="flex items-center gap-2">
                       <Utensils className="w-5 h-5 text-primary" />
                       7-Day Meal Plan
                     </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => window.print()} title="Print or Save as PDF">
+                        <Download className="w-4 h-4 mr-1" /> Export
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => {
+                        navigator.clipboard.writeText("Check out my NutriLife diet plan! Join me at [Link coming soon]")
+                        toast.success("Share text copied to clipboard!")
+                      }}>
+                        <Share2 className="w-4 h-4 mr-1" /> Share
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {result.weeklyPlan.map((day) => (

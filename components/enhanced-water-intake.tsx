@@ -177,6 +177,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
             >
               <Settings className="w-4 h-4" />
             </Button>
+            <span className="sr-only">Set water goal</span>
           </div>
         </CardHeader>
 
@@ -281,6 +282,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
               onClick={() => adjustWater(-1)}
               disabled={isAdjusting || current === 0}
               className="h-14 w-14 rounded-full hover:bg-destructive/10 hover:border-destructive hover:text-destructive disabled:opacity-50 transition-all"
+              aria-label="Remove one glass of water"
             >
               {isAdjusting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -302,6 +304,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
               onClick={() => adjustWater(1)}
               disabled={isAdjusting}
               className="h-14 w-14 rounded-full hover:bg-primary/10 hover:border-primary hover:text-primary transition-all"
+              aria-label="Add one glass of water"
             >
               {isAdjusting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
