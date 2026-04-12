@@ -10,6 +10,7 @@ import { QuickActions } from "@/components/quick-actions"
 import { MacroBreakdown } from "@/components/nutrition-chart"
 import { EnhancedWaterIntake } from "@/components/enhanced-water-intake"
 import { WhatToEatNext } from "@/components/what-to-eat-next"
+import { NotificationCenter } from "@/components/notification-center"
 import { Flame, Target, TrendingUp, Droplets, Activity, Utensils, Loader2, Sun, Sunrise, Sunset, Moon, X, Sparkles, Camera, Calculator, MessageCircle, Trophy, Zap, ArrowRight, Star } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -565,6 +566,8 @@ export default function DashboardPage() {
 
         {/* Sidebar Column */}
         <div className="space-y-10 reveal-3d">
+          <NotificationCenter />
+          
           <EnhancedWaterIntake
             current={waterData.current}
             goal={waterData.goal}
