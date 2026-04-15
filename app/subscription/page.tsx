@@ -288,7 +288,7 @@ export default function SubscriptionPage() {
                   <Button
                     className={cn(
                        "w-full h-16 rounded-[1.5rem] text-sm font-black uppercase tracking-[0.2em] shadow-3xl transition-all",
-                       isBest ? "bg-primary hover:bg-primary/90 shadow-primary/20" : "bg-white/5 hover:bg-white/10 shadow-black/10"
+                        "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
                     )}
                     onClick={() => handleSubscribe(plan.id)}
                     disabled={processing || !!currentSubscription}
