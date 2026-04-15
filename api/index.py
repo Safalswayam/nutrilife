@@ -606,6 +606,19 @@ def init_database():
         )
         """)
         cur.execute("""
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash VARCHAR(255) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_password_resets_user (user_id),
+            INDEX idx_password_resets_token (token_hash)
+        )
+        """)
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS diet_plans (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
@@ -797,6 +810,38 @@ def build_verification_email_content(email: str, name: str, code: str) -> tuple[
             <p>Your NutriLife verification code is:</p>
             <p style="font-size: 28px; font-weight: bold; letter-spacing: 8px;">{code}</p>
             <p>This code expires in {EMAIL_VERIFICATION_CODE_TTL_MINUTES} minutes.</p>
+            <p>If you didn't request this, you can ignore this email.</p>
+          </body>
+        </html>
+    """
+    return recipient_name, subject, text_body, html_body
+
+def build_reset_password_email_content(email: str, name: str, token: str, frontend_url: str) -> tuple[str, str, str, str]:
+    recipient_name = sanitize_input(name, 100) or "there"
+    subject = f"Reset your {SMTP_FROM_NAME} password"
+    
+    reset_link = f"{frontend_url}/reset-password?token={token}&email={email}"
+    
+    text_body = (
+        f"Hi {recipient_name},\n\n"
+        f"We received a request to reset your NutriLife password.\n"
+        f"Click the link below to set a new password:\n\n"
+        f"{reset_link}\n\n"
+        f"This link will expire in 2 hours.\n"
+        "If you didn't request this, you can ignore this email."
+    )
+    html_body = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; color: #111827;">
+            <p>Hi {recipient_name},</p>
+            <p>We received a request to reset your NutriLife password.</p>
+            <p>Click the button below to set a new password:</p>
+            <div style="margin: 24px 0;">
+                <a href="{reset_link}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Password</a>
+            </div>
+            <p>Alternatively, copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #6b7280; font-size: 14px;">{reset_link}</p>
+            <p>This link will expire in 2 hours.</p>
             <p>If you didn't request this, you can ignore this email.</p>
           </body>
         </html>
@@ -1011,6 +1056,84 @@ def deliver_verification_code(email: str, name: str, code: str, request: Request
         detail=f"{error_msg}Add SMTP settings or verify a domain on Resend. Code printed to console if in local dev."
     )
 
+def deliver_reset_password_link(email: str, name: str, token: str, request: Request) -> str:
+    errors = []
+    
+    frontend_url = os.getenv("FRONTEND_URL")
+    if not frontend_url:
+        origin = request.headers.get("origin")
+        if origin:
+            frontend_url = origin
+        else:
+            referer = request.headers.get("referer")
+            if referer:
+                from urllib.parse import urlparse
+                parsed = urlparse(referer)
+                frontend_url = f"{parsed.scheme}://{parsed.netloc}"
+            else:
+                frontend_url = "http://localhost:3000"
+
+    recipient_name, subject, text_body, html_body = build_reset_password_email_content(email, name, token, frontend_url)
+    
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
+    msg["To"] = email
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    # Try API-based delivery first (Resend, Brevo) then SMTP
+    if is_resend_configured():
+        try:
+            response = httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={"from": formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL)), "to": [email], "subject": subject, "text": text_body, "html": html_body},
+                timeout=EMAIL_API_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            return "A password reset link has been sent to your email."
+        except Exception as e:
+            errors.append(f"Resend failure: {str(e)}")
+
+    if is_brevo_configured():
+        try:
+            response = httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"accept": "application/json", "api-key": BREVO_API_KEY, "content-type": "application/json"},
+                json={"sender": {"name": SMTP_FROM_NAME, "email": SMTP_FROM_EMAIL}, "to": [{"email": email, "name": recipient_name}], "subject": subject, "textContent": text_body, "htmlContent": html_body},
+                timeout=EMAIL_API_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            return "A password reset link has been sent to your email."
+        except Exception as e:
+            errors.append(f"Brevo failure: {str(e)}")
+
+    if is_email_verification_configured():
+        try:
+            use_ssl = SMTP_USE_SSL or SMTP_PORT == 465
+            smtp_client = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+            with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+                server.ehlo()
+                if not use_ssl and SMTP_USE_TLS:
+                    server.starttls(context=ssl.create_default_context())
+                    server.ehlo()
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.send_message(msg)
+            return "A password reset link has been sent to your email."
+        except Exception as e:
+            errors.append(f"SMTP failure: {str(e)}")
+
+    if ALLOW_CONSOLE_EMAIL_VERIFICATION and is_local_request(request):
+        print("\n" + "="*60)
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        reset_link = f"{frontend_url}/reset-password?token={token}&email={email}"
+        print(f"PASSWORD RESET LINK for {email}: {reset_link}")
+        print("="*60 + "\n")
+        return "Reset link printed to the API terminal (Local Dev Mode)."
+
+    raise HTTPException(status_code=503, detail="Could not deliver reset email. Please contact support.")
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
         return None
@@ -1130,6 +1253,30 @@ class ResendVerificationRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v: str) -> str:
+        normalized = normalize_email(v)
+        if not validate_email(normalized):
+            raise ValueError("Invalid email format")
+        return normalized
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    email: str
+    new_password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_field(cls, v: str) -> str:
+        normalized = normalize_email(v)
+        if not validate_email(normalized):
+            raise ValueError("Invalid email format")
+        return normalized
 
 class AuthResponse(BaseModel):
     success: bool
@@ -1965,6 +2112,96 @@ def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
 @app.get("/api/auth/me")
 def get_me(user=Depends(require_auth)):
     return {"success": True, "user": user}
+
+@app.post("/api/auth/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, request: Request):
+    conn = None
+    cur = None
+    try:
+        email = normalize_email(data.email)
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("SELECT id, email, name FROM users WHERE email = %s", (email,))
+        user = cur.fetchone()
+
+        if not user:
+            # For security, don't reveal that the user doesn't exist
+            return {"success": True, "message": "If this email is registered, you will receive a reset link shortly."}
+
+        token = secrets.token_urlsafe(32)
+        token_hash = hash_token(token)
+        expires_at = datetime.now() + timedelta(hours=2)
+
+        cur.execute("""
+            INSERT INTO password_resets (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+        """, (user["id"], token_hash, expires_at))
+        
+        message = deliver_reset_password_link(user["email"], user["name"], token, request)
+        conn.commit()
+
+        return {"success": True, "message": message}
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Forgot password error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process request")
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.post("/api/auth/reset-password")
+def reset_password(data: ResetPasswordRequest):
+    conn = None
+    cur = None
+    try:
+        email = normalize_email(data.email)
+        token_hash = hash_token(data.token)
+        
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("""
+            SELECT pr.id, pr.user_id, pr.expires_at, u.email
+            FROM password_resets pr
+            JOIN users u ON u.id = pr.user_id
+            WHERE pr.token_hash = %s
+              AND u.email = %s
+              AND pr.used_at IS NULL
+        """, (token_hash, email))
+        
+        reset_req = cur.fetchone()
+
+        if not reset_req:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+
+        if reset_req["expires_at"] < datetime.now():
+            raise HTTPException(status_code=400, detail="Reset link has expired")
+
+        is_valid, message = validate_password_strength(data.new_password)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=message)
+
+        new_password_hash = hash_password(data.new_password)
+
+        cur.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_password_hash, reset_req["user_id"]))
+        cur.execute("UPDATE password_resets SET used_at = NOW() WHERE id = %s", (reset_req["id"],))
+        
+        # Invalidate all active sessions for this user for security
+        cur.execute("UPDATE sessions SET is_valid = FALSE WHERE user_id = %s", (reset_req["user_id"],))
+        
+        conn.commit()
+        return {"success": True, "message": "Password reset successful. You can now log in with your new password."}
+    except HTTPException:
+        if conn: conn.rollback()
+        raise
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Reset password error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset password")
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
 
 
 @app.put("/api/auth/profile")

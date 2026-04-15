@@ -8,7 +8,7 @@ import { SidebarNav, MobileNav, MobileHeader } from "@/components/sidebar-nav"
 import { FeedbackWidget } from "@/components/feedback-widget"
 import { Loader2 } from "lucide-react"
 
-const AUTH_PAGES = ["/login", "/signup"]
+const AUTH_PAGES = ["/login", "/signup", "/reset-password"]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
