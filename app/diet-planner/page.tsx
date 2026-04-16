@@ -169,11 +169,14 @@ function formatBytes(bytes: number): string {
 // ─── Image upload sub-component ───────────────────────────────────────────────
 interface BodyPhotoUploadProps {
   onImageReady: (dataUrl: string | null, blob: Blob | null) => void
+  onAnalysisComplete?: (data: { height: number; weight: number }) => void
+  gender?: string
 }
 
-function BodyPhotoUpload({ onImageReady }: BodyPhotoUploadProps) {
+function BodyPhotoUpload({ onImageReady, onAnalysisComplete, gender }: BodyPhotoUploadProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const [isCompressing, setIsCompressing] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [sizeInfo, setSizeInfo] = useState<{ original: number; compressed: number } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -230,6 +233,33 @@ function BodyPhotoUpload({ onImageReady }: BodyPhotoUploadProps) {
     onImageReady(null, null)
   }
 
+  const handleAnalyze = async () => {
+    if (!preview) return
+    setIsAnalyzing(true)
+    setUploadError(null)
+    
+    try {
+      // Remove data:image/jpeg;base64, prefix
+      const base64 = preview.split(",")[1]
+      const response = await fetch(getApiUrl("/api/analyze-body"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_base64: base64, gender: gender || "male" })
+      })
+      
+      const data = await response.json()
+      if (data.success && onAnalysisComplete) {
+        onAnalysisComplete({ height: data.height, weight: data.weight })
+      } else {
+        setUploadError(data.detail || "Analysis failed")
+      }
+    } catch (err) {
+      setUploadError("Network error during analysis")
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
   return (
     <div className="space-y-3">
       {/* Hidden file inputs */}
@@ -283,28 +313,53 @@ function BodyPhotoUpload({ onImageReady }: BodyPhotoUploadProps) {
             </div>
           )}
 
-          {/* Change photo buttons */}
-          <div className="p-3 flex gap-2 bg-muted/50">
+          {/* Change photo / Analyze buttons */}
+          <div className="p-3 space-y-2 bg-muted/50">
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               size="sm"
-              className="flex-1 gap-2"
-              onClick={() => galleryInputRef.current?.click()}
+              className="w-full gap-2 bg-primary hover:bg-primary/90 text-white font-black uppercase text-[10px] tracking-tighter h-10 shadow-lg shadow-primary/20"
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
             >
-              <ImagePlus className="w-4 h-4" />
-              Change Photo
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing Blueprint...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Extract Physical Specs
+                </>
+              )}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex-1 gap-2"
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              <SwitchCamera className="w-4 h-4" />
-              Retake
-            </Button>
+            
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-2 text-[10px] font-bold"
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={isAnalyzing}
+              >
+                <ImagePlus className="w-4 h-4" />
+                Change
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-2 text-[10px] font-bold"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={isAnalyzing}
+              >
+                <SwitchCamera className="w-4 h-4" />
+                Retake
+              </Button>
+            </div>
           </div>
         </div>
       ) : (
@@ -417,6 +472,8 @@ export default function DietPlannerPage() {
     goal: "",
     dietType: "non_veg",
     fastingPlan: "none",
+    healthIssues: [] as string[],
+    extraHabits: "",
   })
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<DietPlanResult | null>(null)
@@ -452,7 +509,36 @@ export default function DietPlannerPage() {
       }
     }
     loadFastingPlans()
-  }, [])
+
+    const loadProfile = async () => {
+      if (!token) return
+      try {
+        const res = await fetch(getApiUrl("/api/profile"), {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.profile) {
+            setFormData(prev => ({
+              ...prev,
+              gender: data.profile.gender || prev.gender,
+              height: data.profile.height?.toString() || prev.height,
+              weight: data.profile.weight?.toString() || prev.weight,
+              age: data.profile.age?.toString() || prev.age,
+              activityLevel: data.profile.activity_level || prev.activityLevel,
+              metabolismType: data.profile.metabolism_type || prev.metabolismType,
+              goal: data.profile.goal || prev.goal,
+              healthIssues: data.profile.health_issues ? JSON.parse(data.profile.health_issues) : [],
+              extraHabits: data.profile.extra_habits || "",
+            }))
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load profile for diet planner:", err)
+      }
+    }
+    loadProfile()
+  }, [token])
 
   // Update selected fasting plan details when selection changes
   useEffect(() => {
@@ -559,6 +645,8 @@ export default function DietPlannerPage() {
           diet_type: formData.dietType,
           dietary_restrictions: [],
           fasting_plan: formData.fastingPlan,
+          health_issues: formData.healthIssues,
+          extra_habits: formData.extraHabits,
         }),
       })
 
@@ -703,7 +791,17 @@ export default function DietPlannerPage() {
                     Visual Progress
                     <span className="text-[10px] font-bold opacity-40 ml-1">(Opt)</span>
                   </Label>
-                  <BodyPhotoUpload onImageReady={handleImageReady} />
+                  <BodyPhotoUpload 
+                    onImageReady={handleImageReady} 
+                    gender={formData.gender}
+                    onAnalysisComplete={(data) => {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        height: data.height.toString(), 
+                        weight: data.weight.toString() 
+                      }))
+                    }}
+                  />
                 </div>
 
                 {/* Gender */}
@@ -799,45 +897,81 @@ export default function DietPlannerPage() {
                 <div className="space-y-2">
                   <Label htmlFor="metabolism" className="flex items-center gap-2">
                     <Zap className="w-4 h-4" />
-                    Metabolism Type
+                    Metabolic Velocity
                   </Label>
                   <Select
                     value={formData.metabolismType}
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, metabolismType: value }))}
                   >
                     <SelectTrigger id="metabolism">
-                      <SelectValue placeholder="How easily do you gain weight?" />
+                      <SelectValue placeholder="Select velocity" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fast">Fast (gain weight slowly)</SelectItem>
-                      <SelectItem value="normal">Normal (balanced)</SelectItem>
-                      <SelectItem value="slow">Slow (gain weight easily)</SelectItem>
+                      <SelectItem value="fast">Accelerated (Fast)</SelectItem>
+                      <SelectItem value="normal">Standard (Normal)</SelectItem>
+                      <SelectItem value="slow">Steady (Slow)</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Do you gain weight quickly or only after prolonged overeating?
-                  </p>
                 </div>
 
-                {/* Goal */}
+                {/* Strategic Goal */}
                 <div className="space-y-2">
                   <Label htmlFor="goal" className="flex items-center gap-2">
                     <Target className="w-4 h-4" />
-                    Your Goal
+                    Primary Trajectory
                   </Label>
                   <Select
                     value={formData.goal}
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, goal: value }))}
                   >
                     <SelectTrigger id="goal">
-                      <SelectValue placeholder="Select your goal" />
+                      <SelectValue placeholder="Select primary objective" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="lose">Lose Weight</SelectItem>
-                      <SelectItem value="maintain">Maintain Weight</SelectItem>
-                      <SelectItem value="gain">Gain Muscle</SelectItem>
+                      <SelectItem value="lose">Mass Reduction</SelectItem>
+                      <SelectItem value="lose_fast">Mass Reduction (Aggressive)</SelectItem>
+                      <SelectItem value="maintain">Homeostasis (Maintain)</SelectItem>
+                      <SelectItem value="gain">Mass Augmentation</SelectItem>
+                      <SelectItem value="gain_muscle">Structural Augmentation</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Health Conditions */}
+                <div className="space-y-3 pt-4 border-t border-white/5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60">Systemic Conditions</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {["Diabetes", "Hypertension", "PCOS", "Thyroid"].map(issue => (
+                      <Badge
+                        key={issue}
+                        variant={formData.healthIssues.includes(issue) ? "default" : "outline"}
+                        className={cn(
+                          "cursor-pointer px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all",
+                          formData.healthIssues.includes(issue) ? "bg-primary shadow-lg shadow-primary/20" : "opacity-40 hover:opacity-100"
+                        )}
+                        onClick={() => {
+                          const updated = formData.healthIssues.includes(issue)
+                            ? formData.healthIssues.filter(i => i !== issue)
+                            : [...formData.healthIssues, issue];
+                          setFormData({ ...formData, healthIssues: updated });
+                        }}
+                      >
+                        {issue}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Extra Habits */}
+                <div className="space-y-2 pt-2">
+                  <Label htmlFor="habits" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60">Architectural Habits</Label>
+                  <Input
+                    id="habits"
+                    placeholder="e.g. Vegan, No Sugar, Fasting..."
+                    value={formData.extraHabits}
+                    onChange={(e) => setFormData({ ...formData, extraHabits: e.target.value })}
+                    className="h-10 rounded-xl bg-white/5 border-white/5 font-bold text-xs"
+                  />
                 </div>
 
                 {/* Diet Type */}

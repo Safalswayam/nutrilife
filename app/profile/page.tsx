@@ -28,6 +28,7 @@ import {
   LogOut,
   FileText,
   LifeBuoy,
+  Activity,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -43,6 +44,8 @@ interface UserProfile {
   metabolism_type: string
   goal: string
   profile_image?: string | null
+  health_issues: string[]
+  extra_habits: string
 }
 
 export default function ProfilePage() {
@@ -55,7 +58,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<"profile" | "goals">("profile")
+  const [activeTab, setActiveTab] = useState<"profile" | "goals" | "health">("profile")
 
   // Image upload state
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -83,16 +86,18 @@ export default function ProfilePage() {
       const data = await response.json()
       if (data.success) {
         setProfile({
-          name:            data.profile.name            || "",
-          email:           data.profile.email           || "",
-          gender:          data.profile.gender          || "male",
-          age:             data.profile.age             || "",
-          height:          data.profile.height          || "",
-          weight:          data.profile.weight          || "",
-          activity_level:  data.profile.activity_level  || "moderate",
+          name: data.profile.name || "",
+          email: data.profile.email || "",
+          gender: data.profile.gender || "male",
+          age: data.profile.age || "",
+          height: data.profile.height || "",
+          weight: data.profile.weight || "",
+          activity_level: data.profile.activity_level || "moderate",
           metabolism_type: data.profile.metabolism_type || "normal",
-          goal:            data.profile.goal            || "maintain",
-          profile_image:   data.profile.profile_image   || null,
+          goal: data.profile.goal || "maintain",
+          health_issues: data.profile.health_issues ? JSON.parse(data.profile.health_issues) : [],
+          extra_habits: data.profile.extra_habits || "",
+          profile_image: data.profile.profile_image || null,
         })
         setImagePreview(data.profile.profile_image || null)
       }
@@ -116,14 +121,16 @@ export default function ProfilePage() {
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name:            profile.name,
-          gender:          profile.gender,
-          age:             profile.age    ? parseInt(profile.age.toString())    : null,
-          height:          profile.height ? parseFloat(profile.height.toString()) : null,
-          weight:          profile.weight ? parseFloat(profile.weight.toString()) : null,
-          activity_level:  profile.activity_level,
+          name: profile.name,
+          gender: profile.gender,
+          age: profile.age ? parseInt(profile.age.toString()) : null,
+          height: profile.height ? parseFloat(profile.height.toString()) : null,
+          weight: profile.weight ? parseFloat(profile.weight.toString()) : null,
+          activity_level: profile.activity_level,
           metabolism_type: profile.metabolism_type,
-          goal:            profile.goal,
+          goal: profile.goal,
+          health_issues: profile.health_issues,
+          extra_habits: profile.extra_habits,
         }),
       })
       if (!response.ok) throw new Error("Failed to update profile")
@@ -224,8 +231,8 @@ export default function ProfilePage() {
   }
 
   const tabs = [
-    { id: "profile" as const, label: "Profile",      icon: User   },
-    { id: "goals"   as const, label: "Health Goals", icon: Target },
+    { id: "goals" as const, label: "Health Goals", icon: Target },
+    { id: "health" as const, label: "Analysis", icon: Activity },
   ]
 
   const handleLogout = async () => {
@@ -426,9 +433,9 @@ export default function ProfilePage() {
                     <div className="text-2xl group-hover:scale-110 transition-transform">{badge.emoji}</div>
                     <span className="text-[8px] font-black uppercase tracking-tight text-center leading-none">{badge.label}</span>
                     {badge.done && (
-                       <div className="absolute -top-1 -right-1">
-                          <CheckCircle className="w-3 h-3 text-primary fill-background" />
-                       </div>
+                      <div className="absolute -top-1 -right-1">
+                        <CheckCircle className="w-3 h-3 text-primary fill-background" />
+                      </div>
                     )}
                   </div>
                 ))}
@@ -479,22 +486,22 @@ export default function ProfilePage() {
               <CardContent className="p-8 pt-0 space-y-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {[
-                    { id: "name",   label: "Full Name",   type: "text"   },
-                    { id: "email",  label: "Primary Comms", type: "email", disabled: true },
-                    { id: "age",    label: "Biological Age",   type: "number" },
+                    { id: "name", label: "Full Name", type: "text" },
+                    { id: "email", label: "Primary Comms", type: "email", disabled: true },
+                    { id: "age", label: "Biological Age", type: "number" },
                     { id: "height", label: "Vertical Scale (cm)", type: "number" },
                     { id: "weight", label: "Mass Index (kg)", type: "number" },
                   ].map(field => (
                     <div key={field.id} className="space-y-3">
-                       <Label htmlFor={field.id} className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{field.label}</Label>
-                       <Input
-                         id={field.id}
-                         type={field.type}
-                         disabled={field.disabled}
-                         value={profile[field.id as keyof UserProfile] as string}
-                         onChange={(e) => setProfile({ ...profile, [field.id]: e.target.value })}
-                         className={cn("h-12 rounded-xl bg-white/5 border-white/5 focus:border-primary/50 transition-all font-bold", field.disabled && "opacity-50")}
-                       />
+                      <Label htmlFor={field.id} className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">{field.label}</Label>
+                      <Input
+                        id={field.id}
+                        type={field.type}
+                        disabled={field.disabled}
+                        value={profile[field.id as keyof UserProfile] as string}
+                        onChange={(e) => setProfile({ ...profile, [field.id]: e.target.value })}
+                        className={cn("h-12 rounded-xl bg-white/5 border-white/5 focus:border-primary/50 transition-all font-bold", field.disabled && "opacity-50")}
+                      />
                     </div>
                   ))}
 
@@ -590,10 +597,10 @@ export default function ProfilePage() {
                       </div>
                     )}
                     {profile.goal === "maintain" && (
-                       <div className="space-y-1">
-                         <p className="text-lg font-black text-emerald-400">Systemic Homeostasis</p>
-                         <p className="text-muted-foreground leading-relaxed">Caloric equilibrium. Maintaining current structural mass with optimized nutrient timing and recovery protocols.</p>
-                       </div>
+                      <div className="space-y-1">
+                        <p className="text-lg font-black text-emerald-400">Systemic Homeostasis</p>
+                        <p className="text-muted-foreground leading-relaxed">Caloric equilibrium. Maintaining current structural mass with optimized nutrient timing and recovery protocols.</p>
+                      </div>
                     )}
                     {profile.goal === "gain" && (
                       <div className="space-y-1">
@@ -621,25 +628,89 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           )}
+
+          {activeTab === "health" && (
+            <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden reveal-3d">
+              <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
+                  <Activity className="w-5 h-5 text-primary" />
+                  Clinical Markers & Habits
+                </CardTitle>
+                <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40">Architecting dietary logic for specific systemic conditions.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 pt-0 space-y-10">
+                <div className="space-y-6">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Systemic Conditions (Health Issues)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      "Diabetes", "Hypertension", "PCOS", "Thyroid", "Cholesterol", "GERD/Acid Reflux"
+                    ].map(issue => (
+                      <button
+                        key={issue}
+                        type="button"
+                        onClick={() => {
+                          const current = profile.health_issues || [];
+                          const updated = current.includes(issue)
+                            ? current.filter(i => i !== issue)
+                            : [...current, issue];
+                          setProfile({ ...profile, health_issues: updated });
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-2xl border transition-all text-left",
+                          profile.health_issues?.includes(issue)
+                            ? "bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5"
+                            : "bg-white/5 border-white/5 text-muted-foreground opacity-60 hover:opacity-100"
+                        )}
+                      >
+                        <span className="text-xs font-bold uppercase tracking-widest">{issue}</span>
+                        {profile.health_issues?.includes(issue) && <CheckCircle className="w-4 h-4" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <Label htmlFor="habits" className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Systemic Logic Prefaces (Extra Habits)</Label>
+                  <textarea
+                    id="habits"
+                    value={profile.extra_habits}
+                    onChange={(e) => setProfile({ ...profile, extra_habits: e.target.value })}
+                    placeholder="e.g., Intermittent Fasting 16:8, High Protein, Only Black Coffee in Morning, No snacking after 8 PM..."
+                    className="w-full min-h-[140px] rounded-2xl bg-white/5 border border-white/5 p-6 text-sm font-medium focus:border-primary/50 transition-all outline-none resize-none"
+                  />
+                  <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">These parameters will be woven into your generated diet plans by the AI strategist.</p>
+                </div>
+
+                <div className="flex justify-end border-t border-white/5 pt-8">
+                  <Button onClick={handleSave} disabled={saving} className="h-14 px-10 rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-3xl shadow-primary/20">
+                    {saving
+                      ? <><Loader2 className="w-5 h-5 mr-3 animate-spin" />Syncing…</>
+                      : <><Save className="w-5 h-5 mr-3" />Commit Systemic Logic</>
+                    }
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Legal & Support Footer */}
         <div className="mt-16 border-t border-white/5 pt-12 flex flex-col md:flex-row items-center justify-between gap-8 reveal-3d">
           <div className="space-y-4 text-center md:text-left">
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">System Support & Framework</p>
-             <div className="flex flex-wrap justify-center md:justify-start gap-6">
-               <a href="/terms" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-2">
-                 <FileText className="w-3.5 h-3.5" /> Protocols
-               </a>
-               <a href="/support" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-2">
-                 <LifeBuoy className="w-3.5 h-3.5" /> Intelligence Network
-               </a>
-             </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">System Support & Framework</p>
+            <div className="flex flex-wrap justify-center md:justify-start gap-6">
+              <a href="/terms" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-2">
+                <FileText className="w-3.5 h-3.5" /> Protocols
+              </a>
+              <a href="/support" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-all flex items-center gap-2">
+                <LifeBuoy className="w-3.5 h-3.5" /> Intelligence Network
+              </a>
+            </div>
           </div>
           <div className="text-center md:text-right space-y-2">
-             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Architectural Reference</p>
-             <p className="text-xs font-black uppercase text-primary tracking-tighter">NutriLife Premium · KIIT University</p>
-             <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-[0.2em]">Safal Swayam · Built for Human Optimization</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Architectural Reference</p>
+            <p className="text-xs font-black uppercase text-primary tracking-tighter">NutriLife Premium · KIIT University</p>
+            <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-[0.2em]">Safal Swayam · Built for Human Optimization</p>
           </div>
         </div>
       </div>

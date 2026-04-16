@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Utensils, Loader2, Clock, ChevronRight, RefreshCw, Sun, Apple, UtensilsCrossed, Coffee, Check, CheckCircle } from "lucide-react"
+import { Utensils, Loader2, Clock, ChevronRight, RefreshCw, Sun, Apple, UtensilsCrossed, Coffee, Check, CheckCircle, Zap } from "lucide-react"
 import { getApiUrl } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import Link from "next/link"
@@ -18,6 +18,8 @@ interface NextMeal {
   carbs: number
   fat: number
   is_tomorrow?: boolean
+  is_adaptive?: boolean
+  reason?: string
 }
 
 interface WhatToEatNextProps {
@@ -71,11 +73,11 @@ export function WhatToEatNext({
 
   const getMealIcon = (type: string) => {
     const icons: Record<string, React.ElementType> = {
-      breakfast:       Sun,
-      morning_snack:   Apple,
-      lunch:           UtensilsCrossed,
+      breakfast: Sun,
+      morning_snack: Apple,
+      lunch: UtensilsCrossed,
       afternoon_snack: Coffee,
-      dinner:          Utensils,
+      dinner: Utensils,
     }
     const Icon = icons[type] || Utensils
     return <Icon className="w-6 h-6 text-primary" />
@@ -149,7 +151,12 @@ export function WhatToEatNext({
       </div>
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between p-6 rounded-3xl bg-card border shadow-inner">
+        <div className="flex items-center justify-between p-6 rounded-3xl bg-card border shadow-inner relative overflow-hidden">
+          {nextMeal.is_adaptive && (
+            <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-white text-[8px] font-black uppercase tracking-widest rounded-bl-xl shadow-lg flex items-center gap-1">
+              <Zap className="w-2.5 h-2.5 fill-white" /> Dynamic Sync
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 opacity-40">System Recommendation</p>
             <p className="text-2xl font-black text-primary truncate leading-tight">
@@ -159,6 +166,13 @@ export function WhatToEatNext({
               <Clock className="w-3.5 h-3.5" />
               {nextMeal.is_tomorrow ? `Tomorrow · ${nextMeal.time}` : nextMeal.time}
             </div>
+            {nextMeal.is_adaptive && nextMeal.reason && (
+              <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
+                <p className="text-[9px] font-bold text-primary tracking-wide leading-relaxed uppercase italic">
+                  "{nextMeal.reason}"
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -182,10 +196,10 @@ export function WhatToEatNext({
         {/* Nutrition grid */}
         <div className="grid grid-cols-4 gap-4 pt-8 border-t border-border">
           {[
-            { label: "Kcal",    value: `${nextMeal.calories}`, color: "text-orange-500" },
+            { label: "Kcal", value: `${nextMeal.calories}`, color: "text-orange-500" },
             { label: "Prot", value: `${nextMeal.protein}g`, color: "text-blue-500" },
-            { label: "Carb",   value: `${nextMeal.carbs}g`,  color: "text-amber-500" },
-            { label: "Fat",     value: `${nextMeal.fat}g`,    color: "text-emerald-500" },
+            { label: "Carb", value: `${nextMeal.carbs}g`, color: "text-amber-500" },
+            { label: "Fat", value: `${nextMeal.fat}g`, color: "text-emerald-500" },
           ].map(({ label, value, color }) => (
             <div key={label} className="text-center space-y-1">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-40">{label}</p>

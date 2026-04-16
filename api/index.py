@@ -153,6 +153,35 @@ def ask_openai(
         return f"Error: {str(e)}"
 
 
+def extract_json_from_response(text: str) -> str:
+    """Helper to extract JSON from AI response that might contain markdown or filler text."""
+    if not text:
+        return ""
+    
+    text = text.strip()
+    
+    # Try finding the first { and last }
+    start = text.find('{')
+    end = text.rfind('}')
+    
+    if start != -1 and end != -1 and end > start:
+        return text[start:end+1]
+    
+    # Fallback to previous markdown logic
+    if text.startswith("```"):
+        try:
+            parts = text.split("```")
+            if len(parts) >= 3:
+                inner = parts[1].strip()
+                if inner.startswith("json"):
+                    return inner[4:].strip()
+                return inner
+        except:
+            pass
+            
+    return text
+
+
 def ask_openai_with_history(
     system_prompt: str,
     messages: list,
@@ -572,6 +601,8 @@ def init_database():
             ("subscription_expires_at",     "DATETIME"),
             ("fasting_plan",               "VARCHAR(50) DEFAULT 'none'"),
             ("daily_water_goal",            "INT DEFAULT 8"),
+            ("health_issues",               "TEXT"), # JSON-like CSV or text
+            ("extra_habits",                "TEXT"),
         ]
         for col_name, col_def in new_user_columns:
             try:
@@ -1153,7 +1184,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
                    u.profile_image, u.auth_provider,
                    u.razorpay_subscription_id,
                    u.subscription_start_date,
-                   u.subscription_end_date
+                   u.subscription_end_date,
+                   u.health_issues, u.extra_habits
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = %s
@@ -1201,6 +1233,8 @@ class RegisterRequest(BaseModel):
     age: Optional[int] = None
     height: Optional[float] = None
     weight: Optional[float] = None
+    health_issues: Optional[List[str]] = []
+    extra_habits: Optional[str] = None
 
     @field_validator("email")
     @classmethod
@@ -1295,6 +1329,8 @@ class UpdateProfileRequest(BaseModel):
     activity_level: Optional[str] = None
     metabolism_type: Optional[str] = None
     goal: Optional[str] = None
+    health_issues: Optional[List[str]] = None
+    extra_habits: Optional[str] = None
 
 class FoodAnalysisRequest(BaseModel):
     description: Optional[str] = None
@@ -1358,6 +1394,8 @@ class DietPlanRequest(BaseModel):
     diet_type: str = "non_veg"
     dietary_restrictions: List[str] = []
     fasting_plan: Optional[str] = "none"
+    health_issues: List[str] = []
+    extra_habits: Optional[str] = None
 
 class BatchLogRequest(BaseModel):
     items: List[dict]
@@ -1391,6 +1429,18 @@ class BMIResult(BaseModel):
     bmi: float
     category: str
     healthy_weight_range: str
+
+class BodyAnalysisRequest(BaseModel):
+    image_base64: str
+    gender: Optional[str] = "male"
+
+class BodyAnalysisResponse(BaseModel):
+    success: bool
+    height: float
+    weight: float
+    bmi: float
+    category: str
+    notes: Optional[str] = None
 
 class DietPlanResponse(BaseModel):
     success: bool
@@ -2232,6 +2282,12 @@ def update_profile(data: UpdateProfileRequest, user=Depends(require_auth)):
     if data.goal is not None:
         updates.append("goal=%s")
         values.append(sanitize_input(data.goal, 50))
+    if data.health_issues is not None:
+        updates.append("health_issues=%s")
+        values.append(json.dumps(data.health_issues))
+    if data.extra_habits is not None:
+        updates.append("extra_habits=%s")
+        values.append(data.extra_habits)
 
     if not updates:
         return {"success": True, "message": "No changes provided"}
@@ -2329,6 +2385,56 @@ Use USDA database standards for calorie estimates."""
     except Exception as e:
         print(f"Food analysis error: {e}")
         raise HTTPException(status_code=500, detail="Food analysis failed")
+
+@app.post("/api/analyze-body", response_model=BodyAnalysisResponse)
+def analyze_body(req: BodyAnalysisRequest):
+    try:
+        system_prompt = """You are an expert physical anthropologist and fitness data scientist.
+Analyze the provided body photo to estimate the person's height (in cm) and current weight (in kg).
+The user's gender is provided as context.
+
+Return ONLY a valid JSON object with the following schema:
+{
+  "height": number,
+  "weight": number,
+  "bmi": number,
+  "category": "Underweight" | "Normal" | "Overweight" | "Obese",
+  "notes": "string (brief visual observation about posture or frame)"
+}
+
+Be as accurate as possible. If the height is difficult to judge, use average height for the gender as a baseline (Male ~175cm, Female ~163cm) and adjust based on limb length and proportions relative to surroundings."""
+
+        user_prompt = f"Gender Context: {req.gender}. Analyze this body profile for nutritional blueprinting."
+        
+        ai_response = ask_openai_with_image(system_prompt, user_prompt, req.image_base64)
+        
+        if not ai_response:
+             raise HTTPException(status_code=500, detail="Vision AI failed to analyze profile")
+
+        try:
+            clean = extract_json_from_response(ai_response)
+            if not clean:
+                print(f"Body analysis parse error: Empty extracted JSON. Raw: {ai_response[:500]}")
+                raise ValueError("Empty response")
+                
+            data = json.loads(clean)
+            
+            return BodyAnalysisResponse(
+                success=True,
+                height=float(data.get("height", 170)),
+                weight=float(data.get("weight", 70)),
+                bmi=float(data.get("bmi", 24.2)),
+                category=data.get("category", "Normal"),
+                notes=data.get("notes", "Analysis completed via visual sync.")
+            )
+        except (json.JSONDecodeError, ValueError) as parse_err:
+            print(f"Body analysis parse error: {parse_err}")
+            print(f"Raw AI response was: {ai_response[:1000]}")
+            raise HTTPException(status_code=500, detail="Failed to parse AI anthropometric output")
+            
+    except Exception as e:
+        print(f"Body analysis error: {e}")
+        raise HTTPException(status_code=500, detail="AI Body Analysis failed")
 
 @app.post("/api/upload-food-image")
 async def upload_food_image(
@@ -2535,8 +2641,22 @@ def generate_diet_plan(req: DietPlanRequest):
                     f"If the eating window is very short (<=4h), consolidate to 1-2 meals + a snack only.\n"
                 )
 
+        health_ctx = ""
+        if req.health_issues:
+            health_ctx = f"\nHEALTH ANALYSIS: The user has the following health issues: {', '.join(req.health_issues)}. "
+            health_ctx += "You MUST adjust the meal plan to be safe and beneficial for these conditions. "
+            if any(h in req.health_issues for h in ["Diabetes", "diabetes", "Sugar", "High Sugar"]):
+                health_ctx += "Strictly prioritize Low Glycemic Index (GI) foods, low sugar, and high fiber. "
+            if any(h in req.health_issues for h in ["Hypertension", "bp", "Blood Pressure", "high bp"]):
+                health_ctx += "Strictly prioritize Low Sodium (low salt) meals. Avoid processed foods. "
+            health_ctx += "\n"
+
+        habit_ctx = ""
+        if req.extra_habits:
+            habit_ctx = f"\nUSER HABITS & PREFERENCES: {req.extra_habits}. Incorporate these into the plan where appropriate.\n"
+
         ai_user_prompt = (
-            f"Create a 7-day meal plan STRICTLY BASED ON BMI CATEGORY.\n\n"
+            f"Create a 7-day meal plan STRICTLY BASED ON BMI CATEGORY AND HEALTH STATUS.\n\n"
             f"USER PROFILE:\n"
             f"Gender: {req.gender}\n"
             f"Age: {req.age}\n"
@@ -2548,7 +2668,9 @@ def generate_diet_plan(req: DietPlanRequest):
             f"Activity Level: {req.activity_level}\n"
             f"Metabolism Type: {req.metabolism_type}\n"
             f"Target Calories: {target_cal} kcal/day\n"
-            f"Dietary Restrictions: {restrictions}\n\n"
+            f"Dietary Restrictions: {restrictions}\n"
+            f"{health_ctx}"
+            f"{habit_ctx}\n"
             f"DIET TYPE (MANDATORY): {diet_instruction}\n"
             f"{fasting_context}\n\n"
 
@@ -2567,6 +2689,9 @@ def generate_diet_plan(req: DietPlanRequest):
             "  • LIMIT refined carbs, sugars, fried foods\n"
             "  • Emphasize vegetables, lean protein, and low-GI carbs\n"
             "  • Avoid calorie-dense or indulgent meals\n\n"
+            "HEALTH ANALYSIS RULES:\n"
+            "- If user has Diabetes: STRICTLY avoid honey, syrups, white rice, white bread. Use oats, quinoa, brown rice, millets.\n"
+            "- If user has Hypertension: Avoid canned foods, pickles, high-salt snacks. Use fresh herbs and lemon for flavor.\n\n"
             "BMI-BASED VARIATION RULE:"
             "- Underweight meals should sound calorie-dense and hearty"
             "- Normal BMI meals should sound balanced and neutral"
@@ -2595,7 +2720,7 @@ def generate_diet_plan(req: DietPlanRequest):
             "VALIDATION RULES:\n"
             "- Exactly 7 days (Monday–Sunday)\n"
             "- Exactly 2 ingredients per meal\n"
-            "- BMI rules must override goal if conflicts arise\n"
+            "- BMI and Health rules must override goal if conflicts arise\n"
             "- Output must be valid JSON only"
         )
 
@@ -3029,7 +3154,7 @@ async def analyze_and_log_food(
             system_prompt = """You are a nutrition expert. Analyze food images accurately.
 Return a detailed JSON with this EXACT structure (no extra text):
 {
-  "items": [{"name": "food name", "portion": "serving size", "calories": number}],
+  "items": [{"name": "food name", "portion": "serving size", "calories": number, "nutrition": {"protein": g, "carbs": g, "fat": g}}],
   "nutrition": {"calories": total, "protein": grams, "carbs": grams, "fat": grams, "fiber": grams},
   "health_benefits": ["benefit1", "benefit2"],
   "warnings": ["warning1"],
@@ -3042,7 +3167,7 @@ Return a detailed JSON with this EXACT structure (no extra text):
             system_prompt = """You are a nutrition expert. Provide nutrition data in JSON format only.
 Return this EXACT structure (no extra text):
 {
-  "items": [{"name": "food name", "portion": "serving size", "calories": number}],
+  "items": [{"name": "food name", "portion": "serving size", "calories": number, "nutrition": {"protein": g, "carbs": g, "fat": g}}],
   "nutrition": {"calories": total, "protein": grams, "carbs": grams, "fat": grams, "fiber": grams},
   "health_benefits": ["benefit1"],
   "warnings": ["warning1"],
@@ -3087,6 +3212,9 @@ Return this EXACT structure (no extra text):
         ))
         
         for item in data.get("items", []):
+            item_nutrition = item.get("nutrition") or {}
+            # Fallback to total / count if item-specific nutrition not provided, 
+            # but ideally AI should provide it.
             cur.execute("""
                 INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -3094,9 +3222,9 @@ Return this EXACT structure (no extra text):
                 user["id"],
                 item.get("name", "Unknown"),
                 item.get("calories", 0),
-                data.get("nutrition", {}).get("protein", 0),
-                data.get("nutrition", {}).get("carbs", 0),
-                data.get("nutrition", {}).get("fat", 0),
+                item_nutrition.get("protein", data.get("nutrition", {}).get("protein", 0) / max(1, len(data.get("items", [1])))),
+                item_nutrition.get("carbs", data.get("nutrition", {}).get("carbs", 0) / max(1, len(data.get("items", [1])))),
+                item_nutrition.get("fat", data.get("nutrition", {}).get("fat", 0) / max(1, len(data.get("items", [1])))),
                 "analyzed"
             ))
         
@@ -3127,7 +3255,7 @@ def get_profile(user=Depends(require_auth)):
         cur.execute("""
             SELECT id, email, name, gender, age, height, weight,
                    activity_level, metabolism_type, goal, created_at,
-                   profile_image
+                   profile_image, health_issues, extra_habits
             FROM users
             WHERE id = %s
         """, (user["id"],))
@@ -3521,10 +3649,10 @@ def get_next_meal(user=Depends(require_auth)):
         """, (user["id"],))
         
         plan = cur.fetchone()
-        cur.close()
-        conn.close()
         
         if not plan:
+            cur.close()
+            conn.close()
             return {"success": False, "message": "No active diet plan"}
         
         weekly_plan = json.loads(plan['weekly_plan'])
@@ -3625,16 +3753,62 @@ def get_next_meal(user=Depends(require_auth)):
                 }
 
         if next_meal:
+            # ── ADAPTIVE CALORIE BALANCING ──
+            # 1. Fetch actual intake today
+            cur.execute("SELECT SUM(calories) as total FROM meal_logs WHERE user_id = %s AND DATE(logged_at) = CURDATE()", (user["id"],))
+            actual_today = cur.fetchone().get("total") or 0
+            
+            # 2. Calculate planned intake so far
+            planned_so_far = 0
+            for m_type, _, m_time in meal_schedule:
+                if current_time > m_time:
+                    planned_so_far += meal_lookup.get(m_type, {}).get("calories", 0)
+            
+            # 3. Handle heavy night for morning breakfast
+            if next_meal["type"] == "breakfast":
+                cur.execute("""
+                    SELECT SUM(calories) as total 
+                    FROM meal_logs 
+                    WHERE user_id = %s 
+                      AND logged_at >= DATE_SUB(NOW(), INTERVAL 12 HOUR)
+                      AND HOUR(logged_at) >= 20
+                """, (user["id"],))
+                heavy_night_cal = cur.fetchone().get("total") or 0
+                if heavy_night_cal > 800:
+                    next_meal["calories"] = int(next_meal["calories"] * 0.7)
+                    next_meal["is_adaptive"] = True
+                    next_meal["reason"] = "Adjusted for a heavy meal late last night."
+                    next_meal["dish"] = f"Light {next_meal['dish']}"
+
+            # 4. Intra-day balancing
+            over_budget = actual_today - planned_so_far
+            if over_budget > 150 and not next_meal.get("is_adaptive"):
+                reduction = min(0.4, over_budget / 1000) # Max 40% reduction
+                next_meal["calories"] = int(next_meal["calories"] * (1 - reduction))
+                next_meal["is_adaptive"] = True
+                next_meal["reason"] = f"Adjusted because you're {int(over_budget)} kcal over your planned budget today."
+                
+                if over_budget > 300:
+                    ai_prompt = f"Suggest a lighter version of '{next_meal['dish']}' that is around {next_meal['calories']} kcal. Just the name."
+                    lighter_dish = ask_openai("You are a nutritionist.", ai_prompt, max_tokens=20)
+                    if lighter_dish and "Error" not in lighter_dish:
+                        next_meal["dish"] = lighter_dish.strip().replace('"', '')
+
+            cur.close()
+            conn.close()
             return {"success": True, "next_meal": next_meal}
         else:
+            cur.close()
+            conn.close()
             return {"success": False, "message": "No diet plan meals found for today"}
             
     except Exception as e:
-        try:
-            cur.close()
-            conn.close()
-        except:
-            pass
+        if 'cur' in locals():
+            try: cur.close()
+            except: pass
+        if 'conn' in locals():
+            try: conn.close()
+            except: pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
