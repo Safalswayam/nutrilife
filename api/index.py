@@ -1467,6 +1467,7 @@ FOOD_DATABASE = {
     "curry": {"calories": 280, "protein": 15, "carbs": 18, "fat": 18, "fiber": 3, "sugar": 5, "sodium": 650},
     "biryani": {"calories": 350, "protein": 15, "carbs": 48, "fat": 12, "fiber": 2, "sugar": 2, "sodium": 680},
     "butter chicken": {"calories": 380, "protein": 28, "carbs": 12, "fat": 25, "fiber": 2, "sugar": 6, "sodium": 720},
+    "paneer tikka": {"calories": 260, "protein": 18, "carbs": 6, "fat": 18, "fiber": 2, "sugar": 2, "sodium": 580},
     "naan": {"calories": 262, "protein": 9, "carbs": 45, "fat": 5, "fiber": 2, "sugar": 3, "sodium": 418},
     "dal": {"calories": 198, "protein": 12, "carbs": 32, "fat": 3, "fiber": 8, "sugar": 3, "sodium": 420},
     "chicken": {"calories": 239, "protein": 27, "carbs": 0, "fat": 14, "fiber": 0, "sugar": 0, "sodium": 82},
@@ -1482,10 +1483,25 @@ FOOD_DATABASE = {
     "apple": {"calories": 95, "protein": 0.5, "carbs": 25, "fat": 0.3, "fiber": 4, "sugar": 19, "sodium": 2},
     "banana": {"calories": 105, "protein": 1.3, "carbs": 27, "fat": 0.4, "fiber": 3, "sugar": 14, "sodium": 1},
     "yogurt": {"calories": 100, "protein": 17, "carbs": 6, "fat": 0.7, "fiber": 0, "sugar": 6, "sodium": 65},
+    "greek yogurt": {"calories": 130, "protein": 15, "carbs": 6, "fat": 5, "fiber": 0, "sugar": 4, "sodium": 60},
     "ice cream": {"calories": 207, "protein": 4, "carbs": 24, "fat": 11, "fiber": 0.7, "sugar": 21, "sodium": 80},
     "cake": {"calories": 352, "protein": 5, "carbs": 52, "fat": 14, "fiber": 1, "sugar": 36, "sodium": 299},
     "coffee": {"calories": 2, "protein": 0.3, "carbs": 0, "fat": 0, "fiber": 0, "sugar": 0, "sodium": 5},
     "smoothie": {"calories": 230, "protein": 6, "carbs": 45, "fat": 3, "fiber": 4, "sugar": 35, "sodium": 80},
+    "oats": {"calories": 150, "protein": 6, "carbs": 27, "fat": 3, "fiber": 4, "sugar": 1, "sodium": 2},
+    "quinoa": {"calories": 222, "protein": 8, "carbs": 39, "fat": 3.5, "fiber": 5, "sugar": 0, "sodium": 13},
+    "protein shake": {"calories": 120, "protein": 24, "carbs": 3, "fat": 1.5, "fiber": 1, "sugar": 1, "sodium": 150},
+    "almonds": {"calories": 164, "protein": 6, "carbs": 6, "fat": 14, "fiber": 3.5, "sugar": 1, "sodium": 1},
+    "avocado": {"calories": 240, "protein": 3, "carbs": 12, "fat": 22, "fiber": 10, "sugar": 1, "sodium": 10},
+    "sweet potato": {"calories": 112, "protein": 2, "carbs": 26, "fat": 0.1, "fiber": 4, "sugar": 5, "sodium": 70},
+    "broccoli": {"calories": 31, "protein": 2.5, "carbs": 6, "fat": 0.3, "fiber": 2.4, "sugar": 1.5, "sodium": 30},
+    "dark chocolate": {"calories": 170, "protein": 2, "carbs": 13, "fat": 12, "fiber": 3, "sugar": 7, "sodium": 6},
+    "peanut butter": {"calories": 94, "protein": 4, "carbs": 3, "fat": 8, "fiber": 1, "sugar": 1, "sodium": 70},
+    "tofu": {"calories": 76, "protein": 8, "carbs": 2, "fat": 4.8, "fiber": 1, "sugar": 0, "sodium": 7},
+    "lentil soup": {"calories": 180, "protein": 10, "carbs": 30, "fat": 2, "fiber": 8, "sugar": 2, "sodium": 450},
+    "idli": {"calories": 65, "protein": 2, "carbs": 13, "fat": 0.2, "fiber": 1, "sugar": 0.5, "sodium": 150},
+    "dosa": {"calories": 168, "protein": 4, "carbs": 30, "fat": 4, "fiber": 2, "sugar": 1, "sodium": 350},
+    "samosa": {"calories": 130, "protein": 2, "carbs": 15, "fat": 7, "fiber": 1, "sugar": 1, "sodium": 300},
     "default": {"calories": 250, "protein": 10, "carbs": 30, "fat": 10, "fiber": 3, "sugar": 5, "sodium": 400},
 }
 
@@ -2314,6 +2330,13 @@ def analyze_food(req: FoodAnalysisRequest):
         description = req.description or ""
         
         system_prompt = """You are a certified nutritionist. Analyze the food and provide accurate nutritional information.
+
+PHYSICAL CONSTRAINTS (MANDATORY):
+- 1g Protein = 4 kcal
+- 1g Carbohydrates = 4 kcal
+- 1g Fat = 9 kcal
+- The total calories MUST roughly equal (4 * protein) + (4 * carbs) + (9 * fat). 
+- Be realistic: for example, 200 kcal of ice cream CANNOT have 60g protein.
 
 Return ONLY valid JSON with this structure:
 {
@@ -3152,6 +3175,12 @@ async def analyze_and_log_food(
         
         if image_base64:
             system_prompt = """You are a nutrition expert. Analyze food images accurately.
+
+PHYSICAL CONSTRAINTS:
+- 1g Protein = 4 kcal, 1g Carbs = 4 kcal, 1g Fat = 9 kcal.
+- Total calories MUST match macros: (4*P + 4*C + 9*F).
+- Protein/Fat/Carbs must be realistic for the specific food.
+
 Return a detailed JSON with this EXACT structure (no extra text):
 {
   "items": [{"name": "food name", "portion": "serving size", "calories": number, "nutrition": {"protein": g, "carbs": g, "fat": g}}],
@@ -3165,6 +3194,12 @@ Return a detailed JSON with this EXACT structure (no extra text):
             response_text = ask_openai_with_image(system_prompt, user_prompt, image_base64, max_tokens=1500)
         else:
             system_prompt = """You are a nutrition expert. Provide nutrition data in JSON format only.
+
+PHYSICAL CONSTRAINTS:
+- 1g Protein = 4 kcal, 1g Carbs = 4 kcal, 1g Fat = 9 kcal.
+- Total calories MUST match macros: (4*P + 4*C + 9*F).
+- Protein/Fat/Carbs must be realistic for the food description.
+
 Return this EXACT structure (no extra text):
 {
   "items": [{"name": "food name", "portion": "serving size", "calories": number, "nutrition": {"protein": g, "carbs": g, "fat": g}}],
@@ -3213,18 +3248,26 @@ Return this EXACT structure (no extra text):
         
         for item in data.get("items", []):
             item_nutrition = item.get("nutrition") or {}
-            # Fallback to total / count if item-specific nutrition not provided, 
-            # but ideally AI should provide it.
+            item_cals = item.get("calories", 0)
+            total_cals = data.get("nutrition", {}).get("calories", 1)
+            
+            # If item-specific nutrition is missing, distribute total nutrition proportionally by calories
+            def get_proportional(macro_key):
+                if macro_key in item_nutrition:
+                    return item_nutrition[macro_key]
+                total_val = data.get("nutrition", {}).get(macro_key, 0)
+                return (total_val * item_cals) / max(1, total_cals)
+
             cur.execute("""
                 INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
                 user["id"],
                 item.get("name", "Unknown"),
-                item.get("calories", 0),
-                item_nutrition.get("protein", data.get("nutrition", {}).get("protein", 0) / max(1, len(data.get("items", [1])))),
-                item_nutrition.get("carbs", data.get("nutrition", {}).get("carbs", 0) / max(1, len(data.get("items", [1])))),
-                item_nutrition.get("fat", data.get("nutrition", {}).get("fat", 0) / max(1, len(data.get("items", [1])))),
+                item_cals,
+                get_proportional("protein"),
+                get_proportional("carbs"),
+                get_proportional("fat"),
                 "analyzed"
             ))
         
@@ -4416,17 +4459,29 @@ async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
         ))
 
         items_logged = 0
+        total_batch_calories = req.nutrition.get("calories", 1)
+        
         for item in req.items:
+            item_cals = item.get("calories", 0)
+            item_nutrition = item.get("nutrition") or {}
+            
+            # Use item-specific macros if available, otherwise distribute total proportionally by calories
+            def get_item_macro(key):
+                if key in item_nutrition:
+                    return item_nutrition[key]
+                total_macro = req.nutrition.get(key, 0)
+                return (total_macro * item_cals) / max(1, total_batch_calories)
+
             cur.execute("""
                 INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (
                 user["id"],
                 sanitize_input(item.get("name", "Unknown Food"), 200),
-                item.get("calories", 0),
-                req.nutrition.get("protein", 0),
-                req.nutrition.get("carbs", 0),
-                req.nutrition.get("fat", 0),
+                item_cals,
+                get_item_macro("protein"),
+                get_item_macro("carbs"),
+                get_item_macro("fat"),
                 sanitize_input(req.meal_type, 50),
             ))
             items_logged += 1
