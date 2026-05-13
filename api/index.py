@@ -616,7 +616,9 @@ def init_database():
         for col_name, col_def in new_user_columns:
             try:
                 _add_column_if_missing("users", col_name, col_def)
+                conn.commit()
             except Exception as col_err:
+                conn.rollback()
                 print(f"  ⚠ Could not add column users.{col_name}: {col_err}")
 
         cur.execute("""
@@ -694,7 +696,8 @@ def init_database():
                 conn.commit()
                 print(f"Migration applied: added column '{col_name}' to diet_plans")
             except psycopg2.Error as me:
-                if me.errno == 1060:  # Duplicate column — already exists, skip
+                conn.rollback()
+                if getattr(me, 'pgcode', None) == '42701':  # Duplicate column — already exists, skip
                     pass
                 else:
                     print(f"Migration warning for '{col_name}': {me}")
