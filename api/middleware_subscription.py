@@ -8,7 +8,8 @@ from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
 from datetime import datetime
-import mysql.connector
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from functools import wraps
 
 
@@ -38,7 +39,7 @@ class SubscriptionMiddleware:
             Dict with subscription status information
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             # Check for active subscription
@@ -49,7 +50,7 @@ class SubscriptionMiddleware:
                     us.end_date,
                     sp.name as plan_name,
                     sp.duration_months,
-                    DATEDIFF(us.end_date, NOW()) as days_remaining,
+                    EXTRACT(DAY FROM (us.end_date - NOW())) as days_remaining,
                     u.is_premium
                 FROM users u
                 LEFT JOIN user_subscriptions us ON u.id = us.user_id 
@@ -97,7 +98,7 @@ class SubscriptionMiddleware:
             Dict with access status and details
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             # Get feature requirements
@@ -222,7 +223,7 @@ class FeatureGate:
         
         # Get all premium features
         conn = self.middleware.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""

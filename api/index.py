@@ -62,8 +62,9 @@ except Exception as _tg_err:
     def notify_server_start(): pass
 
 
-import mysql.connector
-from mysql.connector import pooling
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from psycopg2 import pool
 from openai import OpenAI
 
 app = FastAPI(title="NutriLife API", version="1.0.0")
@@ -236,12 +237,27 @@ def ask_openai_with_image(
         print(f"OpenRouter Vision API error: {e}")
         return None
 
+class PooledConnection:
+    def __init__(self, conn, pool):
+        self._conn = conn
+        self._pool = pool
+    def cursor(self, *args, **kwargs):
+        return self._conn.cursor(*args, **kwargs)
+    def commit(self):
+        self._conn.commit()
+    def rollback(self):
+        self._conn.rollback()
+    def close(self):
+        if self._pool and self._conn:
+            self._pool.putconn(self._conn)
+            self._conn = None
+
 DB_CONFIG = {
-    "host": os.getenv("MYSQLHOST") or os.getenv("MYSQL_HOST", "localhost"),
-    "user": os.getenv("MYSQLUSER") or os.getenv("MYSQL_USER", "root"),
-    "password": os.getenv("MYSQLPASSWORD") or os.getenv("MYSQL_PASSWORD", "Safal@7076"),
-    "database": os.getenv("MYSQLDATABASE") or os.getenv("MYSQL_DATABASE", "nutrilife_db"),
-    "port": int(os.getenv("MYSQLPORT") or os.getenv("MYSQL_PORT", 3306))
+    "host": os.getenv("PGHOST") or os.getenv("POSTGRES_HOST", "localhost"),
+    "user": os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
+    "password": os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres"),
+    "dbname": os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "postgres"),
+    "port": int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432))
 }
 
 db_pool = None
@@ -275,12 +291,12 @@ def init_db_pool():
     if db_initialized and db_pool is not None:
         return True
     try:
-        db_pool = pooling.MySQLConnectionPool(
-            pool_name="nutrilife_pool",
-            pool_size=5,
-            pool_reset_session=True,
-            **DB_CONFIG
-        )
+        from urllib.parse import urlparse
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            db_pool = pool.ThreadedConnectionPool(1, 20, dsn=database_url)
+        else:
+            db_pool = pool.ThreadedConnectionPool(1, 20, **DB_CONFIG)
         db_initialized = True
         print("Database pool initialized successfully")
         return True
@@ -295,14 +311,15 @@ def get_db():
         if not init_db_pool():
             raise HTTPException(status_code=503, detail="Database service unavailable")
     try:
-        conn = db_pool.get_connection()
-        return conn
-    except mysql.connector.Error as e:
+        conn = db_pool.getconn()
+        return PooledConnection(conn, db_pool)
+    except psycopg2.Error as e:
         print(f"Database connection error: {e}")
         db_initialized = False
         if init_db_pool():
             try:
-                return db_pool.get_connection()
+                conn = db_pool.getconn()
+                return PooledConnection(conn, db_pool)
             except Exception:
                 pass
         raise HTTPException(status_code=500, detail="Database connection failed")
@@ -317,7 +334,7 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             email VARCHAR(255) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
             name VARCHAR(100) NOT NULL,
@@ -329,19 +346,19 @@ def init_database():
             metabolism_type VARCHAR(50),
             goal VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
             is_active BOOLEAN DEFAULT TRUE,
             failed_login_attempts INT DEFAULT 0,
-            locked_until DATETIME
+            locked_until TIMESTAMP
         )
         """)
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             token_hash VARCHAR(255) UNIQUE NOT NULL,
-            expires_at DATETIME NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
             is_valid BOOLEAN DEFAULT TRUE,
             ip_address VARCHAR(50),
             user_agent VARCHAR(500),
@@ -352,22 +369,20 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS email_verifications (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             code_hash VARCHAR(255) NOT NULL,
-            expires_at DATETIME NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
             attempts INT NOT NULL DEFAULT 0,
-            used_at DATETIME NULL,
+            used_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_email_verifications_user (user_id, created_at),
-            INDEX idx_email_verifications_active (user_id, used_at, expires_at)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS meal_logs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             food_name VARCHAR(200) NOT NULL,
             calories INT,
@@ -383,7 +398,7 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS chat_history (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             role VARCHAR(20) NOT NULL,
             content TEXT NOT NULL,
@@ -394,9 +409,9 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS saved_diet_plans (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
-            plan_data JSON NOT NULL,
+            plan_data JSONB NOT NULL,
             name VARCHAR(100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -405,19 +420,18 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS water_logs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             glasses INT DEFAULT 1,
             logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             log_date DATE NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_user_date (user_id, log_date)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS daily_stats (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             stat_date DATE NOT NULL,
             total_calories INT DEFAULT 0,
@@ -427,17 +441,17 @@ def init_database():
             total_fiber FLOAT DEFAULT 0,
             water_glasses INT DEFAULT 0,
             weight FLOAT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            UNIQUE KEY unique_user_date (user_id, stat_date)
+            UNIQUE (user_id, stat_date)
         )
         """)
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS food_analysis_history (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
-            food_items JSON NOT NULL,
+            food_items JSONB NOT NULL,
             total_calories INT,
             total_protein FLOAT,
             total_carbs FLOAT,
@@ -451,19 +465,19 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS subscription_plans (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             name VARCHAR(50) NOT NULL,
             duration_months INT NOT NULL,
             base_price DECIMAL(10,2) NOT NULL,
             final_price DECIMAL(10,2) NOT NULL,
             discount_amount DECIMAL(10,2) DEFAULT 0,
             is_active BOOLEAN DEFAULT TRUE,
-            features JSON,
+            features JSONB,
             badge VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_duration (duration_months)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
+            UNIQUE (duration_months)
+        ) 
         """)
 
         cur.execute("SELECT COUNT(*) as cnt FROM subscription_plans")
@@ -480,62 +494,57 @@ def init_database():
                  '["AI Food Analyzer","Diet Planner","Advanced Analytics","Priority Support","Save ₹49"]'),
                 ('1 Year Plan',  12, 1196.00,  849.00,  347.00, '🔥 Best Value',
                  '["AI Food Analyzer","Diet Planner","Advanced Analytics","Priority Support","Save ₹347","Best Value"]')
-            ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP
+            ON CONFLICT (duration_months) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
             """)
             print("  ✓ Seeded default subscription plans")
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS user_subscriptions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             plan_id INT NOT NULL,
-            status ENUM('active','expired','cancelled','pending') DEFAULT 'pending',
-            start_date DATETIME NOT NULL,
-            end_date DATETIME NOT NULL,
+            status VARCHAR(50) CHECK (status IN ('active','expired','cancelled','pending')) DEFAULT 'pending',
+            start_date TIMESTAMP NOT NULL,
+            end_date TIMESTAMP NOT NULL,
             auto_renew BOOLEAN DEFAULT FALSE,
-            cancelled_at DATETIME,
+            cancelled_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (plan_id) REFERENCES subscription_plans(id),
-            INDEX idx_user_status (user_id, status),
-            INDEX idx_end_date (end_date)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans(id)
+        ) 
         """)
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS payment_transactions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             subscription_id INT,
             plan_id INT NOT NULL,
             amount DECIMAL(10,2) NOT NULL,
             currency VARCHAR(3) DEFAULT 'INR',
-            payment_status ENUM('pending','completed','failed','refunded') DEFAULT 'pending',
+            payment_status VARCHAR(50) CHECK (payment_status IN ('pending','completed','failed','refunded')) DEFAULT 'pending',
             payment_method VARCHAR(50),
             transaction_id VARCHAR(255) UNIQUE,
             payment_gateway VARCHAR(50),
-            gateway_response JSON,
-            metadata JSON,
+            gateway_response JSONB,
+            metadata JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (plan_id) REFERENCES subscription_plans(id),
-            INDEX idx_user_id (user_id),
-            INDEX idx_status (payment_status),
-            INDEX idx_transaction_id (transaction_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans(id)
+        ) 
         """)
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS feature_access (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             feature_name VARCHAR(100) NOT NULL UNIQUE,
             requires_premium BOOLEAN DEFAULT TRUE,
             description TEXT,
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ) 
         """)
 
         cur.execute("SELECT COUNT(*) as cnt FROM feature_access")
@@ -550,58 +559,57 @@ def init_database():
                 ('water_tracker',       FALSE, 'Basic water intake tracking'),
                 ('calorie_tracking',    FALSE, 'Manual calorie tracking'),
                 ('dashboard',           FALSE, 'Basic dashboard view')
-            ON DUPLICATE KEY UPDATE requires_premium = VALUES(requires_premium)
+            ON CONFLICT (feature_name) DO UPDATE SET requires_premium = EXCLUDED.requires_premium
             """)
             cur.execute("UPDATE feature_access SET requires_premium = FALSE WHERE feature_name = 'diet_planner'")
             print("  ✓ Seeded feature access rules")
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS subscription_audit_log (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             subscription_id INT,
             action VARCHAR(50) NOT NULL,
             old_status VARCHAR(50),
             new_status VARCHAR(50),
-            details JSON,
+            details JSONB,
             ip_address VARCHAR(50),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_user_action (user_id, action)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) 
         """)
 
         def _add_column_if_missing(table, column, definition):
             cur.execute("""
                 SELECT COUNT(*) as cnt
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
+                WHERE table_schema = 'public'
                   AND TABLE_NAME   = %s
                   AND COLUMN_NAME  = %s
             """, (table, column))
             row = cur.fetchone()
             count = row['cnt'] if isinstance(row, dict) else row[0]
             if count == 0:
-                cur.execute(f"ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}")
+                cur.execute(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {definition}')
                 print(f"  ✓ Added column {table}.{column}")
 
         new_user_columns = [
-            ("subscription_status",        "ENUM('inactive','active','cancelled') NOT NULL DEFAULT 'inactive'"),
+            ("subscription_status",        "VARCHAR(50) CHECK (subscription_status IN ('inactive','active','cancelled')) NOT NULL DEFAULT 'inactive'"),
             ("razorpay_customer_id",        "VARCHAR(255)"),
             ("razorpay_subscription_id",    "VARCHAR(255)"),
             ("payment_id",                  "VARCHAR(255)"),
-            ("subscription_start_date",     "DATETIME"),
-            ("subscription_end_date",       "DATETIME"),
+            ("subscription_start_date",     "TIMESTAMP"),
+            ("subscription_end_date",       "TIMESTAMP"),
             ("google_id",                   "VARCHAR(255)"),
-            ("profile_image",               "MEDIUMTEXT"),      # stores base64 image data URL
+            ("profile_image",               "TEXT"),      # stores base64 image data URL
             ("auth_provider",               "VARCHAR(50) DEFAULT 'email'"),
             ("email_verified",              "BOOLEAN NOT NULL DEFAULT TRUE"),
-            ("email_verified_at",           "DATETIME NULL"),
+            ("email_verified_at",           "TIMESTAMP NULL"),
             ("is_premium",                  "BOOLEAN NOT NULL DEFAULT FALSE"),
-            ("subscription_expires_at",     "DATETIME"),
+            ("subscription_expires_at",     "TIMESTAMP"),
             ("fasting_plan",               "VARCHAR(50) DEFAULT 'none'"),
             ("daily_water_goal",            "INT DEFAULT 8"),
-            ("health_issues",               "TEXT"), # JSON-like CSV or text
+            ("health_issues",               "TEXT"), # JSONB-like CSV or text
             ("extra_habits",                "TEXT"),
         ]
         for col_name, col_def in new_user_columns:
@@ -612,10 +620,10 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             event_id VARCHAR(255) UNIQUE NOT NULL,
             event_type VARCHAR(100) NOT NULL,
-            payload JSON NOT NULL,
+            payload JSONB NOT NULL,
             processed BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -623,35 +631,32 @@ def init_database():
 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS fasting_sessions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             plan_type VARCHAR(50) NOT NULL DEFAULT 'none',
-            start_time DATETIME NOT NULL,
-            end_time DATETIME,
-            target_end_time DATETIME,
+            start_time TIMESTAMP NOT NULL,
+            end_time TIMESTAMP,
+            target_end_time TIMESTAMP,
             completed BOOLEAN DEFAULT FALSE,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_user_fasting (user_id, start_time)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS password_resets (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             token_hash VARCHAR(255) NOT NULL,
-            expires_at DATETIME NOT NULL,
-            used_at DATETIME NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_password_resets_user (user_id),
-            INDEX idx_password_resets_token (token_hash)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS diet_plans (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             user_id INT NOT NULL,
             plan_name VARCHAR(255),
             start_date DATE,
@@ -660,10 +665,10 @@ def init_database():
             target_protein DECIMAL(10,2) DEFAULT 0,
             target_carbs DECIMAL(10,2) DEFAULT 0,
             target_fat DECIMAL(10,2) DEFAULT 0,
-            weekly_plan JSON,
-            is_active BOOLEAN DEFAULT 1,
+            weekly_plan JSONB,
+            is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
@@ -672,7 +677,7 @@ def init_database():
 
         # Migration: add missing columns to diet_plans if they don't exist
         migrations = [
-            ("is_active", "ALTER TABLE diet_plans ADD COLUMN is_active BOOLEAN DEFAULT 1"),
+            ("is_active", "ALTER TABLE diet_plans ADD COLUMN is_active BOOLEAN DEFAULT TRUE"),
             ("plan_name", "ALTER TABLE diet_plans ADD COLUMN plan_name VARCHAR(255)"),
             ("start_date", "ALTER TABLE diet_plans ADD COLUMN start_date DATE"),
             ("end_date", "ALTER TABLE diet_plans ADD COLUMN end_date DATE"),
@@ -687,7 +692,7 @@ def init_database():
                 migration_cur.execute(sql)
                 conn.commit()
                 print(f"Migration applied: added column '{col_name}' to diet_plans")
-            except mysql.connector.Error as me:
+            except psycopg2.Error as me:
                 if me.errno == 1060:  # Duplicate column — already exists, skip
                     pass
                 else:
@@ -698,7 +703,7 @@ def init_database():
         conn.close()
         print("Database tables initialized successfully")
         return True
-    except mysql.connector.Error as e:
+    except psycopg2.Error as e:
         print(f"Database initialization error: {e}")
         return False
     except Exception as e:
@@ -1173,7 +1178,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT u.id, u.email, u.name, u.gender, u.age, u.height, u.weight,
@@ -1789,7 +1794,7 @@ def register(data: RegisterRequest, request: Request):
             raise HTTPException(status_code=400, detail=message)
 
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT id, auth_provider, COALESCE(email_verified, TRUE) AS email_verified
@@ -1837,6 +1842,7 @@ def register(data: RegisterRequest, request: Request):
                     auth_provider, email_verified, email_verified_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, 'email', FALSE, NULL)
+                RETURNING id
             """, (
                 data.email,
                 password_hash,
@@ -1846,7 +1852,7 @@ def register(data: RegisterRequest, request: Request):
                 data.height,
                 data.weight
             ))
-            user_id = cur.lastrowid
+            user_id = cur.fetchone()['id']
 
         code = create_email_verification_record(cur, user_id)
         verification_message = deliver_verification_code(data.email, data.name, code, request)
@@ -1865,7 +1871,7 @@ def register(data: RegisterRequest, request: Request):
             conn.rollback()
         raise
 
-    except mysql.connector.Error as e:
+    except psycopg2.Error as e:
         if conn:
             conn.rollback()
         print(f"Registration DB error: {e}")
@@ -1891,7 +1897,7 @@ def verify_email(data: VerifyEmailRequest, request: Request):
 
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT id, email, name, gender, age, auth_provider,
@@ -2019,7 +2025,7 @@ def resend_verification(data: ResendVerificationRequest, request: Request):
 
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT id, email, name, auth_provider, COALESCE(email_verified, TRUE) AS email_verified
@@ -2071,7 +2077,7 @@ def login(data: LoginRequest, request: Request):
     try:
         email = normalize_email(data.email)
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT id, email, name, password_hash, is_active,
@@ -2186,7 +2192,7 @@ def forgot_password(data: ForgotPasswordRequest, request: Request):
     try:
         email = normalize_email(data.email)
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("SELECT id, email, name FROM users WHERE email = %s", (email,))
         user = cur.fetchone()
@@ -2225,7 +2231,7 @@ def reset_password(data: ResetPasswordRequest):
         token_hash = hash_token(data.token)
         
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT pr.id, pr.user_id, pr.expires_at, u.email
@@ -2861,7 +2867,7 @@ def log_meal(
         cur.execute("""
             INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type, notes)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (user["id"], sanitize_input(food_name), calories, protein, carbs, fat, meal_type, notes))
+        """, (user["id"], sanitize_input(food_name), calories, round(float(protein), 2), round(float(carbs), 2), round(float(fat), 2), meal_type, notes))
         conn.commit()
         cur.close()
         conn.close()
@@ -2874,10 +2880,10 @@ def log_meal(
 def get_meal_history(days: int = 7, user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
             SELECT * FROM meal_logs
-            WHERE user_id = %s AND logged_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+            WHERE user_id = %s AND logged_at >= NOW() - INTERVAL '1 day' * %s
             ORDER BY logged_at DESC
         """, (user["id"], days))
         meals = cur.fetchall()
@@ -2914,11 +2920,11 @@ def delete_meal(meal_id: int, user=Depends(require_auth)):
 def get_todays_meals(user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
             SELECT id, food_name, calories, protein, carbs, fat, meal_type, notes, logged_at
             FROM meal_logs
-            WHERE user_id = %s AND DATE(logged_at) = CURDATE()
+            WHERE user_id = %s AND logged_at::DATE = CURRENT_DATE
             ORDER BY logged_at DESC
         """, (user["id"],))
         meals = cur.fetchall()
@@ -2941,7 +2947,7 @@ def get_dashboard_stats(user=Depends(require_auth)):
     """Get comprehensive dashboard statistics for the user"""
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         today = datetime.now().date()
         
@@ -2977,13 +2983,13 @@ def get_dashboard_stats(user=Depends(require_auth)):
         
         # Fetch last 7 days with actual date so we can map to correct day names
         cur.execute("""
-            SELECT DATE(logged_at) as log_date,
+            SELECT logged_at::DATE as log_date,
                    COALESCE(SUM(calories), 0) as calories
             FROM meal_logs
             WHERE user_id = %s
-              AND DATE(logged_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-            GROUP BY DATE(logged_at)
-            ORDER BY DATE(logged_at)
+              AND logged_at::DATE >= CURRENT_DATE - INTERVAL '6 days'
+            GROUP BY logged_at::DATE
+            ORDER BY logged_at::DATE
         """, (user["id"],))
         raw_weekly = cur.fetchall()
 
@@ -3044,7 +3050,7 @@ def get_dashboard_stats(user=Depends(require_auth)):
         # ✅ FIX: Fetch the active weekly_plan so dashboard can pass it to WhatToEatNext
         cur.execute("""
             SELECT weekly_plan FROM diet_plans
-            WHERE user_id = %s AND is_active = 1
+            WHERE user_id = %s AND is_active = TRUE
             ORDER BY created_at DESC
             LIMIT 1
         """, (user["id"],))
@@ -3235,15 +3241,15 @@ Return this EXACT structure (no extra text):
         cur.execute("""
             INSERT INTO food_analysis_history 
             (user_id, food_items, total_calories, total_protein, total_carbs, total_fat, total_fiber)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s::jsonb, %s, %s, %s, %s, %s)
         """, (
             user["id"],
             json.dumps(data.get("items", [])),
             data.get("nutrition", {}).get("calories", 0),
-            data.get("nutrition", {}).get("protein", 0),
-            data.get("nutrition", {}).get("carbs", 0),
-            data.get("nutrition", {}).get("fat", 0),
-            data.get("nutrition", {}).get("fiber", 0)
+            round(float(data.get("nutrition", {}).get("protein", 0)), 2),
+            round(float(data.get("nutrition", {}).get("carbs", 0)), 2),
+            round(float(data.get("nutrition", {}).get("fat", 0)), 2),
+            round(float(data.get("nutrition", {}).get("fiber", 0)), 2)
         ))
         
         for item in data.get("items", []):
@@ -3254,9 +3260,9 @@ Return this EXACT structure (no extra text):
             # If item-specific nutrition is missing, distribute total nutrition proportionally by calories
             def get_proportional(macro_key):
                 if macro_key in item_nutrition:
-                    return item_nutrition[macro_key]
-                total_val = data.get("nutrition", {}).get(macro_key, 0)
-                return (total_val * item_cals) / max(1, total_cals)
+                    return round(float(item_nutrition[macro_key]), 2)
+                total_val = float(data.get("nutrition", {}).get(macro_key, 0))
+                return round((total_val * item_cals) / max(1, total_cals), 2)
 
             cur.execute("""
                 INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
@@ -3293,7 +3299,7 @@ Return this EXACT structure (no extra text):
 def get_profile(user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         cur.execute("""
             SELECT id, email, name, gender, age, height, weight,
@@ -3459,7 +3465,7 @@ async def adjust_water_intake(
             raise HTTPException(status_code=400, detail="Adjustment must be +1 or -1")
         
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         today = date.today()
         
@@ -3488,9 +3494,12 @@ async def adjust_water_intake(
         elif adjustment < 0 and current_total > 0:
             cur.execute("""
                 DELETE FROM water_logs
-                WHERE user_id = %s AND log_date = %s
-                ORDER BY logged_at DESC
-                LIMIT 1
+                WHERE id = (
+                    SELECT id FROM water_logs
+                    WHERE user_id = %s AND log_date = %s
+                    ORDER BY logged_at DESC
+                    LIMIT 1
+                )
             """, (user['id'], today))
         
         conn.commit()
@@ -3564,7 +3573,7 @@ async def get_water_history(days: int = 7, user: dict = Depends(require_auth)):
             raise HTTPException(status_code=400, detail="Days must be between 1 and 30")
         
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         cur.execute("""
             SELECT 
@@ -3572,7 +3581,7 @@ async def get_water_history(days: int = 7, user: dict = Depends(require_auth)):
                 SUM(glasses) as glasses
             FROM water_logs
             WHERE user_id = %s 
-                AND log_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                AND log_date >= CURRENT_DATE - INTERVAL '1 day' * %s
             GROUP BY log_date
             ORDER BY log_date DESC
         """, (user['id'], days))
@@ -3610,7 +3619,7 @@ def save_diet_plan(
     try:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS diet_plans (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 user_id INT NOT NULL,
                 plan_name VARCHAR(255) NOT NULL,
                 start_date DATE NOT NULL,
@@ -3619,17 +3628,17 @@ def save_diet_plan(
                 target_protein DECIMAL(10,2) DEFAULT 0,
                 target_carbs DECIMAL(10,2) DEFAULT 0,
                 target_fat DECIMAL(10,2) DEFAULT 0,
-                weekly_plan JSON,
-                is_active BOOLEAN DEFAULT 1,
+                weekly_plan JSONB,
+                is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
         
         cur.execute("""
             UPDATE diet_plans 
-            SET is_active = 0
+            SET is_active = FALSE
             WHERE user_id = %s
         """, (user["id"],))
         
@@ -3639,7 +3648,7 @@ def save_diet_plan(
                 user_id, plan_name, start_date, end_date,
                 target_calories, target_protein, target_carbs, target_fat,
                 weekly_plan, is_active
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, TRUE)
         """, (
             user["id"],
             f"Diet Plan - {today.isoformat()}",
@@ -3678,15 +3687,15 @@ def get_next_meal(user=Depends(require_auth)):
     current_day = now.strftime("%A")
     
     conn = get_db()
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         cur.execute("""
             SELECT * FROM diet_plans
             WHERE user_id = %s 
-            AND is_active = 1
-            AND start_date <= CURDATE()
-            AND end_date >= CURDATE()
+            AND is_active = TRUE
+            AND start_date <= CURRENT_DATE
+            AND end_date >= CURRENT_DATE
             ORDER BY created_at DESC
             LIMIT 1
         """, (user["id"],))
@@ -3798,7 +3807,7 @@ def get_next_meal(user=Depends(require_auth)):
         if next_meal:
             # ── ADAPTIVE CALORIE BALANCING ──
             # 1. Fetch actual intake today
-            cur.execute("SELECT SUM(calories) as total FROM meal_logs WHERE user_id = %s AND DATE(logged_at) = CURDATE()", (user["id"],))
+            cur.execute("SELECT SUM(calories) as total FROM meal_logs WHERE user_id = %s AND logged_at::DATE = CURRENT_DATE", (user["id"],))
             actual_today = cur.fetchone().get("total") or 0
             
             # 2. Calculate planned intake so far
@@ -3813,8 +3822,8 @@ def get_next_meal(user=Depends(require_auth)):
                     SELECT SUM(calories) as total 
                     FROM meal_logs 
                     WHERE user_id = %s 
-                      AND logged_at >= DATE_SUB(NOW(), INTERVAL 12 HOUR)
-                      AND HOUR(logged_at) >= 20
+                      AND logged_at >= NOW() - INTERVAL '12 hours'
+                      AND EXTRACT(HOUR FROM logged_at) >= 20
                 """, (user["id"],))
                 heavy_night_cal = cur.fetchone().get("total") or 0
                 if heavy_night_cal > 800:
@@ -4024,7 +4033,7 @@ async def create_subscription_route(request: dict, user: dict = Depends(require_
                 INSERT INTO payment_transactions
                 (user_id, plan_id, amount, currency, payment_status,
                  payment_method, transaction_id, gateway_response, created_at)
-                VALUES (%s, %s, %s, 'INR', 'pending', 'razorpay_order', %s, %s, NOW())
+                VALUES (%s, %s, %s, 'INR', 'pending', 'razorpay_order', %s, %s::jsonb, NOW())
             """, (
                 user["id"], plan_id, plan["final_price"],
                 order["id"],
@@ -4095,17 +4104,16 @@ async def verify_payment(data: dict, user: dict = Depends(require_auth)):
                 INSERT INTO user_subscriptions
                 (user_id, plan_id, status, start_date, end_date, created_at)
                 VALUES (%s, %s, 'active', %s, %s, NOW())
-                ON DUPLICATE KEY UPDATE
-                    status='active', start_date=%s, end_date=%s, updated_at=NOW()
-            """, (user["id"], plan_id, start_date, end_date, start_date, end_date))
+                RETURNING id
+            """, (user["id"], plan_id, start_date, end_date))
 
-            sub_id = cur.lastrowid
+            sub_id = cur.fetchone()[0]
 
             cur.execute("""
                 UPDATE payment_transactions
                 SET payment_status='completed',
                     subscription_id=%s,
-                    gateway_response=%s,
+                    gateway_response=%s::jsonb,
                     updated_at=NOW()
                 WHERE transaction_id=%s
             """, (
@@ -4229,7 +4237,7 @@ async def razorpay_webhook(request: Request):
 
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             "SELECT id FROM razorpay_webhook_events WHERE event_id = %s",
             (event_id,)
@@ -4243,7 +4251,7 @@ async def razorpay_webhook(request: Request):
         cur.execute(
             """INSERT INTO razorpay_webhook_events
                (event_id, event_type, payload, processed, created_at)
-               VALUES (%s, %s, %s, FALSE, NOW())""",
+               VALUES (%s, %s, %s::jsonb, FALSE, NOW())""",
             (event_id, event_type, json.dumps(payload))
         )
         conn.commit()
@@ -4308,7 +4316,7 @@ async def _webhook_activate_subscription(payload: dict):
     end_date = start_date + timedelta(days=duration_months * 30)
 
     conn = get_db()
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         if not user_id:
             cur.execute(
@@ -4340,15 +4348,13 @@ async def _webhook_activate_subscription(payload: dict):
                 INSERT INTO user_subscriptions
                 (user_id, plan_id, status, start_date, end_date, created_at)
                 VALUES (%s, %s, 'active', %s, %s, NOW())
-                ON DUPLICATE KEY UPDATE
-                    status='active', start_date=%s, end_date=%s, updated_at=NOW()
-            """, (user_id, plan_id, start_date, end_date, start_date, end_date))
+            """, (user_id, plan_id, start_date, end_date))
 
         conn.commit()
 
         # ── Telegram: notify admin of new subscription ─────────────────────
         try:
-            cur2 = conn.cursor(dictionary=True)
+            cur2 = conn.cursor(cursor_factory=RealDictCursor)
             cur2.execute("SELECT name, email FROM users WHERE id = %s", (user_id,))
             u = cur2.fetchone()
             cur2.close()
@@ -4447,15 +4453,15 @@ async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
         cur.execute("""
             INSERT INTO food_analysis_history
             (user_id, food_items, total_calories, total_protein, total_carbs, total_fat, total_fiber)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s::jsonb, %s, %s, %s, %s, %s)
         """, (
             user["id"],
             json.dumps(req.items),
             req.nutrition.get("calories", 0),
-            req.nutrition.get("protein", 0),
-            req.nutrition.get("carbs", 0),
-            req.nutrition.get("fat", 0),
-            req.nutrition.get("fiber", 0),
+            round(float(req.nutrition.get("protein", 0)), 2),
+            round(float(req.nutrition.get("carbs", 0)), 2),
+            round(float(req.nutrition.get("fat", 0)), 2),
+            round(float(req.nutrition.get("fiber", 0)), 2),
         ))
 
         items_logged = 0
@@ -4468,9 +4474,9 @@ async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
             # Use item-specific macros if available, otherwise distribute total proportionally by calories
             def get_item_macro(key):
                 if key in item_nutrition:
-                    return item_nutrition[key]
-                total_macro = req.nutrition.get(key, 0)
-                return (total_macro * item_cals) / max(1, total_batch_calories)
+                    return round(float(item_nutrition[key]), 2)
+                total_macro = float(req.nutrition.get(key, 0))
+                return round((total_macro * item_cals) / max(1, total_batch_calories), 2)
 
             cur.execute("""
                 INSERT INTO meal_logs (user_id, food_name, calories, protein, carbs, fat, meal_type)
@@ -4517,7 +4523,7 @@ def get_fasting_plans():
 def get_my_fasting_plan(user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT fasting_plan FROM users WHERE id = %s", (user["id"],))
         row = cur.fetchone()
         cur.close()
@@ -4550,7 +4556,7 @@ async def set_fasting_plan(request: dict, user=Depends(require_auth)):
 async def start_fasting_session(request: dict, user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT id FROM fasting_sessions
@@ -4575,9 +4581,10 @@ async def start_fasting_session(request: dict, user=Depends(require_auth)):
             INSERT INTO fasting_sessions
             (user_id, plan_type, start_time, target_end_time, completed)
             VALUES (%s, %s, %s, %s, FALSE)
+            RETURNING id
         """, (user["id"], plan_id, now, target_end))
         conn.commit()
-        session_id = cur.lastrowid
+        session_id = cur.fetchone()['id']
         cur.close()
         conn.close()
 
@@ -4599,7 +4606,7 @@ async def start_fasting_session(request: dict, user=Depends(require_auth)):
 async def end_fasting_session(request: dict, user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT * FROM fasting_sessions
@@ -4645,7 +4652,7 @@ async def end_fasting_session(request: dict, user=Depends(require_auth)):
 def get_fasting_status(user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
             SELECT * FROM fasting_sessions
@@ -4697,12 +4704,12 @@ def get_fasting_status(user=Depends(require_auth)):
 def get_fasting_history(days: int = 30, user=Depends(require_auth)):
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
             SELECT id, plan_type, start_time, end_time, target_end_time, completed, created_at
             FROM fasting_sessions
             WHERE user_id = %s
-              AND start_time >= DATE_SUB(NOW(), INTERVAL %s DAY)
+              AND start_time >= NOW() - INTERVAL '1 day' * %s
             ORDER BY start_time DESC
             LIMIT 50
         """, (user["id"], days))

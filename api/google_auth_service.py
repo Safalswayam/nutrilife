@@ -11,7 +11,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 from google.oauth2 import id_token
 from google.auth.transport import requests
-import mysql.connector
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from fastapi import HTTPException
 
 
@@ -88,7 +89,7 @@ class GoogleAuthService:
             User dict if found, None otherwise
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""
@@ -117,7 +118,7 @@ class GoogleAuthService:
             User dict if found, None otherwise
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""
@@ -144,7 +145,7 @@ class GoogleAuthService:
             Created user dict
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             # Generate a random password hash (not used for Google auth)
@@ -156,6 +157,7 @@ class GoogleAuthService:
                 (email, password_hash, name, google_id, profile_image, 
                  auth_provider, is_active, created_at)
                 VALUES (%s, %s, %s, %s, %s, 'google', TRUE, NOW())
+                RETURNING id
             """, (
                 google_user_info['email'],
                 password_hash,
@@ -165,7 +167,7 @@ class GoogleAuthService:
             ))
             
             conn.commit()
-            user_id = cur.lastrowid
+            user_id = cur.fetchone()['id']
             
             # Fetch the created user
             cur.execute("""

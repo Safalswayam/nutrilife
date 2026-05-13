@@ -8,7 +8,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from datetime import datetime, date
-import mysql.connector
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from index import get_db, require_auth
 
 # Initialize router
 water_router = APIRouter(prefix="/api/water", tags=["Water Intake"])
@@ -69,7 +71,7 @@ def get_today_water_intake(user_id: int) -> dict:
         Dict with current intake and goal
     """
     conn = get_db()
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
         today = date.today()
@@ -118,10 +120,10 @@ def update_daily_stats_water(user_id: int, glasses: int):
         cur.execute("""
             INSERT INTO daily_stats (user_id, stat_date, water_glasses, updated_at)
             VALUES (%s, %s, %s, NOW())
-            ON DUPLICATE KEY UPDATE
-                water_glasses = %s,
+            ON CONFLICT (user_id, stat_date) DO UPDATE SET
+                water_glasses = EXCLUDED.water_glasses,
                 updated_at = NOW()
-        """, (user_id, today, glasses, glasses))
+        """, (user_id, today, glasses))
         
         conn.commit()
         
@@ -150,7 +152,7 @@ async def adjust_water_intake(
     """
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         today = date.today()
         
@@ -187,9 +189,12 @@ async def adjust_water_intake(
         elif request.adjustment < 0 and current_total > 0:
             cur.execute("""
                 DELETE FROM water_logs
-                WHERE user_id = %s AND log_date = %s
-                ORDER BY logged_at DESC
-                LIMIT 1
+                WHERE id = (
+                    SELECT id FROM water_logs
+                    WHERE user_id = %s AND log_date = %s
+                    ORDER BY logged_at DESC
+                    LIMIT 1
+                )
             """, (user['id'], today))
         
         conn.commit()
@@ -287,7 +292,7 @@ async def get_water_history(
     """
     try:
         conn = get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         cur.execute("""
             SELECT 
@@ -295,7 +300,7 @@ async def get_water_history(
                 SUM(glasses) as glasses
             FROM water_logs
             WHERE user_id = %s
-            AND log_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            AND log_date >= CURRENT_DATE - INTERVAL '1 day' * %s
             GROUP BY log_date
             ORDER BY log_date DESC
         """, (user['id'], days))

@@ -8,7 +8,8 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from decimal import Decimal
-import mysql.connector
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from fastapi import HTTPException
 
 
@@ -32,7 +33,7 @@ class SubscriptionService:
             List of subscription plans with pricing details
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""
@@ -86,7 +87,7 @@ class SubscriptionService:
             Plan dict or None
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""
@@ -122,7 +123,7 @@ class SubscriptionService:
             Subscription dict or None
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""
@@ -135,7 +136,7 @@ class SubscriptionService:
                     us.start_date,
                     us.end_date,
                     us.auto_renew,
-                    DATEDIFF(us.end_date, NOW()) as days_remaining
+                    EXTRACT(DAY FROM us.end_date - NOW()) as days_remaining
                 FROM user_subscriptions us
                 INNER JOIN subscription_plans sp ON us.plan_id = sp.id
                 WHERE us.user_id = %s
@@ -173,7 +174,7 @@ class SubscriptionService:
         transaction_id = f"TXN_{secrets.token_urlsafe(16)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             cur.execute("""
@@ -181,6 +182,7 @@ class SubscriptionService:
                 (user_id, plan_id, amount, currency, payment_status, 
                  payment_method, transaction_id, created_at)
                 VALUES (%s, %s, %s, 'INR', 'pending', %s, %s, NOW())
+                RETURNING id
             """, (
                 user_id,
                 plan_id,
@@ -190,7 +192,7 @@ class SubscriptionService:
             ))
             
             conn.commit()
-            payment_id = cur.lastrowid
+            payment_id = cur.fetchone()['id']
             
             return {
                 "payment_id": payment_id,
@@ -219,7 +221,7 @@ class SubscriptionService:
             Activated subscription details
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             # Get transaction details
@@ -248,6 +250,7 @@ class SubscriptionService:
                 INSERT INTO user_subscriptions
                 (user_id, plan_id, status, start_date, end_date, created_at)
                 VALUES (%s, %s, 'active', %s, %s, NOW())
+                RETURNING id
             """, (
                 transaction['user_id'],
                 transaction['plan_id'],
@@ -255,7 +258,7 @@ class SubscriptionService:
                 end_date
             ))
             
-            subscription_id = cur.lastrowid
+            subscription_id = cur.fetchone()['id']
             
             # Update transaction
             cur.execute("""
@@ -298,7 +301,7 @@ class SubscriptionService:
                 "days_remaining": transaction['duration_months'] * 30
             }
             
-        except mysql.connector.Error as e:
+        except psycopg2.Error as e:
             conn.rollback()
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
         finally:
@@ -390,7 +393,7 @@ class SubscriptionService:
             Subscription analytics
         """
         conn = self.get_db()
-        cur = conn.cursor(dictionary=True)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         try:
             # Total active subscriptions
@@ -413,8 +416,8 @@ class SubscriptionService:
             cur.execute("""
                 SELECT COUNT(*) as count
                 FROM user_subscriptions
-                WHERE MONTH(created_at) = MONTH(NOW())
-                AND YEAR(created_at) = YEAR(NOW())
+                WHERE EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM NOW())
+                AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())
             """)
             new_this_month = cur.fetchone()['count']
             
