@@ -3059,7 +3059,9 @@ def get_dashboard_stats(user=Depends(require_auth)):
             LIMIT 1
         """, (user["id"],))
         plan_row = cur.fetchone()
-        weekly_plan = json.loads(plan_row['weekly_plan']) if plan_row and plan_row.get('weekly_plan') else None
+        weekly_plan = plan_row.get('weekly_plan') if plan_row else None
+        if isinstance(weekly_plan, str):
+            weekly_plan = json.loads(weekly_plan)
         
         cur.close()
         conn.close()
@@ -3711,7 +3713,9 @@ def get_next_meal(user=Depends(require_auth)):
             conn.close()
             return {"success": False, "message": "No active diet plan"}
         
-        weekly_plan = json.loads(plan['weekly_plan'])
+        weekly_plan = plan['weekly_plan']
+        if isinstance(weekly_plan, str):
+            weekly_plan = json.loads(weekly_plan)
         
         # Find today's plan
         today_plan = None
