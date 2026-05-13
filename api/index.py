@@ -257,8 +257,8 @@ DB_CONFIG = {
     "user": os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
     "password": os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres"),
     "dbname": os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "postgres"),
-    "port": int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432))
-    "sslmode": "require"
+    "port": int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432)),
+    "sslmode": os.getenv("PGSSLMODE", "prefer"),
 }
 
 db_pool = None
