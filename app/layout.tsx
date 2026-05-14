@@ -108,9 +108,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 
   verification: {
-    google: "googleb48ff8844dc4b9d3.html", // Placeholder for user
+    google: "googleb48ff8844dc4b9d3",
     me: "safalswayam@gmail.com",
   },
+
 
   appleWebApp: {
     capable: true,
