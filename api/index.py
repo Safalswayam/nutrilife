@@ -18,6 +18,8 @@ import smtplib
 import ssl
 import httpx
 import razorpay
+import threading
+import time
 from email.message import EmailMessage
 from email.utils import formataddr
 
@@ -714,6 +716,37 @@ def init_database():
         print(f"Database initialization error: {e}")
         return False
 
+def start_uptime_bot():
+    """
+    Starts a background thread that pings the backend every 14 minutes
+    to prevent Render free instances from sleeping.
+    """
+    def ping_loop():
+        # RENDER_EXTERNAL_URL is automatically set by Render
+        base_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("BACKEND_URL")
+        if not base_url:
+            print("⚠ Uptime bot: RENDER_EXTERNAL_URL or BACKEND_URL not set. Bot skipping.")
+            return
+            
+        url = f"{base_url.rstrip('/')}/health"
+        # Initial delay to allow the server to fully boot
+        time.sleep(30)
+        print(f"🚀 Uptime bot started. Target: {url}")
+        
+        while True:
+            try:
+                with httpx.Client(timeout=15) as client:
+                    r = client.get(url)
+                    print(f"💓 Uptime bot ping ({datetime.now().strftime('%H:%M:%S')}): {r.status_code}")
+            except Exception as e:
+                print(f"❌ Uptime bot ping failed: {e}")
+            
+            # Ping every 14 minutes (Render sleeps after 15 min)
+            time.sleep(14 * 60)
+
+    thread = threading.Thread(target=ping_loop, daemon=True)
+    thread.start()
+
 def startup_init():
     if init_db_pool():
         init_database()
@@ -721,6 +754,8 @@ def startup_init():
         print("Warning: Database not available. Some features may not work.")
     # Notify admin that server has started
     notify_server_start()
+    # Start the uptime bot to keep Render alive
+    start_uptime_bot()
 
 startup_init()
 
