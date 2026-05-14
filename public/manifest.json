@@ -1,7 +1,7 @@
 {
   "name": "NutriLife AI",
   "short_name": "NutriLife",
-  "description": "AI-powered nutrition and health assistant.",
+  "description": "NutriLife AI: Your smart assistant for personalized diet plans, calorie tracking, and nutritional analysis.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

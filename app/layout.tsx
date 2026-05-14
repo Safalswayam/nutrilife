@@ -24,6 +24,7 @@ export const metadata: Metadata = {
     default: "NutriLife - AI Nutrition Assistant",
     template: "%s | NutriLife",
   },
+  applicationName: "NutriLife",
   description:
     "Revolutionize your health with NutriLife, the AI-powered nutrition assistant. Track calories instantly, analyze meals with advanced AI, and receive personalized, science-backed diet plans for a healthier lifestyle.",
 
@@ -33,12 +34,34 @@ export const metadata: Metadata = {
     "Health Assistant",
     "Nutrition Tracker",
     "NutriLife",
+    "NutriLife AI",
+    "NutriLife App",
+    "NutriLife Health",
+    "NutriLife Nutrition",
+    "Nutri Life",
+    "Nutrilife Diet",
+    "Nutrilife Tracker",
+    "NutriLife Calorie Counter",
+    "Nutrilife AI Assistant",
     "AI Calorie Analysis",
     "Personalized Diet Plans",
     "Wellness Companion",
     "Healthy Living AI",
     "Macronutrient Tracker",
-    "Food Logging AI"
+    "Food Logging AI",
+    "Weight Loss AI",
+    "Calorie Counter AI",
+    "Intermittent Fasting Tracker",
+    "AI Food Scanner",
+    "Healthy Meal Planning",
+    "AI Fitness Coach",
+    "Vegan Diet Plan AI",
+    "Keto Assistant AI",
+    "Science-backed Nutrition",
+    "Meal Prep Assistant",
+    "Custom Diet Protocols",
+    "Nutritional Analysis AI",
+    "AI Health Guide"
   ],
 
   authors: [{ name: "NutriLife Team", url: "https://nutrilife-h6uw.vercel.app" }],
@@ -92,7 +115,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/nutrilife-icon.png', type: 'image/png', sizes: '192x192' },
-      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/nutrilife-icon.png', type: 'image/png', sizes: '32x32' },
     ],
     apple: [
       { url: '/nutrilife-icon.png', sizes: '180x180', type: 'image/png' },
@@ -143,24 +166,33 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "SoftwareApplication",
-              "name": "NutriLife",
-              "operatingSystem": "Web",
-              "applicationCategory": "HealthApplication",
-              "description": "AI-powered nutrition and health assistant for smart meal planning and healthy living.",
-              "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": "NutriLife",
+                "alternateName": ["NutriLife AI", "NutriLife App"],
+                "url": "https://nutrilife-h6uw.vercel.app"
               },
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.9",
-                "ratingCount": "1250"
+              {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "NutriLife",
+                "operatingSystem": "Web",
+                "applicationCategory": "HealthApplication",
+                "description": "AI-powered nutrition and health assistant for smart meal planning and healthy living.",
+                "offers": {
+                  "@type": "Offer",
+                  "price": "0",
+                  "priceCurrency": "USD"
+                },
+                "aggregateRating": {
+                  "@type": "AggregateRating",
+                  "ratingValue": "4.9",
+                  "ratingCount": "1250"
+                }
               }
-            })
+            ])
           }}
         />
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
