@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/settings
+Sitemap: https://nutrilife-h6uw.vercel.app/sitemap.xml

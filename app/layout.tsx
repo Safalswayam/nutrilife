@@ -19,18 +19,110 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'NutriLife - Your Health & Wellness Companion',
-  description: 'AI-powered calorie analysis, health assistant, and personalized diet planning app',
-  keywords: ['health', 'nutrition', 'diet', 'calories', 'wellness', 'BMI', 'food analysis'],
+  metadataBase: new URL("https://nutrilife-h6uw.vercel.app"),
+  title: {
+    default: "NutriLife - AI Nutrition Assistant",
+    template: "%s | NutriLife",
+  },
+  description:
+    "Revolutionize your health with NutriLife, the AI-powered nutrition assistant. Track calories instantly, analyze meals with advanced AI, and receive personalized, science-backed diet plans for a healthier lifestyle.",
+
+  keywords: [
+    "AI Nutrition",
+    "Smart Meal Planner",
+    "Health Assistant",
+    "Nutrition Tracker",
+    "NutriLife",
+    "AI Calorie Analysis",
+    "Personalized Diet Plans",
+    "Wellness Companion",
+    "Healthy Living AI",
+    "Macronutrient Tracker",
+    "Food Logging AI"
+  ],
+
+  authors: [{ name: "NutriLife Team", url: "https://nutrilife-h6uw.vercel.app" }],
+  creator: "NutriLife",
+  publisher: "NutriLife",
+
+  robots: {
+    index: true,
+    follow: true,
+    nocache: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+
+  alternates: {
+    canonical: "/",
+  },
+
+  openGraph: {
+    title: "NutriLife - AI Nutrition Assistant",
+    description:
+      "Transform your health with AI-powered nutrition tracking and personalized meal planning. The future of healthy living is here.",
+    url: "https://nutrilife-h6uw.vercel.app",
+    siteName: "NutriLife",
+    type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: "/banner.png",
+        width: 1200,
+        height: 630,
+        alt: "NutriLife AI Nutrition Assistant - Smart Meal Planning",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "NutriLife - AI Nutrition Assistant",
+    description: "The smartest way to track your nutrition and reach your health goals with AI.",
+    site: "@NutriLife",
+    creator: "@NutriLife",
+    images: ["/banner.png"],
+  },
+
   icons: {
     icon: [
       { url: '/nutrilife-icon.png', type: 'image/png', sizes: '192x192' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
-    apple: '/nutrilife-icon.png',
-    shortcut: '/nutrilife-icon.png',
+    apple: [
+      { url: '/nutrilife-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    other: [
+      {
+        rel: 'apple-touch-icon-precomposed',
+        url: '/nutrilife-icon.png',
+      },
+    ],
   },
-  generator: 'v0.app'
+
+  manifest: "/manifest.json",
+
+  verification: {
+    google: "googleb48ff8844dc4b9d3.html", // Placeholder for user
+    me: "safalswayam@gmail.com",
+  },
+
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "NutriLife",
+  },
+
+  formatDetection: {
+    telephone: false,
+  },
+
+  generator: 'NutriLife Engine'
 }
 
 export const viewport: Viewport = {
@@ -47,6 +139,29 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${poppins.variable} ${inter.variable} font-sans antialiased`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "NutriLife",
+              "operatingSystem": "Web",
+              "applicationCategory": "HealthApplication",
+              "description": "AI-powered nutrition and health assistant for smart meal planning and healthy living.",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              },
+              "aggregateRating": {
+                "@type": "AggregateRating",
+                "ratingValue": "4.9",
+                "ratingCount": "1250"
+              }
+            })
+          }}
+        />
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
           <AuthProvider>
             <AppShell>

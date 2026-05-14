@@ -1,0 +1,21 @@
+{
+  "name": "NutriLife AI",
+  "short_name": "NutriLife",
+  "description": "AI-powered nutrition and health assistant.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2d5a3d",
+  "icons": [
+    {
+      "src": "/nutrilife-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/nutrilife-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
