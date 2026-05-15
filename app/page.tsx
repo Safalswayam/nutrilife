@@ -4,8 +4,33 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, CheckCircle2, Star, Target, Zap, BarChart, Shield, Camera, Leaf, Activity, Sparkles } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 export default function LandingPage() {
+  const { isAuthenticated, isLoading } = useAuth()
+  const router = useRouter()
+  const [isRedirecting, setIsRedirecting] = useState(true)
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (isAuthenticated) {
+        router.push("/dashboard")
+      } else {
+        setIsRedirecting(false)
+      }
+    }
+  }, [isAuthenticated, isLoading, router])
+
+  if (isLoading || isRedirecting) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background selection:bg-primary/20 overflow-x-hidden">
       
@@ -58,10 +83,10 @@ export default function LandingPage() {
             <div className="text-left animate-in fade-in slide-in-from-left-8 duration-1000">
               <Badge />
               <h1 className="text-6xl md:text-8xl font-black tracking-tight text-balance mb-8 leading-[0.9] bg-gradient-to-br from-foreground via-foreground to-foreground/50 bg-clip-text text-transparent">
-                Your AI <br/>Personal <span className="text-primary">Dietitian.</span>
+                The Ultimate <br/>AI <span className="text-primary">Nutrition Assistant.</span>
               </h1>
               <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-xl leading-relaxed">
-                NutriLife uses cutting-edge AI to scan your meals, track your macros, and curate the perfect diet plan for your unique biology.
+                NutriLife is your smart meal planner and calorie counter. Use cutting-edge AI to scan meals, track macros, and curate science-backed diet plans for a healthier lifestyle.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -139,19 +164,19 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-3 gap-8">
               <FeatureCard 
                 icon={Camera} 
-                title="AI Vision Scanner" 
+                title="AI Food & Calorie Scanner" 
                 desc="Snap a photo of your meal and let our AI do the hard work. It detects ingredients, portions, and macros instantly."
                 color="primary"
               />
               <FeatureCard 
                 icon={Target} 
-                title="Precision Planning" 
+                title="Smart Diet Planning" 
                 desc="Get diet plans that adapt to your progress. Whether you're bulking or cutting, our AI adjusts your plan in real-time."
                 color="blue"
               />
               <FeatureCard 
                 icon={BarChart} 
-                title="Deep Analytics" 
+                title="Advanced Health Analytics" 
                 desc="Visualize your progress with stunning charts. Track every gram of protein and every drop of water effortlessly."
                 color="orange"
               />
