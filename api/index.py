@@ -20,6 +20,8 @@ import httpx
 import razorpay
 import threading
 import time
+import urllib.parse
+from fastapi.responses import RedirectResponse
 from email.message import EmailMessage
 from email.utils import formataddr
 
@@ -4106,6 +4108,106 @@ async def create_subscription_route(request: dict, user: dict = Depends(require_
 @app.post("/api/subscription/create-payment")
 async def create_payment_legacy(request: dict, user: dict = Depends(require_auth)):
     return await create_subscription_route(request, user)
+
+
+@app.post("/api/subscription/callback")
+async def payment_callback(request: Request):
+    form_data = await request.form()
+    rzp_payment_id = form_data.get("razorpay_payment_id")
+    rzp_order_id = form_data.get("razorpay_order_id")
+    rzp_signature = form_data.get("razorpay_signature")
+    error_code = form_data.get("error[code]")
+    error_description = form_data.get("error[description]")
+    
+    frontend_url = os.getenv("FRONTEND_URL", "https://nutrilife-h6uwverce.app")
+        
+    if error_code:
+        reason = urllib.parse.quote(str(error_description or "Payment failed or cancelled"))
+        return RedirectResponse(url=f"{frontend_url}/subscription?payment=failed&reason={reason}", status_code=303)
+        
+    if not all([rzp_payment_id, rzp_signature, rzp_order_id]):
+        return RedirectResponse(url=f"{frontend_url}/subscription?payment=failed&reason=MissingData", status_code=303)
+
+    try:
+        razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": rzp_order_id,
+            "razorpay_payment_id": rzp_payment_id,
+            "razorpay_signature": rzp_signature
+        })
+    except Exception:
+        return RedirectResponse(url=f"{frontend_url}/subscription?payment=failed&reason=SignatureMismatch", status_code=303)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT user_id, plan_id FROM payment_transactions
+                WHERE transaction_id = %s
+            """, (rzp_order_id,))
+            txn = cur.fetchone()
+            if not txn:
+                return RedirectResponse(url=f"{frontend_url}/subscription?payment=failed&reason=OrderNotFound", status_code=303)
+                
+            user_id = txn[0]
+            plan_id = txn[1]
+            
+            plans = await get_subscription_plans()
+            plan = next((p for p in plans if p["id"] == plan_id), None)
+            duration_months = plan["duration_months"] if plan else 1
+            
+            start_date = datetime.now()
+            end_date = start_date + timedelta(days=duration_months * 30)
+            
+            cur.execute("SELECT id FROM user_subscriptions WHERE user_id=%s AND status='active'", (user_id,))
+            if cur.fetchone():
+                return RedirectResponse(url=f"{frontend_url}/subscription?payment=success", status_code=303)
+
+            cur.execute("""
+                INSERT INTO user_subscriptions
+                (user_id, plan_id, status, start_date, end_date, created_at)
+                VALUES (%s, %s, 'active', %s, %s, NOW())
+                RETURNING id
+            """, (user_id, plan_id, start_date, end_date))
+            
+            sub_id = cur.fetchone()[0]
+            
+            cur.execute("""
+                UPDATE payment_transactions
+                SET payment_status='completed',
+                    subscription_id=%s,
+                    gateway_response=%s::jsonb,
+                    updated_at=NOW()
+                WHERE transaction_id=%s
+            """, (
+                sub_id,
+                json.dumps({"razorpay_payment_id": rzp_payment_id, "razorpay_order_id": rzp_order_id}),
+                rzp_order_id
+            ))
+            
+            cur.execute("""
+                UPDATE users SET
+                    is_premium = TRUE,
+                    subscription_status = 'active',
+                    razorpay_subscription_id = %s,
+                    payment_id = %s,
+                    subscription_start_date = %s,
+                    subscription_end_date = %s,
+                    subscription_expires_at = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (rzp_order_id, rzp_payment_id, start_date, end_date, end_date, user_id))
+            
+            conn.commit()
+            
+        finally:
+            cur.close()
+            conn.close()
+            
+        return RedirectResponse(url=f"{frontend_url}/subscription?payment=success", status_code=303)
+    except Exception as e:
+        print(f"Callback error: {e}")
+        return RedirectResponse(url=f"{frontend_url}/subscription?payment=failed&reason=ServerError", status_code=303)
 
 
 @app.post("/api/subscription/verify-payment")

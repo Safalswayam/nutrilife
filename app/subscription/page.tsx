@@ -59,7 +59,21 @@ export default function SubscriptionPage() {
   useEffect(() => {
     fetchPlans()
     if (token) fetchCurrentSubscription()
-  }, [token])
+    
+    // Handle redirect callbacks from Razorpay
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      const paymentStatus = params.get("payment")
+      const reason = params.get("reason")
+      if (paymentStatus === "success") {
+        toast.success("Subscription activated! Welcome to NutriLife Premium!")
+        router.replace("/subscription")
+      } else if (paymentStatus === "failed") {
+        toast.error(reason ? decodeURIComponent(reason) : "Payment failed or was cancelled")
+        router.replace("/subscription")
+      }
+    }
+  }, [token, router])
 
   const fetchPlans = async () => {
     try {
@@ -156,30 +170,10 @@ export default function SubscriptionPage() {
           },
         }
 
-        // Mobile: configure UPI as preferred method with intent flow
+        // Mobile: use callback_url and redirect for robust intent handling
         if (mobile) {
-          options.config = {
-            display: {
-              blocks: {
-                upi: {
-                  name: "Pay via UPI",
-                  instruments: [
-                    { method: "upi", flows: ["intent", "collect", "qr"] }
-                  ],
-                },
-                other: {
-                  name: "Other Payment Methods",
-                  instruments: [
-                    { method: "card" },
-                    { method: "netbanking" },
-                    { method: "wallet" },
-                  ],
-                },
-              },
-              sequence: ["block.upi", "block.other"],
-              preferences: { show_default_blocks: false },
-            },
-          }
+          options.callback_url = getApiUrl("/api/subscription/callback")
+          options.redirect = true
         }
 
         const rzp = new (window as any).Razorpay(options)
