@@ -89,6 +89,14 @@ export default function SubscriptionPage() {
     })
   }
 
+  /** Detect if user is on a mobile device */
+  const isMobileDevice = (): boolean => {
+    if (typeof window === "undefined") return false
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    )
+  }
+
   const handleSubscribe = async (planId: number) => {
     if (!token) {
       toast.error("Please login to subscribe")
@@ -121,11 +129,14 @@ export default function SubscriptionPage() {
         throw new Error(createData.detail || "Failed to create subscription")
       }
 
-      // ── Step 3: Open Razorpay Subscription Checkout ───────────────────────
+      // ── Step 3: Open Razorpay Order Checkout ────────────────────────────
       await new Promise<void>((resolve, reject) => {
-        const options = {
-          key: createData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          subscription_id: createData.subscription_id,  // <-- subscription, not order
+        const mobile = isMobileDevice()
+        const options: Record<string, any> = {
+          key: createData.key_id,
+          order_id: createData.order_id,
+          amount: createData.amount,
+          currency: createData.currency || "INR",
           name: "NutriLife Premium",
           description: createData.plan_name,
           image: "/icon.svg",
@@ -140,7 +151,7 @@ export default function SubscriptionPage() {
                 },
                 body: JSON.stringify({
                   razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_subscription_id: response.razorpay_subscription_id,
+                  razorpay_order_id: response.razorpay_order_id,
                   razorpay_signature: response.razorpay_signature,
                   plan_id: planId
                 })
@@ -164,17 +175,55 @@ export default function SubscriptionPage() {
             name: user?.name || "",
             email: user?.email || ""
           },
+          notes: {
+            user_id: String(user?.id ?? ""),
+            plan_id: String(planId),
+            plan_name: createData.plan_name ?? "",
+          },
           theme: { color: "#2d5a3d" },
+          retry: { enabled: false },
           modal: {
             ondismiss: () => {
               reject(new Error("Payment cancelled"))
-            }
+            },
+            confirm_close: false,
+            escape: true,
+            animation: true,
+          }
+        }
+
+        // Mobile: configure UPI as preferred method with intent flow
+        if (mobile) {
+          options.config = {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI",
+                  instruments: [
+                    { method: "upi", flows: ["intent", "collect", "qr"] }
+                  ],
+                },
+                other: {
+                  name: "Other Payment Methods",
+                  instruments: [
+                    { method: "card" },
+                    { method: "netbanking" },
+                    { method: "wallet" },
+                  ],
+                },
+              },
+              sequence: ["block.upi", "block.other"],
+              preferences: { show_default_blocks: false },
+            },
           }
         }
 
         const rzp = new (window as any).Razorpay(options)
         rzp.on("payment.failed", (resp: any) => {
-          reject(new Error(resp.error?.description || "Payment failed"))
+          const errDesc = resp.error?.description || "Payment failed"
+          const errReason = resp.error?.reason || ""
+          console.error("Payment failed:", resp.error)
+          reject(new Error(`${errDesc}${errReason ? ` (${errReason})` : ""}`))
         })
         rzp.open()
       })

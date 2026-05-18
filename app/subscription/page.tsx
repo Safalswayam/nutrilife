@@ -38,6 +38,14 @@ function loadRazorpayScript(): Promise<boolean> {
   })
 }
 
+/** Detect if user is on a mobile device */
+function isMobileDevice(): boolean {
+  if (typeof window === "undefined") return false
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  )
+}
+
 export default function SubscriptionPage() {
   const { token, user } = useAuth()
   const router = useRouter()
@@ -98,21 +106,28 @@ export default function SubscriptionPage() {
       if (!createRes.ok) throw new Error(createData.detail || "Failed to create subscription")
 
       const plan = plans.find(p => p.id === planId)
+      const mobile = isMobileDevice()
 
       await new Promise<void>((resolve, reject) => {
-        const rzp = new (window as any).Razorpay({
-          key: createData.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        const options: Record<string, any> = {
+          key: createData.key_id,
           order_id: createData.order_id,
           amount: createData.amount,
           currency: createData.currency || "INR",
           name: "NutriLife Premium",
-          description: createData.plan_name ?? "Premium Plan",
+          description: plan?.name ?? createData.plan_name ?? "Premium Plan",
           image: "/icon.svg",
           prefill: {
             name: user?.name ?? "",
             email: user?.email ?? "",
           },
+          notes: {
+            user_id: String(user?.id ?? ""),
+            plan_id: String(planId),
+            plan_name: plan?.name ?? "",
+          },
           theme: { color: "#2d5a3d" },
+          retry: { enabled: false },
           handler: async (response: any) => {
             try {
               const verifyRes = await fetch(getApiUrl("/api/subscription/verify-payment"), {
@@ -133,9 +148,47 @@ export default function SubscriptionPage() {
               resolve()
             } catch (err: any) { reject(err) }
           },
-          modal: { ondismiss: () => reject(new Error("cancelled")) }
+          modal: {
+            ondismiss: () => reject(new Error("cancelled")),
+            confirm_close: false,
+            escape: true,
+            animation: true,
+          },
+        }
+
+        // Mobile: configure UPI as preferred method with intent flow
+        if (mobile) {
+          options.config = {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI",
+                  instruments: [
+                    { method: "upi", flows: ["intent", "collect", "qr"] }
+                  ],
+                },
+                other: {
+                  name: "Other Payment Methods",
+                  instruments: [
+                    { method: "card" },
+                    { method: "netbanking" },
+                    { method: "wallet" },
+                  ],
+                },
+              },
+              sequence: ["block.upi", "block.other"],
+              preferences: { show_default_blocks: false },
+            },
+          }
+        }
+
+        const rzp = new (window as any).Razorpay(options)
+        rzp.on("payment.failed", (r: any) => {
+          const errDesc = r.error?.description || "Payment failed"
+          const errReason = r.error?.reason || ""
+          console.error("Payment failed:", r.error)
+          reject(new Error(`${errDesc}${errReason ? ` (${errReason})` : ""}`))
         })
-        rzp.on("payment.failed", (r: any) => reject(new Error(r.error?.description || "Payment failed")))
         rzp.open()
       })
     } catch (err: any) {
