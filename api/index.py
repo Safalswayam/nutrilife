@@ -14,6 +14,7 @@ import os
 import sys
 import math
 import ipaddress
+import socket
 import smtplib
 import ssl
 import httpx
@@ -284,9 +285,7 @@ SMTP_FROM_EMAIL = (os.getenv("SMTP_FROM_EMAIL") or SMTP_USERNAME).strip()
 SMTP_FROM_NAME = (os.getenv("SMTP_FROM_NAME") or "NutriLife").strip()
 SMTP_USE_TLS = (os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"})
 SMTP_USE_SSL = (os.getenv("SMTP_USE_SSL", "false").strip().lower() in {"1", "true", "yes"})
-RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
-BREVO_API_KEY = (os.getenv("BREVO_API_KEY") or "").strip()
-EMAIL_API_TIMEOUT_SECONDS = max(10, int(os.getenv("EMAIL_API_TIMEOUT_SECONDS", "20")))
+
 ALLOW_CONSOLE_EMAIL_VERIFICATION = (
     os.getenv("ALLOW_CONSOLE_EMAIL_VERIFICATION", "true").strip().lower() not in {"0", "false", "no"}
 )
@@ -834,25 +833,42 @@ def validate_password_strength(password: str) -> tuple:
 def generate_verification_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
-def is_resend_configured() -> bool:
-    return bool(RESEND_API_KEY and SMTP_FROM_EMAIL)
-
-def is_brevo_configured() -> bool:
-    return bool(BREVO_API_KEY and SMTP_FROM_EMAIL)
-
 def is_email_verification_configured() -> bool:
     return bool(SMTP_HOST and SMTP_PORT and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM_EMAIL)
 
 def get_email_delivery_mode() -> str:
-    if is_resend_configured():
-        return "resend"
-    if is_brevo_configured():
-        return "brevo"
     if is_email_verification_configured():
         return "smtp"
     if ALLOW_CONSOLE_EMAIL_VERIFICATION:
         return "console-fallback"
     return "not configured"
+
+def _smtp_connect(host, port, timeout=20):
+    """Create SMTP connection forcing IPv4 to avoid 'Network is unreachable' on hosts without IPv6."""
+    use_ssl = SMTP_USE_SSL or port == 465
+    # Resolve hostname to IPv4 explicitly
+    ipv4_addrs = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    if not ipv4_addrs:
+        raise Exception(f"Cannot resolve {host} to IPv4")
+    ipv4_ip = ipv4_addrs[0][4][0]
+    # Create raw IPv4 socket
+    sock = socket.create_connection((ipv4_ip, port), timeout=timeout)
+    if use_ssl:
+        ctx = ssl.create_default_context()
+        sock = ctx.wrap_socket(sock, server_hostname=host)
+        server = smtplib.SMTP_SSL(host, port)
+        server.sock = sock
+        server._host = host
+    else:
+        server = smtplib.SMTP(host, port)
+        server.sock = sock
+        server._host = host
+        server.ehlo()
+        if SMTP_USE_TLS:
+            server.starttls(context=ssl.create_default_context())
+            server.ehlo()
+    server.ehlo()
+    return server
 
 def is_local_request(request: Request) -> bool:
     client_host = (request.client.host if request.client else "") or ""
@@ -941,16 +957,12 @@ def send_email_verification_code(email: str, name: str, code: str) -> None:
     msg.add_alternative(html_body, subtype="html")
 
     try:
-        use_ssl = SMTP_USE_SSL or SMTP_PORT == 465
-        smtp_client = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
-
-        with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as server:
-            server.ehlo()
-            if not use_ssl and SMTP_USE_TLS:
-                server.starttls(context=ssl.create_default_context())
-                server.ehlo()
+        server = _smtp_connect(SMTP_HOST, SMTP_PORT)
+        try:
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(msg)
+        finally:
+            server.quit()
     except HTTPException:
         raise
     except Exception as exc:
@@ -960,93 +972,7 @@ def send_email_verification_code(email: str, name: str, code: str) -> None:
             detail="We couldn't send a verification code right now. Please try again in a moment."
         )
 
-def send_resend_verification_code(email: str, name: str, code: str) -> None:
-    if not is_resend_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Resend email delivery is not configured on the server."
-        )
 
-    _, subject, text_body, html_body = build_verification_email_content(email, name, code)
-
-    try:
-        response = httpx.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "from": formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL)),
-                "to": [email],
-                "subject": subject,
-                "text": text_body,
-                "html": html_body,
-            },
-            timeout=EMAIL_API_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-    except Exception as exc:
-        details = ""
-        is_sandbox_error = False
-        if isinstance(exc, httpx.HTTPStatusError):
-            details = exc.response.text[:500]
-            if exc.response.status_code == 403 and "verify a domain" in details:
-                is_sandbox_error = True
-        
-        print(f"Resend verification send error: {exc} {details}".strip())
-        
-        if is_sandbox_error:
-            # We raise a specific exception that deliver_verification_code can catch
-            raise Exception(f"Resend Sandbox Limitation: Only authorized recipients allowed. {details}")
-            
-        raise HTTPException(
-            status_code=503,
-            detail="We couldn't send a verification code right now via Resend."
-        )
-
-def send_brevo_verification_code(email: str, name: str, code: str) -> None:
-    if not is_brevo_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Brevo email delivery is not configured on the server."
-        )
-
-    recipient_name, subject, text_body, html_body = build_verification_email_content(email, name, code)
-
-    try:
-        response = httpx.post(
-            "https://api.brevo.com/v3/smtp/email",
-            headers={
-                "accept": "application/json",
-                "api-key": BREVO_API_KEY,
-                "content-type": "application/json",
-            },
-            json={
-                "sender": {
-                    "name": SMTP_FROM_NAME,
-                    "email": SMTP_FROM_EMAIL,
-                },
-                "to": [{
-                    "email": email,
-                    "name": recipient_name,
-                }],
-                "subject": subject,
-                "textContent": text_body,
-                "htmlContent": html_body,
-            },
-            timeout=EMAIL_API_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-    except Exception as exc:
-        details = ""
-        if isinstance(exc, httpx.HTTPStatusError):
-            details = exc.response.text[:500]
-        print(f"Brevo verification send error: {exc} {details}".strip())
-        raise HTTPException(
-            status_code=503,
-            detail="We couldn't send a verification code right now. Please check your email provider setup and try again."
-        )
 
 def create_email_verification_record(cur, user_id: int) -> str:
     cur.execute("""
@@ -1087,50 +1013,24 @@ def create_email_verification_record(cur, user_id: int) -> str:
     return code
 
 def deliver_verification_code(email: str, name: str, code: str, request: Request) -> str:
-    errors = []
-    
-    if is_resend_configured():
-        try:
-            send_resend_verification_code(email, name, code)
-            return "We sent a 6-digit verification code to your Gmail address."
-        except Exception as e:
-            errors.append(f"Resend failure: {str(e)}")
-            print(f"Resend delivery failed, trying fallbacks: {e}")
-
-    if is_brevo_configured():
-        try:
-            send_brevo_verification_code(email, name, code)
-            return "We sent a 6-digit verification code to your Gmail address."
-        except Exception as e:
-            errors.append(f"Brevo failure: {str(e)}")
-            print(f"Brevo delivery failed, trying fallbacks: {e}")
-
     if is_email_verification_configured():
         try:
             send_email_verification_code(email, name, code)
             return "We sent a 6-digit verification code to your Gmail address."
         except Exception as e:
-            errors.append(f"SMTP failure: {str(e)}")
-            print(f"SMTP delivery failed, trying fallbacks: {e}")
+            print(f"SMTP delivery failed: {e}")
 
     if ALLOW_CONSOLE_EMAIL_VERIFICATION and is_local_request(request):
         print("\n" + "="*60)
         print(f"VERIFICATION CODE for {email}: {code}")
         print("="*60 + "\n")
         return (
-            "Resend is in Sandbox Mode. "
             "For testing, your 6-digit verification code has been printed in the API terminal."
         )
 
-    error_msg = "Could not deliver verification email. "
-    if errors:
-        # Check if any error was a sandbox error
-        if any("Sandbox" in err for err in errors):
-            error_msg = "Resend is in Sandbox Mode and cannot send to this recipient. "
-    
     raise HTTPException(
         status_code=503,
-        detail=f"{error_msg}Add SMTP settings or verify a domain on Resend. Code printed to console if in local dev."
+        detail="Could not deliver verification email. Please check SMTP settings and try again."
     )
 
 def deliver_reset_password_link(email: str, name: str, token: str, request: Request) -> str:
@@ -1159,44 +1059,15 @@ def deliver_reset_password_link(email: str, name: str, token: str, request: Requ
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
 
-    # Try API-based delivery first (Resend, Brevo) then SMTP
-    if is_resend_configured():
-        try:
-            response = httpx.post(
-                "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-                json={"from": formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL)), "to": [email], "subject": subject, "text": text_body, "html": html_body},
-                timeout=EMAIL_API_TIMEOUT_SECONDS
-            )
-            response.raise_for_status()
-            return "A password reset link has been sent to your email."
-        except Exception as e:
-            errors.append(f"Resend failure: {str(e)}")
-
-    if is_brevo_configured():
-        try:
-            response = httpx.post(
-                "https://api.brevo.com/v3/smtp/email",
-                headers={"accept": "application/json", "api-key": BREVO_API_KEY, "content-type": "application/json"},
-                json={"sender": {"name": SMTP_FROM_NAME, "email": SMTP_FROM_EMAIL}, "to": [{"email": email, "name": recipient_name}], "subject": subject, "textContent": text_body, "htmlContent": html_body},
-                timeout=EMAIL_API_TIMEOUT_SECONDS
-            )
-            response.raise_for_status()
-            return "A password reset link has been sent to your email."
-        except Exception as e:
-            errors.append(f"Brevo failure: {str(e)}")
-
+    # Send via SMTP
     if is_email_verification_configured():
         try:
-            use_ssl = SMTP_USE_SSL or SMTP_PORT == 465
-            smtp_client = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
-            with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as server:
-                server.ehlo()
-                if not use_ssl and SMTP_USE_TLS:
-                    server.starttls(context=ssl.create_default_context())
-                    server.ehlo()
+            server = _smtp_connect(SMTP_HOST, SMTP_PORT)
+            try:
                 server.login(SMTP_USERNAME, SMTP_PASSWORD)
                 server.send_message(msg)
+            finally:
+                server.quit()
             return "A password reset link has been sent to your email."
         except Exception as e:
             errors.append(f"SMTP failure: {str(e)}")
