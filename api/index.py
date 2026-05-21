@@ -21,7 +21,6 @@ import httpx
 import razorpay
 import threading
 import time
-import resend
 import urllib.parse
 from fastapi.responses import RedirectResponse
 from email.message import EmailMessage
@@ -286,8 +285,8 @@ SMTP_FROM_EMAIL = (os.getenv("SMTP_FROM_EMAIL") or SMTP_USERNAME).strip()
 SMTP_FROM_NAME = (os.getenv("SMTP_FROM_NAME") or "NutriLife").strip()
 SMTP_USE_TLS = (os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"})
 SMTP_USE_SSL = (os.getenv("SMTP_USE_SSL", "false").strip().lower() in {"1", "true", "yes"})
-RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
-RESEND_FROM_EMAIL = (os.getenv("RESEND_FROM_EMAIL") or "onboarding@resend.dev").strip()
+BREVO_API_KEY = (os.getenv("BREVO_API_KEY") or "").strip()
+EMAIL_API_TIMEOUT_SECONDS = max(10, int(os.getenv("EMAIL_API_TIMEOUT_SECONDS", "20")))
 
 ALLOW_CONSOLE_EMAIL_VERIFICATION = (
     os.getenv("ALLOW_CONSOLE_EMAIL_VERIFICATION", "true").strip().lower() not in {"0", "false", "no"}
@@ -836,36 +835,46 @@ def validate_password_strength(password: str) -> tuple:
 def generate_verification_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
-def is_resend_configured() -> bool:
-    return bool(RESEND_API_KEY)
+def is_brevo_configured() -> bool:
+    return bool(BREVO_API_KEY and SMTP_FROM_EMAIL)
 
 def is_email_verification_configured() -> bool:
     return bool(SMTP_HOST and SMTP_PORT and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM_EMAIL)
 
 def get_email_delivery_mode() -> str:
-    if is_resend_configured():
-        return "resend"
+    if is_brevo_configured():
+        return "brevo"
     if is_email_verification_configured():
         return "smtp"
     if ALLOW_CONSOLE_EMAIL_VERIFICATION:
         return "console-fallback"
     return "not configured"
 
-def _send_email_via_resend(to_email: str, subject: str, text_body: str, html_body: str) -> None:
-    """Send an email via Resend HTTP API using the official Python SDK. Works on all hosts including Render."""
-    resend.api_key = RESEND_API_KEY
-    from_addr = formataddr((SMTP_FROM_NAME, RESEND_FROM_EMAIL))
-    
-    params: resend.Emails.SendParams = {
-        "from": from_addr,
-        "to": [to_email],
-        "subject": subject,
-        "html": html_body,
-        "text": text_body,
-    }
-    
-    email_response = resend.Emails.send(params)
-    print("Resend response:", email_response)
+def _send_email_via_brevo(to_email: str, recipient_name: str, subject: str, text_body: str, html_body: str) -> None:
+    """Send an email via Brevo HTTP API. Works on all hosts including Render."""
+    response = httpx.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "accept": "application/json",
+            "api-key": BREVO_API_KEY,
+            "content-type": "application/json",
+        },
+        json={
+            "sender": {
+                "name": SMTP_FROM_NAME,
+                "email": SMTP_FROM_EMAIL,
+            },
+            "to": [{
+                "email": to_email,
+                "name": recipient_name,
+            }],
+            "subject": subject,
+            "textContent": text_body,
+            "htmlContent": html_body,
+        },
+        timeout=EMAIL_API_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
 
 def _smtp_connect(host, port, timeout=20):
     """Create SMTP connection forcing IPv4 to avoid 'Network is unreachable' on hosts without IPv6."""
@@ -1039,13 +1048,16 @@ def create_email_verification_record(cur, user_id: int) -> str:
 def deliver_verification_code(email: str, name: str, code: str, request: Request) -> str:
     recipient_name, subject, text_body, html_body = build_verification_email_content(email, name, code)
 
-    # Try Resend HTTP API first (works on Render and all cloud hosts)
-    if is_resend_configured():
+    # Try Brevo HTTP API first (works on Render and all cloud hosts)
+    if is_brevo_configured():
         try:
-            _send_email_via_resend(email, subject, text_body, html_body)
-            return "We sent a 6-digit verification code to your Gmail address."
+            _send_email_via_brevo(email, name, subject, text_body, html_body)
+            return "We sent a 6-digit verification code to your email address."
         except Exception as e:
-            print(f"Resend delivery failed: {e}")
+            details = ""
+            if isinstance(e, httpx.HTTPStatusError):
+                details = e.response.text[:500]
+            print(f"Brevo delivery failed: {e} {details}")
 
     # Fallback to direct SMTP (works locally)
     if is_email_verification_configured():
@@ -1094,14 +1106,17 @@ def deliver_reset_password_link(email: str, name: str, token: str, request: Requ
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
 
-    # Try Resend HTTP API first (works on Render and all cloud hosts)
-    if is_resend_configured():
+    # Try Brevo HTTP API first (works on Render and all cloud hosts)
+    if is_brevo_configured():
         try:
-            _send_email_via_resend(email, subject, text_body, html_body)
+            _send_email_via_brevo(email, name, subject, text_body, html_body)
             return "A password reset link has been sent to your email."
         except Exception as e:
-            errors.append(f"Resend failure: {str(e)}")
-            print(f"Resend reset email failed: {e}")
+            errors.append(f"Brevo failure: {str(e)}")
+            details = ""
+            if isinstance(e, httpx.HTTPStatusError):
+                details = e.response.text[:500]
+            print(f"Brevo reset email failed: {e} {details}")
 
     # Fallback to direct SMTP (works locally)
     if is_email_verification_configured():

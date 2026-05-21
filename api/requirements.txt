@@ -14,4 +14,3 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
 razorpay==1.4.2
 openai>=1.0.0
-resend>=2.0.0
