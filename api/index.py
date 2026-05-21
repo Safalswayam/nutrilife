@@ -21,6 +21,7 @@ import httpx
 import razorpay
 import threading
 import time
+import resend
 import urllib.parse
 from fastapi.responses import RedirectResponse
 from email.message import EmailMessage
@@ -851,24 +852,20 @@ def get_email_delivery_mode() -> str:
     return "not configured"
 
 def _send_email_via_resend(to_email: str, subject: str, text_body: str, html_body: str) -> None:
-    """Send an email via Resend HTTP API. Works on all hosts including Render."""
-    from_addr = formataddr((SMTP_FROM_NAME, RESEND_FROM_EMAIL))
-    response = httpx.post(
-        "https://api.resend.com/emails",
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "from": from_addr,
-            "to": [to_email],
-            "subject": subject,
-            "text": text_body,
-            "html": html_body,
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
+    """Send an email via Resend HTTP API using the official Python SDK. Works on all hosts including Render."""
+    resend.api_key = RESEND_API_KEY
+    from_addr = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
+    
+    params: resend.Emails.SendParams = {
+        "from": from_addr,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+    
+    email_response = resend.Emails.send(params)
+    print("Resend response:", email_response)
 
 def _smtp_connect(host, port, timeout=20):
     """Create SMTP connection forcing IPv4 to avoid 'Network is unreachable' on hosts without IPv6."""
