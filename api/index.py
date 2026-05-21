@@ -854,7 +854,7 @@ def get_email_delivery_mode() -> str:
 def _send_email_via_resend(to_email: str, subject: str, text_body: str, html_body: str) -> None:
     """Send an email via Resend HTTP API using the official Python SDK. Works on all hosts including Render."""
     resend.api_key = RESEND_API_KEY
-    from_addr = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
+    from_addr = formataddr((SMTP_FROM_NAME, RESEND_FROM_EMAIL))
     
     params: resend.Emails.SendParams = {
         "from": from_addr,
