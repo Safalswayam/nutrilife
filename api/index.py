@@ -285,6 +285,8 @@ SMTP_FROM_EMAIL = (os.getenv("SMTP_FROM_EMAIL") or SMTP_USERNAME).strip()
 SMTP_FROM_NAME = (os.getenv("SMTP_FROM_NAME") or "NutriLife").strip()
 SMTP_USE_TLS = (os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"})
 SMTP_USE_SSL = (os.getenv("SMTP_USE_SSL", "false").strip().lower() in {"1", "true", "yes"})
+RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip()
+RESEND_FROM_EMAIL = (os.getenv("RESEND_FROM_EMAIL") or "onboarding@resend.dev").strip()
 
 ALLOW_CONSOLE_EMAIL_VERIFICATION = (
     os.getenv("ALLOW_CONSOLE_EMAIL_VERIFICATION", "true").strip().lower() not in {"0", "false", "no"}
@@ -833,15 +835,40 @@ def validate_password_strength(password: str) -> tuple:
 def generate_verification_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
+def is_resend_configured() -> bool:
+    return bool(RESEND_API_KEY)
+
 def is_email_verification_configured() -> bool:
     return bool(SMTP_HOST and SMTP_PORT and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM_EMAIL)
 
 def get_email_delivery_mode() -> str:
+    if is_resend_configured():
+        return "resend"
     if is_email_verification_configured():
         return "smtp"
     if ALLOW_CONSOLE_EMAIL_VERIFICATION:
         return "console-fallback"
     return "not configured"
+
+def _send_email_via_resend(to_email: str, subject: str, text_body: str, html_body: str) -> None:
+    """Send an email via Resend HTTP API. Works on all hosts including Render."""
+    from_addr = formataddr((SMTP_FROM_NAME, RESEND_FROM_EMAIL))
+    response = httpx.post(
+        "https://api.resend.com/emails",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": from_addr,
+            "to": [to_email],
+            "subject": subject,
+            "text": text_body,
+            "html": html_body,
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
 
 def _smtp_connect(host, port, timeout=20):
     """Create SMTP connection forcing IPv4 to avoid 'Network is unreachable' on hosts without IPv6."""
@@ -1013,6 +1040,17 @@ def create_email_verification_record(cur, user_id: int) -> str:
     return code
 
 def deliver_verification_code(email: str, name: str, code: str, request: Request) -> str:
+    recipient_name, subject, text_body, html_body = build_verification_email_content(email, name, code)
+
+    # Try Resend HTTP API first (works on Render and all cloud hosts)
+    if is_resend_configured():
+        try:
+            _send_email_via_resend(email, subject, text_body, html_body)
+            return "We sent a 6-digit verification code to your Gmail address."
+        except Exception as e:
+            print(f"Resend delivery failed: {e}")
+
+    # Fallback to direct SMTP (works locally)
     if is_email_verification_configured():
         try:
             send_email_verification_code(email, name, code)
@@ -1030,7 +1068,7 @@ def deliver_verification_code(email: str, name: str, code: str, request: Request
 
     raise HTTPException(
         status_code=503,
-        detail="Could not deliver verification email. Please check SMTP settings and try again."
+        detail="Could not deliver verification email. Please check email settings and try again."
     )
 
 def deliver_reset_password_link(email: str, name: str, token: str, request: Request) -> str:
@@ -1059,7 +1097,16 @@ def deliver_reset_password_link(email: str, name: str, token: str, request: Requ
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
 
-    # Send via SMTP
+    # Try Resend HTTP API first (works on Render and all cloud hosts)
+    if is_resend_configured():
+        try:
+            _send_email_via_resend(email, subject, text_body, html_body)
+            return "A password reset link has been sent to your email."
+        except Exception as e:
+            errors.append(f"Resend failure: {str(e)}")
+            print(f"Resend reset email failed: {e}")
+
+    # Fallback to direct SMTP (works locally)
     if is_email_verification_configured():
         try:
             server = _smtp_connect(SMTP_HOST, SMTP_PORT)
