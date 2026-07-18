@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nutrilife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nutrilife_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-nutrilife}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./api/database_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nutrilife} -d ${POSTGRES_DB:-nutrilife}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # not published to the host — only the backend talks to it
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./api
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-nutrilife}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-nutrilife_dev}
+      PGDATABASE: ${POSTGRES_DB:-nutrilife}
+      PGSSLMODE: disable
+      REDIS_URL: redis://redis:6379/0
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

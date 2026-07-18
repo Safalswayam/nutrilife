@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+api
+analytics
+*.md
+.env*
+tsconfig.tsbuildinfo

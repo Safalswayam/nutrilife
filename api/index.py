@@ -72,6 +72,11 @@ from psycopg2.extras import RealDictCursor
 from psycopg2 import pool
 from openai import OpenAI
 
+from cache import (
+    make_key, cache_get, cache_set, cache_delete,
+    dashboard_key, invalidate_dashboard,
+)
+
 app = FastAPI(title="NutriLife API", version="1.0.0")
 
 app.add_middleware(
@@ -260,7 +265,7 @@ class PooledConnection:
 DB_CONFIG = {
     "host": os.getenv("PGHOST") or os.getenv("POSTGRES_HOST", "localhost"),
     "user": os.getenv("PGUSER") or os.getenv("POSTGRES_USER", "postgres"),
-    "password": os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD", "postgres"),
+    "password": os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD") or "",
     "dbname": os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB", "postgres"),
     "port": int(os.getenv("PGPORT") or os.getenv("POSTGRES_PORT", 5432)),
     "sslmode": os.getenv("PGSSLMODE", "prefer"),
@@ -685,14 +690,14 @@ def init_database():
 
         # Migration: add missing columns to diet_plans if they don't exist
         migrations = [
-            ("is_active", "ALTER TABLE diet_plans ADD COLUMN is_active BOOLEAN DEFAULT TRUE"),
-            ("plan_name", "ALTER TABLE diet_plans ADD COLUMN plan_name VARCHAR(255)"),
-            ("start_date", "ALTER TABLE diet_plans ADD COLUMN start_date DATE"),
-            ("end_date", "ALTER TABLE diet_plans ADD COLUMN end_date DATE"),
-            ("target_calories", "ALTER TABLE diet_plans ADD COLUMN target_calories INT DEFAULT 2000"),
-            ("target_protein", "ALTER TABLE diet_plans ADD COLUMN target_protein DECIMAL(10,2) DEFAULT 0"),
-            ("target_carbs", "ALTER TABLE diet_plans ADD COLUMN target_carbs DECIMAL(10,2) DEFAULT 0"),
-            ("target_fat", "ALTER TABLE diet_plans ADD COLUMN target_fat DECIMAL(10,2) DEFAULT 0"),
+            ("is_active", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"),
+            ("plan_name", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS plan_name VARCHAR(255)"),
+            ("start_date", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS start_date DATE"),
+            ("end_date", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS end_date DATE"),
+            ("target_calories", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS target_calories INT DEFAULT 2000"),
+            ("target_protein", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS target_protein DECIMAL(10,2) DEFAULT 0"),
+            ("target_carbs", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS target_carbs DECIMAL(10,2) DEFAULT 0"),
+            ("target_fat", "ALTER TABLE diet_plans ADD COLUMN IF NOT EXISTS target_fat DECIMAL(10,2) DEFAULT 0"),
         ]
         migration_cur = conn.cursor()
         for col_name, sql in migrations:
@@ -1676,10 +1681,6 @@ MEAL_DATABASE = {
     },
 }
 
-@app.get("/")
-def root():
-    return {"status": "NutriLife API running", "version": "1.0.0"}
-
 @app.get("/api/health")
 def api_health_check():
     health_status = {
@@ -1734,18 +1735,21 @@ def db_test():
         cur.execute("SELECT 1")
         cur.fetchone()
         
-        cur.execute("SHOW TABLES")
+        cur.execute("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' ORDER BY table_name
+        """)
         tables = [row[0] for row in cur.fetchall()]
-        
+
         cur.execute("SELECT COUNT(*) FROM users")
         user_count = cur.fetchone()[0]
-        
+
         cur.close()
         conn.close()
-        
+
         return {
             "status": "connected",
-            "database": DB_CONFIG["database"],
+            "database": DB_CONFIG["dbname"],
             "tables": tables,
             "user_count": user_count
         }
@@ -2292,6 +2296,7 @@ def update_profile(data: UpdateProfileRequest, user=Depends(require_auth)):
         cur = conn.cursor()
         cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE id=%s", values)
         conn.commit()
+        invalidate_dashboard(user["id"])
         return {"success": True, "message": "Profile updated successfully"}
     except Exception as e:
         print(f"Profile update error: {e}")
@@ -2305,7 +2310,12 @@ def update_profile(data: UpdateProfileRequest, user=Depends(require_auth)):
 def analyze_food(req: FoodAnalysisRequest):
     try:
         description = req.description or ""
-        
+
+        ckey = make_key("food", description, req.image_base64 or "")
+        cached = cache_get(ckey)
+        if cached:
+            return FoodAnalysisResponse(**cached)
+
         system_prompt = """You are a certified nutritionist. Analyze the food and provide accurate nutritional information.
 
 PHYSICAL CONSTRAINTS (MANDATORY):
@@ -2346,8 +2356,8 @@ Use USDA database standards for calorie estimates."""
                 clean = clean.strip()
                 
                 data = json.loads(clean)
-                
-                return FoodAnalysisResponse(
+
+                resp = FoodAnalysisResponse(
                     success=True,
                     food_name=data.get("food_name", "Analyzed Food"),
                     portion_size=data.get("portion_size", "1 serving"),
@@ -2358,6 +2368,8 @@ Use USDA database standards for calorie estimates."""
                     healthier_alternatives=data.get("healthier_alternatives", []),
                     meal_category=data.get("meal_category", "Meal")
                 )
+                cache_set(ckey, resp.model_dump(), ttl_seconds=24 * 3600)
+                return resp
             except json.JSONDecodeError:
                 pass
         
@@ -2521,6 +2533,11 @@ Always recommend seeing a doctor for serious symptoms. Never diagnose - only sug
 @app.post("/api/diet-plan", response_model=DietPlanResponse)
 def generate_diet_plan(req: DietPlanRequest):
     try:
+        ckey = make_key("dietplan", json.dumps(req.model_dump(), sort_keys=True, default=str))
+        cached = cache_get(ckey)
+        if cached:
+            return DietPlanResponse(**cached)
+
         height_m = req.height / 100
         bmi = round(req.weight / (height_m ** 2), 1)
         
@@ -2806,7 +2823,7 @@ def generate_diet_plan(req: DietPlanRequest):
                     total_calories=b_db["calories"] + l_db["calories"] + d_db["calories"] + s_db[0]["calories"] + s_db[1 % len(s_db)]["calories"],
                 ))
         
-        return DietPlanResponse(
+        resp = DietPlanResponse(
             success=True,
             bmi_result=BMIResult(bmi=bmi, category=category, healthy_weight_range=f"{min_healthy} - {max_healthy} kg"),
             bmr=round(bmr),
@@ -2816,7 +2833,11 @@ def generate_diet_plan(req: DietPlanRequest):
             weekly_plan=weekly_plan,
             tips=tips
         )
-        
+        # Cache only real AI plans — a cached fallback plan would pin users to it for a day
+        if ai_plan and "days" in ai_plan and len(ai_plan["days"]) == 7:
+            cache_set(ckey, resp.model_dump(), ttl_seconds=24 * 3600)
+        return resp
+
     except Exception as e:
         print(f"Diet plan error: {e}")
         raise HTTPException(status_code=500, detail="Diet plan generation failed")
@@ -2842,6 +2863,7 @@ def log_meal(
         conn.commit()
         cur.close()
         conn.close()
+        invalidate_dashboard(user["id"])
         return {"success": True, "message": "Meal logged"}
     except Exception as e:
         print(f"Meal log error: {e}")
@@ -2880,6 +2902,7 @@ def delete_meal(meal_id: int, user=Depends(require_auth)):
         conn.close()
         if affected == 0:
             raise HTTPException(status_code=404, detail="Meal not found")
+        invalidate_dashboard(user["id"])
         return {"success": True, "message": "Meal deleted"}
     except HTTPException:
         raise
@@ -2917,11 +2940,16 @@ def get_todays_meals(user=Depends(require_auth)):
 def get_dashboard_stats(user=Depends(require_auth)):
     """Get comprehensive dashboard statistics for the user"""
     try:
+        today = datetime.now().date()
+
+        ckey = dashboard_key(user["id"], today)
+        cached = cache_get(ckey)
+        if cached:
+            return cached
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        today = datetime.now().date()
-        
+
         cur.execute("""
             SELECT COALESCE(SUM(calories), 0) as total_calories,
                    COALESCE(SUM(protein), 0) as total_protein,
@@ -3032,8 +3060,8 @@ def get_dashboard_stats(user=Depends(require_auth)):
         
         cur.close()
         conn.close()
-        
-        return {
+
+        result = {
             "success": True,
             "stats": {
                 "today_calories": int(today_nutrition['total_calories']),
@@ -3054,7 +3082,10 @@ def get_dashboard_stats(user=Depends(require_auth)):
                 "weekly_plan": weekly_plan  # ✅ FIX: Include weekly_plan in stats response
             }
         }
-        
+        # Short TTL safety net; writes (meals/water/profile/plan) invalidate explicitly
+        cache_set(ckey, json.loads(json.dumps(result, default=str)), ttl_seconds=300)
+        return result
+
     except Exception as e:
         print(f"Dashboard stats error: {e}")
         import traceback
@@ -3091,9 +3122,10 @@ def log_water(glasses: int = 1, user=Depends(require_auth)):
         
         cur.close()
         conn.close()
-        
+        invalidate_dashboard(user["id"])
+
         return {
-            "success": True, 
+            "success": True,
             "message": "Water logged successfully",
             "total_today": total_today
         }
@@ -3253,7 +3285,8 @@ Return this EXACT structure (no extra text):
         conn.commit()
         cur.close()
         conn.close()
-        
+        invalidate_dashboard(user["id"])
+
         return {
             "success": True,
             **data,
@@ -3346,16 +3379,10 @@ async def upload_profile_image(
     except Exception as img_err:
         raise HTTPException(status_code=422, detail=f"Could not process image: {str(img_err)}")
 
-    # ── Ensure column is MEDIUMTEXT (safe to run every time, MySQL ignores no-ops) ──
+    # profile_image is TEXT in PostgreSQL — no size migration needed
     conn = get_db()
     cur = conn.cursor()
     try:
-        try:
-            cur.execute("ALTER TABLE users MODIFY COLUMN profile_image MEDIUMTEXT")
-            conn.commit()
-        except Exception:
-            pass  # already MEDIUMTEXT or ALTER not permitted — proceed anyway
-
         cur.execute("UPDATE users SET profile_image = %s WHERE id = %s", (data_url, user["id"]))
         conn.commit()
         return {"success": True, "profile_image": data_url}
@@ -3412,7 +3439,8 @@ async def update_profile_full(request: Request, user=Depends(require_auth)):
         conn.commit()
         cur.close()
         conn.close()
-        
+        invalidate_dashboard(user["id"])
+
         return {
             "success": True,
             "message": "Profile updated successfully"
@@ -3490,7 +3518,8 @@ async def adjust_water_intake(
         conn.close()
         
         percentage = min(100, (new_total / goal * 100)) if goal > 0 else 0
-        
+        invalidate_dashboard(user["id"])
+
         return {
             "success": True,
             "current": new_total,
@@ -3637,7 +3666,8 @@ def save_diet_plan(
         conn.commit()
         cur.close()
         conn.close()
-        
+        invalidate_dashboard(user["id"])
+
         return {"success": True, "message": "Diet plan saved successfully"}
         
     except Exception as e:
@@ -3884,6 +3914,11 @@ async def google_login(request: dict, req: Request):
 @app.get("/api/subscription/plans")
 async def get_subscription_plans():
     try:
+        ckey = "nutrilife:subplans"
+        cached = cache_get(ckey)
+        if cached:
+            return cached
+
         if not subscription_service:
             return [
                 {
@@ -3943,6 +3978,8 @@ async def get_subscription_plans():
             ]
 
         plans = subscription_service.get_all_plans()
+        plans = json.loads(json.dumps(plans, default=str))
+        cache_set(ckey, plans, ttl_seconds=3600)
         return plans
 
     except Exception as e:
@@ -4476,9 +4513,10 @@ async def _webhook_cancel_subscription(payload: dict):
 
         cur.execute("""
             UPDATE user_subscriptions us
-            JOIN users u ON u.id = us.user_id
-            SET us.status = 'cancelled', us.cancelled_at = NOW(), us.updated_at = NOW()
-            WHERE u.razorpay_subscription_id = %s AND us.status = 'active'
+            SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+            FROM users u
+            WHERE u.id = us.user_id
+              AND u.razorpay_subscription_id = %s AND us.status = 'active'
         """, (rzp_sub_id,))
 
         conn.commit()
@@ -4575,6 +4613,7 @@ async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
             items_logged += 1
 
         conn.commit()
+        invalidate_dashboard(user["id"])
 
         total_calories = req.nutrition.get("calories", 0)
         return {

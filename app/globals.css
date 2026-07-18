@@ -259,3 +259,21 @@
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
+
+/* Accessibility: visible keyboard focus */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Accessibility: honor reduced-motion for custom animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulse-green,
+  .reveal-3d {
+    animation: none !important;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
