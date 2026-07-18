@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: nutrilife_db
+    schema: public # Adjust schema name if different in your warehouse
+    tables:
+      - name: users
+        description: "Raw users table from the backend database"
+
+models:
+  - name: stg_users
+    description: "Staged version of the users table, with basic transformations."
+    columns:
+      - name: user_id
+        description: "Primary key for the user"
+        tests:
+          - unique
+          - not_null
+      - name: email
+        description: "User's email address"
+        tests:
+          - unique
+          - not_null
