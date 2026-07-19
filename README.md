@@ -328,12 +328,22 @@ The application will be available at `http://localhost:3000`.
 ### Backend — `.env`
 
 ```env
-# ── Database ──────────────────────────────────────────────
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=your_mysql_password
-MYSQL_DATABASE=nutrilife_db
+# ── Database (PostgreSQL) ─────────────────────────────────
+# Required. There is no password fallback — if PGPASSWORD is unset the
+# backend connects with an empty password and authentication will fail.
+PGHOST=localhost
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=your_postgres_password
+PGDATABASE=nutrilife
+PGSSLMODE=prefer
+# Alternatively, set a single DATABASE_URL and the above are ignored:
+# DATABASE_URL=postgresql://user:password@host:5432/dbname
+
+# ── Cache (optional) ──────────────────────────────────────
+# Defaults to redis://localhost:6379/0. Caching degrades to a no-op if
+# Redis is unreachable, and reconnects automatically once it returns.
+REDIS_URL=redis://localhost:6379/0
 
 # ── Authentication ────────────────────────────────────────
 JWT_SECRET_KEY=your_long_random_secret_key_minimum_32_chars

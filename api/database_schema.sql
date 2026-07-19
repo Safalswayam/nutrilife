@@ -228,6 +228,9 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
 CREATE INDEX IF NOT EXISTS idx_user_status ON user_subscriptions(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_end_date ON user_subscriptions(end_date);
 CREATE INDEX IF NOT EXISTS idx_status ON user_subscriptions(status);
+-- Composite carried over from the MySQL schema: serves the
+-- (user_id, status) + end_date lookups the expiry sweep and status checks do.
+CREATE INDEX IF NOT EXISTS idx_subscription_user_status ON user_subscriptions(user_id, status, end_date);
 
 -- ============================================
 -- 4. PAYMENT TRANSACTIONS TABLE
@@ -251,6 +254,9 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
 
 CREATE INDEX IF NOT EXISTS idx_payment_user_id ON payment_transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_payment_status ON payment_transactions(payment_status);
+-- Composite carried over from the MySQL schema: per-user payment history
+-- filtered by status resolves in a single index scan.
+CREATE INDEX IF NOT EXISTS idx_payment_user_status ON payment_transactions(user_id, payment_status);
 
 -- ============================================
 -- 5. FEATURE ACCESS TABLE
@@ -358,17 +364,28 @@ ORDER BY month DESC;
 CREATE OR REPLACE FUNCTION expire_subscriptions() RETURNS void AS $$
 BEGIN
     UPDATE user_subscriptions
-    SET status = 'expired'
+    SET status = 'expired', updated_at = NOW()
     WHERE status = 'active'
-    AND end_date <= NOW();
+      AND end_date <= NOW();
 
+    -- Sync the denormalized flags on users. Aggregating first keeps this
+    -- deterministic when a user has more than one active subscription, and
+    -- the IS DISTINCT FROM guard limits writes to rows that actually change
+    -- instead of rewriting every user row on every sweep.
     UPDATE users u
-    SET is_premium = (us.id IS NOT NULL),
-        subscription_expires_at = us.end_date
-    FROM users u2
-    LEFT JOIN user_subscriptions us
-        ON u2.id = us.user_id AND us.status = 'active'
-    WHERE u.id = u2.id;
+    SET is_premium = agg.still_active,
+        subscription_expires_at = agg.latest_end
+    FROM (
+        SELECT u2.id AS user_id,
+               COALESCE(bool_or(us.status = 'active' AND us.end_date > NOW()), FALSE) AS still_active,
+               MAX(us.end_date) FILTER (WHERE us.status = 'active') AS latest_end
+        FROM users u2
+        LEFT JOIN user_subscriptions us ON us.user_id = u2.id
+        GROUP BY u2.id
+    ) agg
+    WHERE u.id = agg.user_id
+      AND (u.is_premium IS DISTINCT FROM agg.still_active
+           OR u.subscription_expires_at IS DISTINCT FROM agg.latest_end);
 END;
 $$ LANGUAGE plpgsql;
 

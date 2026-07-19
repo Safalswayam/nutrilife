@@ -29,14 +29,36 @@ const CANVAS_GREEN = "#2e7d4f"
 const CANVAS_GREEN_LT = "#3fae6e"
 const CANVAS_AMBER = "#e0a531"
 
-const FALLBACK_PLANS = [
-  { id: 1, name: "3 Month Plan", duration_months: 3, final_price: 299, base_price: 299, badge: null as string | null, features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support"] },
-  { id: 2, name: "6 Month Plan", duration_months: 6, final_price: 549, base_price: 598, badge: "Most Popular", features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Save ₹49"] },
-  { id: 3, name: "1 Year Plan", duration_months: 12, final_price: 849, base_price: 1196, badge: "Best Value", features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Save ₹347"] },
+/* Shown only if the live fetch fails — never on the initial render, so a
+   visitor doesn't briefly see prices that disagree with the database.
+   Values mirror the subscription_plans seed in api/database_schema.sql;
+   keep them in sync if that seed changes. */
+type Plan = {
+  id: number; name: string; duration_months: number
+  final_price: number; base_price: number
+  badge: string | null; features: string[]
+}
+
+const FALLBACK_PLANS: Plan[] = [
+  { id: 1, name: "3 Month Plan", duration_months: 3, final_price: 299, base_price: 299, badge: null, features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support"] },
+  { id: 2, name: "6 Month Plan", duration_months: 6, final_price: 549, base_price: 598, badge: "⭐ Popular", features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support", "Save ₹49"] },
+  { id: 3, name: "1 Year Plan", duration_months: 12, final_price: 849, base_price: 1196, badge: "🔥 Best Value", features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support", "Save ₹347", "Best Value"] },
 ]
 
 /* ── motion presets ───────────────────────────────────────────────────────── */
 const EASE = [0.22, 1, 0.36, 1] as const
+
+/* Single source of truth for the two media queries used across this page,
+   so the gating rule lives in one place instead of being re-typed per call site. */
+function prefersReducedMotion() {
+  return typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
+function isCoarsePointer() {
+  return typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches
+}
 
 function useRevealProps(delay = 0) {
   const reduce = useReducedMotion()
@@ -60,8 +82,7 @@ function Reveal({ children, delay = 0, className }: {
 function CursorTrail() {
   const dotRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    if (window.matchMedia("(pointer: coarse)").matches) return
+    if (prefersReducedMotion() || isCoarsePointer()) return
     const dot = dotRef.current
     if (!dot) return
     let raf = 0, tx = -100, ty = -100, x = -100, y = -100, seen = false
@@ -100,7 +121,7 @@ function Counter({ to, suffix = "", decimals = 0, className }: {
     const io = new IntersectionObserver(([e]) => {
       if (!e.isIntersecting || started.current) return
       started.current = true
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(to); return }
+      if (prefersReducedMotion()) { setN(to); return }
       const t0 = performance.now()
       const step = (t: number) => {
         const p = Math.min((t - t0) / 1400, 1)
@@ -289,13 +310,17 @@ export default function LandingPage() {
   const [isRedirecting, setIsRedirecting] = useState(true)
   const [toast, setToast] = useState(false)
   const [chosen, setChosen] = useState(false)
-  const [plans, setPlans] = useState(FALLBACK_PLANS)
+  const [plans, setPlans] = useState<Plan[] | null>(null)
   const reduce = useReducedMotion()
 
   const arenaRef = useRef<HTMLDivElement>(null)
   const junkRef = useRef<HTMLButtonElement>(null)
-  const dodgesLeft = useRef(2 + Math.round(Math.random()))
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /* 2–3 dodges per round, reseeded after each round so the game still works
+     if the player comes back for another go in the same session */
+  const rollDodges = () => (Math.random() < 0.5 ? 2 : 3)
+  const dodgesLeft = useRef(rollDodges())
 
   useEffect(() => {
     if (!isLoading) {
@@ -304,22 +329,29 @@ export default function LandingPage() {
     }
   }, [isAuthenticated, isLoading, router])
 
-  /* real pricing from the API; silent fallback to the same defaults it seeds */
+  /* Live pricing from the API. `plans` stays null until it resolves so the
+     hardcoded fallback is never rendered as if it were real data — it only
+     appears if the request actually fails. */
   useEffect(() => {
     if (isRedirecting) return
+    let cancelled = false
     fetch(getApiUrl("/api/subscription/plans"))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
+        if (cancelled) return
         if (Array.isArray(data) && data.length >= 3) {
           setPlans(data.slice(0, 3).map((p) => ({
             id: p.id, name: p.name, duration_months: p.duration_months,
             final_price: Math.round(Number(p.final_price)),
             base_price: Math.round(Number(p.base_price)),
-            badge: p.badge, features: (p.features || []).slice(0, 4),
+            badge: p.badge, features: (p.features || []).slice(0, 6),
           })))
+        } else {
+          setPlans(FALLBACK_PLANS)
         }
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setPlans(FALLBACK_PLANS) })
+    return () => { cancelled = true }
   }, [isRedirecting])
 
   /* scroll progress bar + nav solidify */
@@ -362,18 +394,30 @@ export default function LandingPage() {
     dodgesLeft.current -= 1
   }, [])
 
-  const onJunkHover = useCallback(() => {
-    if (!window.matchMedia("(pointer: coarse)").matches && dodgesLeft.current > 0) dodge()
+  /* one guard shared by hover and click so the exhaustion rule lives in one place */
+  const tryDodge = useCallback(() => {
+    if (dodgesLeft.current <= 0) return false
+    dodge()
+    return true
   }, [dodge])
 
+  const onJunkHover = useCallback(() => {
+    if (!isCoarsePointer()) tryDodge()
+  }, [tryDodge])
+
   const onJunkClick = useCallback(() => {
-    if (dodgesLeft.current > 0) { dodge(); return }
+    if (tryDodge()) return
     setToast(true)
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(false), 3000)
-    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    window.scrollTo({ top: 0, behavior: smooth ? "smooth" : "auto" })
-  }, [dodge])
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" })
+    // Reset for a replay: the burger dodges again next time the player tries.
+    dodgesLeft.current = rollDodges()
+    if (junkRef.current) {
+      junkRef.current.style.removeProperty("--dx")
+      junkRef.current.style.removeProperty("--dy")
+    }
+  }, [tryDodge])
 
   const onHealthyClick = useCallback(() => {
     if (chosen) return
@@ -384,7 +428,7 @@ export default function LandingPage() {
       const r = btn.getBoundingClientRect()
       origin = { x: (r.left + r.width / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight }
     }
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (!prefersReducedMotion()) {
       confetti({ particleCount: 120, spread: 75, startVelocity: 38, origin, colors: [CANVAS_GREEN, CANVAS_GREEN_LT, CANVAS_AMBER] })
       confetti({ particleCount: 60, spread: 120, startVelocity: 24, origin, colors: [CANVAS_GREEN_LT, CANVAS_AMBER] })
     }
@@ -648,7 +692,21 @@ export default function LandingPage() {
               <p className="mt-4 text-muted-foreground text-lg font-medium">Free to start. Upgrade when you're ready.</p>
             </Reveal>
             <div className="grid md:grid-cols-3 gap-6 items-stretch">
-              {plans.map((p, i) => {
+              {plans === null && [0, 1, 2].map((i) => (
+                <div key={i} aria-hidden="true"
+                  className={`h-full rounded-[2rem] p-8 bg-card animate-pulse ${i === 1 ? "border-2 border-primary/30" : "border border-border"}`}>
+                  <div className="h-4 w-24 rounded bg-muted mb-6" />
+                  <div className="h-8 w-32 rounded bg-muted mb-3" />
+                  <div className="h-3 w-40 rounded bg-muted mb-8" />
+                  <div className="space-y-3">
+                    {[0, 1, 2, 3].map((f) => <div key={f} className="h-3 w-full rounded bg-muted" />)}
+                  </div>
+                </div>
+              ))}
+              {plans === null && (
+                <p className="sr-only" role="status" aria-live="polite">Loading pricing plans</p>
+              )}
+              {plans?.map((p, i) => {
                 const popular = i === 1
                 return (
                   <Reveal key={p.id} delay={i * 0.1}>

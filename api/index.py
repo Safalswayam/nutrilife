@@ -21,6 +21,7 @@ import httpx
 import razorpay
 import threading
 import time
+import asyncio
 import urllib.parse
 from fastapi.responses import RedirectResponse
 from email.message import EmailMessage
@@ -73,7 +74,7 @@ from psycopg2 import pool
 from openai import OpenAI
 
 from cache import (
-    make_key, cache_get, cache_set, cache_delete,
+    make_key, cache_get, cache_set,
     dashboard_key, invalidate_dashboard,
 )
 
@@ -686,6 +687,49 @@ def init_database():
         )
         """)
 
+        # Composite indexes carried over from the MySQL schema. Declared here as
+        # well as in database_schema.sql because that file only runs on a fresh
+        # data directory — existing databases would otherwise never get them.
+        for index_sql in (
+            "CREATE INDEX IF NOT EXISTS idx_subscription_user_status ON user_subscriptions(user_id, status, end_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payment_user_status ON payment_transactions(user_id, payment_status)",
+        ):
+            try:
+                cur.execute(index_sql)
+                conn.commit()
+            except Exception as idx_err:
+                conn.rollback()
+                print(f"Index creation warning: {idx_err}")
+
+        # Daily subscription-expiry sweep, invoked by start_subscription_expiry_job().
+        # Defined here as well as in database_schema.sql so deployments that don't
+        # run the docker-entrypoint init script (e.g. Render) still get it.
+        cur.execute("""
+        CREATE OR REPLACE FUNCTION expire_subscriptions() RETURNS void AS $func$
+        BEGIN
+            UPDATE user_subscriptions
+            SET status = 'expired', updated_at = NOW()
+            WHERE status = 'active'
+              AND end_date <= NOW();
+
+            UPDATE users u
+            SET is_premium = agg.still_active,
+                subscription_expires_at = agg.latest_end
+            FROM (
+                SELECT u2.id AS user_id,
+                       COALESCE(bool_or(us.status = 'active' AND us.end_date > NOW()), FALSE) AS still_active,
+                       MAX(us.end_date) FILTER (WHERE us.status = 'active') AS latest_end
+                FROM users u2
+                LEFT JOIN user_subscriptions us ON us.user_id = u2.id
+                GROUP BY u2.id
+            ) agg
+            WHERE u.id = agg.user_id
+              AND (u.is_premium IS DISTINCT FROM agg.still_active
+                   OR u.subscription_expires_at IS DISTINCT FROM agg.latest_end);
+        END;
+        $func$ LANGUAGE plpgsql
+        """)
+
         conn.commit()
 
         # Migration: add missing columns to diet_plans if they don't exist
@@ -755,6 +799,49 @@ def start_uptime_bot():
     thread = threading.Thread(target=ping_loop, daemon=True)
     thread.start()
 
+def start_subscription_expiry_job():
+    """
+    Runs the expire_subscriptions() sweep daily.
+
+    Replaces the MySQL event scheduler (`CREATE EVENT daily_subscription_check`)
+    that the PostgreSQL migration dropped — without this, user_subscriptions.status
+    and users.is_premium never flip to expired after end_date passes.
+    """
+    def expiry_loop():
+        # Let the DB pool and schema init settle first.
+        time.sleep(60)
+        while True:
+            conn = None
+            cur = None
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("SELECT expire_subscriptions()")
+                conn.commit()
+                print(f"Subscription expiry sweep ran at {datetime.now().isoformat(timespec='seconds')}")
+            except Exception as e:
+                if conn:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                print(f"Subscription expiry sweep failed: {e}")
+            finally:
+                if cur:
+                    try:
+                        cur.close()
+                    except Exception:
+                        pass
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            time.sleep(24 * 60 * 60)
+
+    thread = threading.Thread(target=expiry_loop, daemon=True)
+    thread.start()
+
 def startup_init():
     if init_db_pool():
         init_database()
@@ -764,6 +851,8 @@ def startup_init():
     notify_server_start()
     # Start the uptime bot to keep Render alive
     start_uptime_bot()
+    # Expire lapsed subscriptions daily (replaces the MySQL event scheduler)
+    start_subscription_expiry_job()
 
 startup_init()
 
@@ -3285,7 +3374,7 @@ Return this EXACT structure (no extra text):
         conn.commit()
         cur.close()
         conn.close()
-        invalidate_dashboard(user["id"])
+        await asyncio.to_thread(invalidate_dashboard, user["id"])
 
         return {
             "success": True,
@@ -3385,6 +3474,7 @@ async def upload_profile_image(
     try:
         cur.execute("UPDATE users SET profile_image = %s WHERE id = %s", (data_url, user["id"]))
         conn.commit()
+        await asyncio.to_thread(invalidate_dashboard, user["id"])
         return {"success": True, "profile_image": data_url}
     except Exception as e:
         conn.rollback()
@@ -3402,6 +3492,7 @@ def delete_profile_image(user=Depends(require_auth)):
     try:
         cur.execute("UPDATE users SET profile_image = NULL WHERE id = %s", (user["id"],))
         conn.commit()
+        invalidate_dashboard(user["id"])
         return {"success": True}
     except Exception as e:
         conn.rollback()
@@ -3439,7 +3530,9 @@ async def update_profile_full(request: Request, user=Depends(require_auth)):
         conn.commit()
         cur.close()
         conn.close()
-        invalidate_dashboard(user["id"])
+        # This route must stay async (it awaits request.json()), so the
+        # blocking Redis call is offloaded rather than run on the event loop.
+        await asyncio.to_thread(invalidate_dashboard, user["id"])
 
         return {
             "success": True,
@@ -3455,7 +3548,7 @@ class WaterAdjustRequest(BaseModel):
     adjustment: int  # +1 or -1
 
 @app.post("/api/water/adjust")
-async def adjust_water_intake(
+def adjust_water_intake(
     request: dict,
     user: dict = Depends(require_auth)
 ):
@@ -3535,7 +3628,7 @@ async def adjust_water_intake(
 
 
 @app.post("/api/water/set-goal")
-async def set_water_goal(request: dict, user: dict = Depends(require_auth)):
+def set_water_goal(request: dict, user: dict = Depends(require_auth)):
     try:
         goal = request.get("goal")
         
@@ -3551,11 +3644,12 @@ async def set_water_goal(request: dict, user: dict = Depends(require_auth)):
                 updated_at = NOW()
             WHERE id = %s
         """, (goal, user['id']))
-        
+
         conn.commit()
         cur.close()
         conn.close()
-        
+        invalidate_dashboard(user['id'])
+
         return {
             "success": True,
             "message": f"Daily water goal set to {goal} glasses",
@@ -3912,11 +4006,15 @@ async def google_login(request: dict, req: Request):
 
 
 @app.get("/api/subscription/plans")
-async def get_subscription_plans():
+def get_subscription_plans():
+    # Sync def on purpose: cache_get/cache_set do blocking socket I/O, so
+    # FastAPI runs this in its threadpool instead of on the event loop.
     try:
         ckey = "nutrilife:subplans"
         cached = cache_get(ckey)
-        if cached:
+        # `is not None` so a legitimately-cached empty list isn't re-fetched
+        # on every request the way a falsy check would.
+        if cached is not None:
             return cached
 
         if not subscription_service:
@@ -4563,7 +4661,7 @@ async def _webhook_payment_failed(payload: dict):
 
 
 @app.post("/api/meals/log-batch")
-async def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
+def log_meal_batch(req: BatchLogRequest, user=Depends(require_auth)):
     conn = None
     cur = None
     try:
@@ -4657,7 +4755,7 @@ def get_my_fasting_plan(user=Depends(require_auth)):
 
 
 @app.post("/api/fasting/set-plan")
-async def set_fasting_plan(request: dict, user=Depends(require_auth)):
+def set_fasting_plan(request: dict, user=Depends(require_auth)):
     plan_id = request.get("plan_id", "none")
     if plan_id not in FASTING_PLANS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: {plan_id}")
@@ -4668,6 +4766,7 @@ async def set_fasting_plan(request: dict, user=Depends(require_auth)):
         conn.commit()
         cur.close()
         conn.close()
+        invalidate_dashboard(user["id"])
         return {"success": True, "plan_id": plan_id, "plan": FASTING_PLANS[plan_id]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,6 +1,7 @@
 """Thin Redis JSON cache. Degrades to a no-op when Redis is unreachable."""
 import os
 import json
+import time
 import hashlib
 
 try:
@@ -10,18 +11,31 @@ except ImportError:
 
 REDIS_URL = (os.getenv("REDIS_URL") or "redis://localhost:6379/0").strip()
 
+# Seconds to wait before re-attempting a failed connection. Without this the
+# first transient failure (Redis still booting, brief network blip) would
+# disable caching for the whole life of the process.
+_RETRY_COOLDOWN_SECONDS = 30
+
 _client = None
-_checked = False
+_last_attempt = 0.0
+_warned = False
 
 
 def _get_client():
-    global _client, _checked
-    if _checked:
+    global _client, _last_attempt, _warned
+    if _client is not None:
         return _client
-    _checked = True
     if _redis_lib is None:
-        print("⚠ redis package not installed — caching disabled")
+        if not _warned:
+            _warned = True
+            print("redis package not installed - caching disabled")
         return None
+    # Back off between attempts so a hard-down Redis doesn't add a connect
+    # timeout to every single request.
+    now = time.monotonic()
+    if _last_attempt and (now - _last_attempt) < _RETRY_COOLDOWN_SECONDS:
+        return None
+    _last_attempt = now
     try:
         c = _redis_lib.Redis.from_url(
             REDIS_URL,
@@ -31,11 +45,20 @@ def _get_client():
         )
         c.ping()
         _client = c
-        print(f"✓ Redis cache connected ({REDIS_URL.split('@')[-1]})")
+        _warned = False
+        print(f"Redis cache connected ({REDIS_URL.split('@')[-1]})")
     except Exception as e:
-        print(f"⚠ Redis unavailable ({e}) — caching disabled")
         _client = None
+        if not _warned:
+            _warned = True
+            print(f"Redis unavailable ({e}) - caching disabled, retrying every {_RETRY_COOLDOWN_SECONDS}s")
     return _client
+
+
+def _drop_client():
+    """Force a reconnect on the next call after an operational error."""
+    global _client
+    _client = None
 
 
 def make_key(prefix: str, *parts) -> str:
@@ -55,6 +78,7 @@ def cache_get(key: str):
         return json.loads(raw)
     except Exception as e:
         print(f"cache get error ({key}): {e}")
+        _drop_client()
         return None
 
 
@@ -66,6 +90,7 @@ def cache_set(key: str, value, ttl_seconds: int):
         c.setex(key, ttl_seconds, json.dumps(value, default=str))
     except Exception as e:
         print(f"cache set error ({key}): {e}")
+        _drop_client()
 
 
 def cache_delete(*keys):
@@ -76,13 +101,44 @@ def cache_delete(*keys):
         c.delete(*keys)
     except Exception as e:
         print(f"cache delete error: {e}")
+        _drop_client()
+
+
+# ── Dashboard cache ────────────────────────────────────────────────────────
+# Keys carry a per-user version stamp. Invalidation bumps the version rather
+# than deleting the key, so a slow in-flight read that computed the old
+# version writes to a key nobody will read again (it just expires) instead of
+# resurrecting stale data after the delete. Without this, a dashboard read
+# that started before a meal-log write could re-cache pre-write totals for
+# the full TTL.
+
+def _dash_version_key(user_id) -> str:
+    return f"nutrilife:dashver:{user_id}"
+
+
+def _dash_version(user_id) -> str:
+    c = _get_client()
+    if not c:
+        return "0"
+    try:
+        return c.get(_dash_version_key(user_id)) or "0"
+    except Exception as e:
+        print(f"cache version read error: {e}")
+        _drop_client()
+        return "0"
 
 
 def dashboard_key(user_id, day) -> str:
-    return f"nutrilife:dash:{user_id}:{day}"
+    return f"nutrilife:dash:{user_id}:{day}:v{_dash_version(user_id)}"
 
 
 def invalidate_dashboard(user_id):
-    """Writes only affect today's dashboard aggregate."""
-    from datetime import date
-    cache_delete(dashboard_key(user_id, date.today()))
+    """Bump the user's dashboard version so cached entries stop being read."""
+    c = _get_client()
+    if not c:
+        return
+    try:
+        c.incr(_dash_version_key(user_id))
+    except Exception as e:
+        print(f"cache invalidate error: {e}")
+        _drop_client()
