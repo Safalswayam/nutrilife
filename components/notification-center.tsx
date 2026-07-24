@@ -126,7 +126,7 @@ export function NotificationCenter() {
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/50 flex items-center gap-2">
-          <Zap className="w-3 h-3 text-orange-500" />
+          <Zap className="w-3 h-3 text-[color:var(--warning)]" />
           Protocol Feed
         </h3>
         <Badge variant="outline" className="text-[8px] font-black tracking-widest border-white/5 opacity-40">
@@ -140,17 +140,17 @@ export function NotificationCenter() {
             key={alert.id}
             className={cn(
               "group p-4 rounded-3xl border transition-all hover:scale-[1.02] active:scale-[0.98]",
-              "bg-white dark:bg-zinc-900 shadow-sm",
-              alert.status === "alert" ? "border-orange-500/20" : 
-              alert.status === "success" ? "border-primary/20" : "border-zinc-200 dark:border-white/5"
+              "bg-white dark:bg-muted-foreground shadow-sm",
+              alert.status === "alert" ? "border-[color:var(--warning)]/20" : 
+              alert.status === "success" ? "border-primary/20" : "border-muted-foreground dark:border-white/5"
             )}
           >
             <div className="flex gap-4">
               <div className={cn(
                 "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:rotate-12",
-                alert.type === "hydration" ? "bg-blue-500/10 text-blue-500" :
-                alert.type === "nutrition" ? "bg-orange-500/10 text-orange-500" :
-                "bg-indigo-500/10 text-indigo-500"
+                alert.type === "hydration" ? "bg-[color:var(--info)]/10 text-[color:var(--info)]" :
+                alert.type === "nutrition" ? "bg-[color:var(--warning)]/10 text-[color:var(--warning)]" :
+                "bg-[color:var(--info)]/10 text-[color:var(--info)]"
               )}>
                 {alert.type === "hydration" && <Droplets className="w-5 h-5" />}
                 {alert.type === "nutrition" && <Utensils className="w-5 h-5" />}
@@ -163,7 +163,7 @@ export function NotificationCenter() {
                     {alert.title}
                   </h4>
                   {alert.status === "alert" && (
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shrink-0 mt-1.5" />
+                    <span className="w-2 h-2 rounded-full bg-[color:var(--warning)] animate-pulse shrink-0 mt-1.5" />
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed mt-1 line-clamp-2">

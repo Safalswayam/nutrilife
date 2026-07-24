@@ -3,89 +3,115 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── App theme ─────────────────────────────────────────────────────────────
+   The whole product now speaks the landing page's language: matte ink ground,
+   deep pine surfaces, one lime accent held in reserve. Because shadcn
+   primitives and ~850 usages across the feature pages read from these tokens,
+   retheming here reskins the app rather than touching every page.
+   Lime is the ONLY bright colour — reserve it for primary action and the
+   current/selected state, exactly as on the landing page. */
 :root {
-  --background: oklch(0.98 0.01 145);
-  --foreground: oklch(0.2 0.04 145);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.04 145);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.04 145);
-  --primary: oklch(0.5 0.15 145);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.92 0.03 145);
-  --secondary-foreground: oklch(0.3 0.06 145);
-  --muted: oklch(0.95 0.02 145);
-  --muted-foreground: oklch(0.5 0.03 145);
-  --accent: oklch(0.75 0.18 85);
-  --accent-foreground: oklch(0.2 0.04 85);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.88 0.03 145);
-  --input: oklch(0.92 0.02 145);
-  --ring: oklch(0.5 0.15 145);
-  --chart-1: oklch(0.55 0.16 145);
-  --chart-2: oklch(0.65 0.18 85);
-  --chart-3: oklch(0.6 0.12 180);
-  --chart-4: oklch(0.7 0.15 120);
-  --chart-5: oklch(0.5 0.1 200);
+  --background: #07110d;
+  --foreground: #f4f5ed;
+  --card: #0b1b14;
+  --card-foreground: #f4f5ed;
+  --popover: #0d2018;
+  --popover-foreground: #f4f5ed;
+  --primary: #c9ff4a;
+  --primary-foreground: #07110d;
+  --secondary: #0d2b1d;
+  --secondary-foreground: #f4f5ed;
+  --muted: #12241b;
+  --muted-foreground: #91a895;
+  --accent: #155e3a;
+  --accent-foreground: #f4f5ed;
+  --destructive: oklch(0.62 0.19 25);
+  --destructive-foreground: #f4f5ed;
+  --border: oklch(0.28 0.03 155);
+  --input: oklch(0.26 0.03 155);
+  --ring: #c9ff4a;
+  /* charts stay within the green→lime family so data reads as one system */
+  --chart-1: #c9ff4a;
+  --chart-2: oklch(0.72 0.15 148);
+  --chart-3: #155e3a;
+  --chart-4: #91a895;
+  --chart-5: oklch(0.55 0.08 165);
   --radius: 0.75rem;
-  --sidebar: oklch(0.35 0.08 145);
-  --sidebar-foreground: oklch(0.95 0.01 145);
-  --sidebar-primary: oklch(0.6 0.18 145);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.45 0.1 145);
-  --sidebar-accent-foreground: oklch(0.95 0.01 145);
-  --sidebar-border: oklch(0.4 0.08 145);
-  --sidebar-ring: oklch(0.6 0.15 145);
-  
-  /* Custom health app tokens */
-  --success: oklch(0.65 0.2 145);
-  --warning: oklch(0.75 0.18 85);
-  --info: oklch(0.6 0.15 230);
+  --sidebar: #050d0a;
+  --sidebar-foreground: #f4f5ed;
+  --sidebar-primary: #c9ff4a;
+  --sidebar-primary-foreground: #07110d;
+  --sidebar-accent: #12241b;
+  --sidebar-accent-foreground: #f4f5ed;
+  --sidebar-border: oklch(0.26 0.03 155);
+  --sidebar-ring: #c9ff4a;
+
+  /* Semantic accents — muted into the palette instead of a rainbow.
+     Only `danger` stays chromatic, because it must never be missed. */
+  --success: #c9ff4a;
+  --warning: oklch(0.82 0.13 95);
+  --info: oklch(0.72 0.06 190);
+
+  /* NutriLife landing — cinematic narrative tokens */
+  --nl-ink: #07110d;
+  --nl-pine: #0d2b1d;
+  --nl-forest: #155e3a;
+  --nl-lime: #c9ff4a;
+  --nl-warm: #f4f5ed;
+  --nl-sage: #91a895;
+  --nl-hairline: rgba(244, 245, 237, 0.16);
+  --nl-ease: cubic-bezier(0.3, 0.26, 0.38, 1);
 }
 
+/* The app is dark by default now, so .dark simply mirrors :root — kept so the
+   variant keeps working if a theme toggle is ever reintroduced. */
 .dark {
-  --background: oklch(0.15 0.03 145);
-  --foreground: oklch(0.95 0.01 145);
-  --card: oklch(0.2 0.04 145);
-  --card-foreground: oklch(0.95 0.01 145);
-  --popover: oklch(0.2 0.04 145);
-  --popover-foreground: oklch(0.95 0.01 145);
-  --primary: oklch(0.6 0.18 145);
-  --primary-foreground: oklch(0.1 0.02 145);
-  --secondary: oklch(0.25 0.05 145);
-  --secondary-foreground: oklch(0.9 0.02 145);
-  --muted: oklch(0.25 0.04 145);
-  --muted-foreground: oklch(0.65 0.03 145);
-  --accent: oklch(0.7 0.16 85);
-  --accent-foreground: oklch(0.15 0.03 85);
-  --destructive: oklch(0.5 0.2 25);
-  --destructive-foreground: oklch(0.95 0.01 25);
-  --border: oklch(0.3 0.05 145);
-  --input: oklch(0.25 0.04 145);
-  --ring: oklch(0.55 0.15 145);
-  --chart-1: oklch(0.6 0.18 145);
-  --chart-2: oklch(0.7 0.16 85);
-  --chart-3: oklch(0.55 0.14 180);
-  --chart-4: oklch(0.65 0.15 120);
-  --chart-5: oklch(0.5 0.12 200);
-  --sidebar: oklch(0.18 0.04 145);
-  --sidebar-foreground: oklch(0.95 0.01 145);
-  --sidebar-primary: oklch(0.6 0.18 145);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.3 0.06 145);
-  --sidebar-accent-foreground: oklch(0.95 0.01 145);
-  --sidebar-border: oklch(0.28 0.05 145);
-  --sidebar-ring: oklch(0.55 0.15 145);
-  
-  /* Custom health app tokens */
-  --success: oklch(0.6 0.18 145);
-  --warning: oklch(0.7 0.16 85);
-  --info: oklch(0.55 0.15 230);
+  --background: #07110d;
+  --foreground: #f4f5ed;
+  --card: #0b1b14;
+  --card-foreground: #f4f5ed;
+  --popover: #0d2018;
+  --popover-foreground: #f4f5ed;
+  --primary: #c9ff4a;
+  --primary-foreground: #07110d;
+  --secondary: #0d2b1d;
+  --secondary-foreground: #f4f5ed;
+  --muted: #12241b;
+  --muted-foreground: #91a895;
+  --accent: #155e3a;
+  --accent-foreground: #f4f5ed;
+  --destructive: oklch(0.62 0.19 25);
+  --destructive-foreground: #f4f5ed;
+  --border: oklch(0.28 0.03 155);
+  --input: oklch(0.26 0.03 155);
+  --ring: #c9ff4a;
+  --chart-1: #c9ff4a;
+  --chart-2: oklch(0.72 0.15 148);
+  --chart-3: #155e3a;
+  --chart-4: #91a895;
+  --chart-5: oklch(0.55 0.08 165);
+  --sidebar: #050d0a;
+  --sidebar-foreground: #f4f5ed;
+  --sidebar-primary: #c9ff4a;
+  --sidebar-primary-foreground: #07110d;
+  --sidebar-accent: #12241b;
+  --sidebar-accent-foreground: #f4f5ed;
+  --sidebar-border: oklch(0.26 0.03 155);
+  --sidebar-ring: #c9ff4a;
+
+  --success: #c9ff4a;
+  --warning: oklch(0.82 0.13 95);
+  --info: oklch(0.72 0.06 190);
 }
 
 @theme inline {
   --font-sans: 'Poppins', 'Inter', system-ui, sans-serif;
+  --color-nl-ink: var(--nl-ink);
+  --color-nl-pine: var(--nl-pine);
+  --color-nl-forest: var(--nl-forest);
+  --color-nl-lime: var(--nl-lime);
+  --color-nl-warm: var(--nl-warm);
+  --color-nl-sage: var(--nl-sage);
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -144,56 +170,155 @@
   }
 }
 
-/* Custom scrollbar */
+/* Slim, quiet scrollbar — a bright full-length primary bar was the loudest
+   thing on every screen. */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--muted);
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--primary);
-  border-radius: 4px;
+  background: oklch(0.38 0.04 155);
+  border: 3px solid var(--background);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ring);
+  background: oklch(0.5 0.06 155);
 }
 
-/* Premium Backgrounds */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.38 0.04 155) transparent;
+}
+
+::selection {
+  background: var(--nl-lime);
+  color: var(--nl-ink);
+}
+
+/* Premium Backgrounds — matte ink with a single low pine glow, matching the
+   landing backdrop rather than the old four-corner rainbow mesh. */
 .bg-mesh {
   background-color: var(--background);
-  background-image: 
-    radial-gradient(at 0% 0%, oklch(0.5 0.15 145 / 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, oklch(0.65 0.18 85 / 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, oklch(0.6 0.15 230 / 0.05) 0px, transparent 50%),
-    radial-gradient(at 0% 100%, oklch(0.55 0.22 25 / 0.05) 0px, transparent 50%);
+  background-image:
+    radial-gradient(60% 50% at 12% 0%, rgba(21, 94, 58, 0.16) 0%, transparent 70%),
+    radial-gradient(50% 45% at 95% 8%, rgba(13, 43, 29, 0.55) 0%, transparent 70%);
   background-attachment: fixed;
 }
 
+/* Static, isolated grain — same treatment as the landing page, so it
+   rasterises once instead of repainting behind every animation. */
 .bg-noise {
   position: relative;
 }
 
 .bg-noise::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
-  opacity: 0.03;
+  opacity: 1;
   pointer-events: none;
-  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
-  filter: contrast(150%) brightness(100%);
+  /* behind app content, not over it — at z-index 0 this lattice painted on top
+     of every glyph in the dashboard and softened small text */
   z-index: -1;
+  background-image:
+    radial-gradient(rgba(244, 245, 237, 0.04) 1px, transparent 1.4px),
+    radial-gradient(rgba(244, 245, 237, 0.025) 1px, transparent 1.2px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1.5px 2.5px;
+  transform: translateZ(0);
+  contain: strict;
 }
 
-/* Glassmorphism */
+/* Dark glass — opaque enough to stay cheap while animating, with a hairline
+   top highlight so cards still catch light. */
 .glass-card {
-  @apply bg-card/60 backdrop-blur-xl border border-white/10 dark:border-white/5;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  background: linear-gradient(
+    180deg,
+    rgba(19, 42, 30, 0.92) 0%,
+    rgba(11, 27, 20, 0.94) 100%
+  );
+  border: 1px solid var(--nl-hairline);
+  box-shadow:
+    0 1px 0 0 rgba(244, 245, 237, 0.05) inset,
+    0 24px 48px -24px rgba(0, 0, 0, 0.7);
+}
+
+/* ── Premium controls ───────────────────────────────────────────────────── */
+
+/* Range sliders: lime thumb on a pine rail, with a soft halo on interaction */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--muted);
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--nl-lime);
+  border: none;
+  cursor: grab;
+  box-shadow: 0 0 0 0 rgba(201, 255, 74, 0.25);
+  transition:
+    box-shadow 0.25s var(--nl-ease),
+    transform 0.25s var(--nl-ease);
+}
+
+input[type='range']::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 7px rgba(201, 255, 74, 0.16);
+}
+
+input[type='range']:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+  cursor: grabbing;
+  box-shadow: 0 0 0 10px rgba(201, 255, 74, 0.2);
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--nl-lime);
+  cursor: grab;
+}
+
+/* Radix Slider (shadcn) gets the same halo language */
+[data-slot='slider-thumb'] {
+  transition:
+    box-shadow 0.25s var(--nl-ease),
+    transform 0.25s var(--nl-ease);
+}
+
+[data-slot='slider-thumb']:hover {
+  box-shadow: 0 0 0 7px rgba(201, 255, 74, 0.16);
+}
+
+[data-slot='slider-thumb']:active {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 10px rgba(201, 255, 74, 0.2);
+}
+
+/* Smooth anchor scrolling inside the app, motion permitting.
+   Scoped away from any page running Lenis: Lenis drives its own eased
+   scrolling, and native smooth scroll fights it during programmatic
+   scrollTo, producing stutter and overshoot. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.lenis) {
+    scroll-behavior: smooth;
+  }
 }
 
 /* 3D Scroll Reveal */
@@ -270,10 +395,174 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-float,
   .animate-pulse-green,
-  .reveal-3d {
+  .reveal-3d,
+  .nl-grain::after,
+  .nl-scroll-cue-ring,
+  .nl-cue-arrow {
     animation: none !important;
   }
   * {
     scroll-behavior: auto !important;
+  }
+}
+
+/* ── NutriLife cinematic landing ─────────────────────────────────────── */
+
+/* CSS-only grain, deliberately STATIC and on its own compositor layer.
+   It previously animated inside the same stacking context as the cross-fading
+   backdrop tints, so every opacity frame forced this tiled texture to
+   re-composite — measured at roughly 10fps during a chapter transition.
+   Static + isolated means it rasterizes once and is then free. */
+.nl-grain {
+  background-image:
+    radial-gradient(rgba(244, 245, 237, 0.05) 1px, transparent 1.4px),
+    radial-gradient(rgba(244, 245, 237, 0.03) 1px, transparent 1.2px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1.5px 2.5px;
+  transform: translateZ(0);
+  contain: strict;
+}
+
+/* Chapter tracks have explicit heights, so skipping their rendering while
+   off-screen is safe and keeps scroll geometry intact. Measured +8fps across a
+   transition, because only the two chapters actually on screen do any work. */
+.nl-track {
+  content-visibility: auto;
+}
+
+/* Containment keeps a fading stage's repaint inside its own box. Note that
+   will-change on its own measured WORSE (44fps vs 49.5) — it only pays off
+   alongside containment. */
+.nl-stage-layer {
+  contain: layout paint;
+}
+
+/* Scene rail: active ring draws itself */
+.nl-rail-ring {
+  stroke-dasharray: 94.2884;
+  stroke-dashoffset: 94.2884;
+  transition: stroke-dashoffset 0.7s var(--nl-ease);
+}
+
+.nl-rail-dot[data-active='true'] .nl-rail-ring {
+  stroke-dashoffset: 0;
+}
+
+/* Circular scroll cue: slow ring rotation + a patient arrow bob */
+.nl-scroll-cue-ring {
+  animation: nl-spin 14s linear infinite;
+}
+
+@keyframes nl-spin {
+  to { transform: rotate(360deg); }
+}
+
+.nl-cue-arrow {
+  animation: nl-bob 2.4s var(--nl-ease) infinite;
+}
+
+@keyframes nl-bob {
+  0%, 100% { transform: translateY(-2px); }
+  50% { transform: translateY(3px); }
+}
+
+/* Intro overlay choreography (total < 1.3s) */
+@keyframes nl-seed {
+  0% { opacity: 0; transform: scale(0.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes nl-bloom {
+  0% { opacity: 0; transform: scale(0.15); }
+  60% { opacity: 0.9; }
+  100% { opacity: 0.75; transform: scale(1); }
+}
+
+@keyframes nl-streak-l {
+  0% { opacity: 0; transform: translateX(0) scaleX(0.2); }
+  40% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateX(-42vw) scaleX(1); }
+}
+
+@keyframes nl-streak-r {
+  0% { opacity: 0; transform: translateX(0) scaleX(0.2); }
+  40% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateX(42vw) scaleX(1); }
+}
+
+.nl-intro-open {
+  animation: nl-iris 0.4s var(--nl-ease) forwards;
+}
+
+@keyframes nl-iris {
+  0% { clip-path: circle(150% at 50% 50%); }
+  100% { clip-path: circle(0% at 50% 50%); }
+}
+
+/* Hero headline words: 3D rise into place */
+.nl-hero-word {
+  display: inline-block;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+/* Analyzer scan-line: one decorative pass when chapter arrives */
+.nl-scan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.nl-scan::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18%;
+  top: -20%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(201, 255, 74, 0.14) 45%,
+    rgba(201, 255, 74, 0.22) 50%,
+    rgba(201, 255, 74, 0.14) 55%,
+    transparent
+  );
+}
+
+.nl-scan[data-active='true']::before {
+  animation: nl-scan-pass 1.8s var(--nl-ease) 1 both;
+}
+
+@keyframes nl-scan-pass {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(640%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-scan::before {
+    display: none;
+  }
+}
+
+/* Progress chart line draw */
+.nl-chart-line {
+  stroke-dasharray: 1400;
+  stroke-dashoffset: 1400;
+  transition: stroke-dashoffset 1.6s var(--nl-ease) 0.2s;
+}
+
+[data-active='true'] .nl-chart-line {
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-chart-line {
+    stroke-dashoffset: 0 !important;
+    transition: none !important;
+  }
+  .nl-rail-ring {
+    transition: none !important;
   }
 }

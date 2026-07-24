@@ -57,6 +57,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SequenceLoader, SequenceLabel, DIET_PHASES } from "@/components/nl-loader"
 
 interface MealPlan {
   meal: string        // Breakfast / Lunch
@@ -319,7 +320,7 @@ function BodyPhotoUpload({ onImageReady, onAnalysisComplete, gender }: BodyPhoto
               type="button"
               variant="default"
               size="sm"
-              className="w-full gap-2 bg-primary hover:bg-primary/90 text-white font-black uppercase text-[10px] tracking-tighter h-10 shadow-lg shadow-primary/20"
+              className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase text-[10px] tracking-tighter h-10 shadow-lg shadow-primary/20"
               onClick={handleAnalyze}
               disabled={isAnalyzing}
             >
@@ -437,26 +438,26 @@ function BodyPhotoUpload({ onImageReady, onAnalysisComplete, gender }: BodyPhoto
 
 // ─── Colour helpers ────────────────────────────────────────────────────────────
 const getBMIColor = (bmi: number) => {
-  if (bmi < 18.5) return "text-blue-600"
+  if (bmi < 18.5) return "text-[color:var(--info)]"
   if (bmi < 25) return "text-primary"
   if (bmi < 30) return "text-accent"
   return "text-destructive"
 }
 
 const getBMIBgColor = (bmi: number) => {
-  if (bmi < 18.5) return "bg-blue-100"
+  if (bmi < 18.5) return "bg-[color:var(--info)]"
   if (bmi < 25) return "bg-primary/10"
   if (bmi < 30) return "bg-accent/10"
   return "bg-destructive/10"
 }
 
 const difficultyColor: Record<string, string> = {
-  None: "bg-gray-100 text-gray-600",
-  Easy: "bg-green-100 text-green-700",
-  Moderate: "bg-yellow-100 text-yellow-700",
-  Hard: "bg-orange-100 text-orange-700",
-  "Very Hard": "bg-red-100 text-red-700",
-  Extreme: "bg-purple-100 text-purple-700",
+  None: "bg-muted-foreground text-muted-foreground",
+  Easy: "bg-primary/15 text-primary",
+  Moderate: "bg-[color:var(--warning)]/15 text-[color:var(--warning)]",
+  Hard: "bg-[color:var(--warning)]/15 text-[color:var(--warning)]",
+  "Very Hard": "bg-destructive/15 text-destructive",
+  Extreme: "bg-[color:var(--info)]/15 text-[color:var(--info)]",
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -558,28 +559,10 @@ export default function DietPlannerPage() {
 
     setIsSaving(true)
     try {
-      // If there's a body photo, upload it first via FormData, then send plan JSON.
-      // Falls back to JSON-only save when no photo is present.
-      let photoUrl: string | null = null
-
-      if (bodyPhotoBlob) {
-        try {
-          const fd = new FormData()
-          fd.append("photo", bodyPhotoBlob, "body-photo.jpg")
-          const photoRes = await fetch(getApiUrl("/api/diet-plan/upload-photo"), {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: fd,
-          })
-          if (photoRes.ok) {
-            const photoData = await photoRes.json()
-            photoUrl = photoData.url ?? null
-          }
-        } catch {
-          // Non-fatal — continue saving plan without photo
-        }
-      }
-
+      // The body photo is used locally for preview and by /api/analyze-body to
+      // estimate height/weight. It is deliberately not persisted with the plan:
+      // there is no upload route, and diet_plans has no column for it, so the
+      // previous upload attempt 404'd and the URL was discarded server-side.
       const response = await fetch(getApiUrl("/api/diet-plan/save"), {
         method: "POST",
         headers: {
@@ -590,7 +573,6 @@ export default function DietPlannerPage() {
           target_calories: result.targetCalories,
           macros: result.macros,
           weekly_plan: result.weeklyPlan,
-          ...(photoUrl ? { body_photo_url: photoUrl } : {}),
         })
       })
 
@@ -765,8 +747,8 @@ export default function DietPlannerPage() {
       <div className="p-3 md:p-8 space-y-8 max-w-7xl mx-auto">
         <div className="reveal-3d">
           <PageHeader
-            title="Surgical Diet Architect"
-            subtitle="Architecting your physical transformation with data-driven nutritional protocols."
+            title="Your diet plan"
+            subtitle="Meals built around your goals, your week, and the food you actually enjoy."
           />
         </div>
 
@@ -1009,7 +991,7 @@ export default function DietPlannerPage() {
                 {/* ── FASTING PLAN ──────────────────────────────────────────── */}
                 <div className="space-y-2 border-t pt-4">
                   <Label htmlFor="fasting-plan" className="flex items-center gap-2 font-semibold">
-                    <Moon className="w-4 h-4 text-indigo-500" />
+                    <Moon className="w-4 h-4 text-[color:var(--info)]" />
                     Fasting Protocol (Optional)
                   </Label>
                   <Select
@@ -1051,21 +1033,21 @@ export default function DietPlannerPage() {
 
                   {/* Fasting plan details card */}
                   {selectedFastingPlan && selectedFastingPlan.id !== "none" && (
-                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/30 dark:border-indigo-800 p-3 space-y-2">
+                    <div className="rounded-lg border border-[color:var(--info)] bg-[color:var(--info)] dark:bg-[color:var(--info)]/30 dark:border-[color:var(--info)] p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm text-indigo-800 dark:text-indigo-200">
+                        <span className="font-semibold text-sm text-[color:var(--info)] dark:text-[color:var(--info)]">
                           {selectedFastingPlan.emoji} {selectedFastingPlan.name}
                         </span>
                         <span className={cn(
                           "text-xs px-2 py-0.5 rounded-full font-medium",
-                          difficultyColor[selectedFastingPlan.difficulty] || "bg-gray-100 text-gray-600"
+                          difficultyColor[selectedFastingPlan.difficulty] || "bg-muted-foreground text-muted-foreground"
                         )}>
                           {selectedFastingPlan.difficulty}
                         </span>
                       </div>
-                      <p className="text-xs text-indigo-700 dark:text-indigo-300">{selectedFastingPlan.description}</p>
+                      <p className="text-xs text-[color:var(--info)] dark:text-[color:var(--info)]">{selectedFastingPlan.description}</p>
                       {selectedFastingPlan.fast_hours > 0 && (
-                        <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400">
+                        <div className="flex items-center gap-2 text-xs text-[color:var(--info)] dark:text-[color:var(--info)]">
                           <Clock className="w-3 h-3" />
                           <span>
                             Fast: <strong>{selectedFastingPlan.fast_hours}h</strong> &nbsp;|&nbsp;
@@ -1077,7 +1059,7 @@ export default function DietPlannerPage() {
                         <strong>Best for:</strong> {selectedFastingPlan.suitable_for}
                       </p>
                       {selectedFastingPlan.benefits.length > 0 && (
-                        <ul className="text-xs space-y-1 text-indigo-700 dark:text-indigo-300">
+                        <ul className="text-xs space-y-1 text-[color:var(--info)] dark:text-[color:var(--info)]">
                           {selectedFastingPlan.benefits.slice(0, 3).map((b, i) => (
                             <li key={i} className="flex items-start gap-1">
                               <CheckCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
@@ -1095,7 +1077,7 @@ export default function DietPlannerPage() {
 
                 <div className="pt-4">
                   {error && (
-                    <Alert variant="destructive" className="mb-4 rounded-2xl border-none bg-red-500/10 text-red-500">
+                    <Alert variant="destructive" className="mb-4 rounded-2xl border-none bg-destructive/10 text-destructive">
                       <AlertTriangle className="w-4 h-4" />
                       <AlertDescription className="font-bold">{error}</AlertDescription>
                     </Alert>
@@ -1107,11 +1089,11 @@ export default function DietPlannerPage() {
                     className="w-full h-16 rounded-[1.5rem] text-xl font-black group shadow-3xl shadow-primary/20"
                   >
                     {isLoading ? (
-                      <Loader2 className="animate-spin" />
+                      <SequenceLabel phases={DIET_PHASES} />
                     ) : (
                       <>
-                        <Sparkles className="w-6 h-6 mr-3 text-white group-hover:rotate-12 transition-transform" />
-                        Generate Protocol
+                        <Sparkles className="w-6 h-6 mr-3 group-hover:rotate-12 transition-transform" />
+                        Build my plan
                       </>
                     )}
                   </Button>
@@ -1126,12 +1108,12 @@ export default function DietPlannerPage() {
               <>
                 {/* Fasting protocol badge (if active) */}
                 {formData.fastingPlan !== "none" && selectedFastingPlan && (
-                  <Alert className="bg-indigo-500/10 border-indigo-500/20 rounded-[1.5rem] border-none reveal-3d">
-                    <Moon className="w-4 h-4 text-indigo-500" />
-                    <AlertTitle className="text-indigo-500 font-black uppercase text-[10px] tracking-widest">
+                  <Alert className="bg-[color:var(--info)]/10 border-[color:var(--info)]/20 rounded-[1.5rem] border-none reveal-3d">
+                    <Moon className="w-4 h-4 text-[color:var(--info)]" />
+                    <AlertTitle className="text-[color:var(--info)] font-black uppercase text-[10px] tracking-widest">
                       Fasting Protocol Synchronized
                     </AlertTitle>
-                    <AlertDescription className="text-indigo-400 font-medium text-xs mt-1">
+                    <AlertDescription className="text-[color:var(--info)] font-medium text-xs mt-1">
                       Your meals have been condensed to fit your {selectedFastingPlan.fast_hours > 0
                         ? `${selectedFastingPlan.fast_hours}-hour fasting window`
                         : "fasting schedule"}.
@@ -1209,16 +1191,16 @@ export default function DietPlannerPage() {
                   </CardHeader>
                   <CardContent className="p-8 pt-0">
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-6 rounded-3xl bg-red-500/10 border border-red-500/5 group hover:bg-red-500/20 transition-colors">
-                        <p className="text-3xl font-black text-red-500">{result.macros.protein}g</p>
+                      <div className="text-center p-6 rounded-3xl bg-destructive/10 border border-destructive/5 group hover:bg-destructive/20 transition-colors">
+                        <p className="text-3xl font-black text-destructive">{result.macros.protein}g</p>
                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Protein</p>
                       </div>
-                      <div className="text-center p-6 rounded-3xl bg-amber-500/10 border border-amber-500/5 group hover:bg-amber-500/20 transition-colors">
-                        <p className="text-3xl font-black text-amber-500">{result.macros.carbs}g</p>
+                      <div className="text-center p-6 rounded-3xl bg-[color:var(--warning)]/10 border border-[color:var(--warning)]/5 group hover:bg-[color:var(--warning)]/20 transition-colors">
+                        <p className="text-3xl font-black text-[color:var(--warning)]">{result.macros.carbs}g</p>
                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Carbs</p>
                       </div>
-                      <div className="text-center p-6 rounded-3xl bg-blue-500/10 border border-blue-500/5 group hover:bg-blue-500/20 transition-colors">
-                        <p className="text-3xl font-black text-blue-500">{result.macros.fat}g</p>
+                      <div className="text-center p-6 rounded-3xl bg-[color:var(--info)]/10 border border-[color:var(--info)]/5 group hover:bg-[color:var(--info)]/20 transition-colors">
+                        <p className="text-3xl font-black text-[color:var(--info)]">{result.macros.fat}g</p>
                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Fat</p>
                       </div>
                     </div>
@@ -1227,7 +1209,7 @@ export default function DietPlannerPage() {
 
                 {/* Warnings */}
                 {result.warnings && result.warnings.length > 0 && (
-                  <Alert variant="destructive" className="border-none bg-red-500/10 text-red-500 rounded-[1.5rem] reveal-3d">
+                  <Alert variant="destructive" className="border-none bg-destructive/10 text-destructive rounded-[1.5rem] reveal-3d">
                     <AlertTriangle className="w-5 h-5" />
                     <AlertTitle className="font-black uppercase tracking-widest text-[10px]">Medical Advisory</AlertTitle>
                     <AlertDescription className="mt-2 space-y-1 font-medium text-xs">
@@ -1305,9 +1287,9 @@ export default function DietPlannerPage() {
                                     ))}
                                   </ul>
                                   <div className="flex flex-wrap gap-2 pt-4 border-t border-white/5">
-                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-red-500/10 text-red-500 border border-red-500/10">{meal.protein}g P</span>
-                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/10">{meal.carbs}g C</span>
-                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/10">{meal.fat}g F</span>
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-destructive/10 text-destructive border border-destructive/10">{meal.protein}g P</span>
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-[color:var(--warning)]/10 text-[color:var(--warning)] border border-[color:var(--warning)]/10">{meal.carbs}g C</span>
+                                    <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-[color:var(--info)]/10 text-[color:var(--info)] border border-[color:var(--info)]/10">{meal.fat}g F</span>
                                     <span className="px-3 py-1 text-[10px] font-black uppercase rounded-lg bg-primary/10 text-primary border border-primary/10 ml-auto">{meal.calories} kcal</span>
                                   </div>
                                 </div>
@@ -1324,7 +1306,7 @@ export default function DietPlannerPage() {
                 <Card className="border-none glass-card rounded-[2.5rem] reveal-3d overflow-hidden">
                   <CardHeader className="p-8 pb-4">
                     <CardTitle className="text-xl font-black flex items-center gap-3">
-                      <Lightbulb className="w-5 h-5 text-amber-500" />
+                      <Lightbulb className="w-5 h-5 text-[color:var(--warning)]" />
                       Strategic Insights
                     </CardTitle>
                   </CardHeader>
@@ -1340,15 +1322,22 @@ export default function DietPlannerPage() {
                   </CardContent>
                 </Card>
               </>
+            ) : isLoading ? (
+              <SequenceLoader
+                phases={DIET_PHASES}
+                label="Building your plan"
+                className="min-h-[500px] content-center"
+              />
             ) : (
-              <Card className="flex items-center justify-center min-h-[500px] border-none glass-card rounded-[3rem] border-dashed border-2 border-white/5 opacity-50">
+              <Card className="flex items-center justify-center min-h-[500px] border-none glass-card rounded-[3rem]">
                 <CardContent className="text-center py-12 space-y-6">
-                  <div className="w-24 h-24 mx-auto rounded-full bg-white/5 flex items-center justify-center mb-4">
-                    <Calculator className="w-12 h-12 text-muted-foreground opacity-30" />
+                  <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                    <Calculator className="w-9 h-9 text-primary" />
                   </div>
-                  <h3 className="text-2xl font-black opacity-60">Architect Awaiting Specs</h3>
-                  <p className="text-muted-foreground font-medium max-w-md mx-auto">
-                    Configure your physical profile on the left to generate a surgical nutritional protocol tailored to your unique metabolism.
+                  <h3 className="text-2xl font-semibold tracking-[-0.03em]">Your plan starts here</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
+                    Tell us about your goals and your week on the left. We&apos;ll build meals around
+                    the food you actually enjoy — and you can swap any of them later.
                   </p>
                 </CardContent>
               </Card>
@@ -1369,7 +1358,7 @@ export default function DietPlannerPage() {
               Do you want to integrate this diet plan into your dashboard?
               This will make your meal suggestions available on the home screen.
               {formData.fastingPlan !== "none" && selectedFastingPlan && (
-                <span className="block mt-1 text-indigo-600 font-medium">
+                <span className="block mt-1 text-[color:var(--info)] font-medium">
                   Your {selectedFastingPlan.name} fasting protocol will also be saved.
                 </span>
               )}
@@ -1383,8 +1372,8 @@ export default function DietPlannerPage() {
 
           {saveSuccess ? (
             <div className="flex flex-col items-center gap-3 py-4">
-              <CheckCircle className="w-12 h-12 text-green-600" />
-              <p className="text-green-600 font-medium">Diet Plan Saved Successfully!</p>
+              <CheckCircle className="w-12 h-12 text-primary" />
+              <p className="text-primary font-medium">Diet Plan Saved Successfully!</p>
               <p className="text-sm text-muted-foreground">Go to Dashboard to see "What to Eat Next"</p>
             </div>
           ) : (

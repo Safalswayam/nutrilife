@@ -21,7 +21,7 @@ interface FAQCategory { id: string; icon: React.ElementType; title: string; colo
 
 const faqCategories: FAQCategory[] = [
   {
-    id: "login", icon: LogIn, title: "Login & Authentication", color: "text-blue-500",
+    id: "login", icon: LogIn, title: "Login & Authentication", color: "text-[color:var(--info)]",
     faqs: [
       { q: "Google Sign-In is not working.", a: "Try these steps: (1) Make sure you're using the same Google account as before. (2) Clear your browser cache and try again. (3) Check if your browser is blocking pop-ups. (4) Ensure Google+ API is not blocked in your region. If still failing, DM support with a screenshot." },
       { q: "I forgot my password.", a: "Use the 'Forgot Password' option on the login page. A reset link will be sent to your registered email. Check your spam folder if you don't see it." },
@@ -31,7 +31,7 @@ const faqCategories: FAQCategory[] = [
     ],
   },
   {
-    id: "subscription", icon: CreditCard, title: "Subscription & Payments", color: "text-green-500",
+    id: "subscription", icon: CreditCard, title: "Subscription & Payments", color: "text-primary",
     faqs: [
       { q: "I paid but premium features are still locked.", a: "Try these steps: (1) Log out and log back in. (2) Go to Profile → Subscription to check status. (3) Clear localStorage in browser settings and re-login. If still locked after 30 minutes, DM support with your payment transaction ID." },
       { q: "My payment failed but money was deducted.", a: "This can happen due to bank processing delays. The amount is usually auto-refunded within 5–7 business days. If not, contact your bank and share the Razorpay transaction ID with our support team." },
@@ -42,7 +42,7 @@ const faqCategories: FAQCategory[] = [
     ],
   },
   {
-    id: "ai", icon: Brain, title: "AI Features", color: "text-purple-500",
+    id: "ai", icon: Brain, title: "AI Features", color: "text-[color:var(--info)]",
     faqs: [
       { q: "AI Food Analyzer gave wrong nutrition values.", a: "AI accuracy depends on image quality. Tips: (1) Use a well-lit, clear photo. (2) Ensure the full dish is visible. (3) Avoid blurry or top-down angles. AI estimates are approximate — always cross-check for medical dietary purposes." },
       { q: "Diet Planner is not generating a meal plan.", a: "Make sure your profile is complete — height, weight, age, goal, and activity level are all required. Incomplete profiles can cause plan generation to fail. Update your profile and try again." },
@@ -52,7 +52,7 @@ const faqCategories: FAQCategory[] = [
     ],
   },
   {
-    id: "tracking", icon: Droplets, title: "Water Tracking & Fasting", color: "text-cyan-500",
+    id: "tracking", icon: Droplets, title: "Water Tracking & Fasting", color: "text-[color:var(--info)]",
     faqs: [
       { q: "My water count reset unexpectedly.", a: "Water intake resets daily at midnight (your local timezone). This is expected behavior. Check the 7-day history to see past data — it's preserved for 7 days." },
       { q: "I set a daily water goal but it reverted.", a: "Make sure you're logged in when setting the goal. Anonymous sessions don't save settings. Log in and set your goal again from the water tracker." },
@@ -82,9 +82,9 @@ const REPORT_TEMPLATE = `BUG / ISSUE REPORT
 Send to @NUTRILIFEDIET`
 
 const LATEST_POSTS = [
-  { version: "v1.0 — Launch", date: "April 7, 2026", type: "Major Release", typeColor: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300", summary: "NutriLife is officially live! AI Food Analyzer, Diet Planner, Health Assistant, Fasting Tracker, Water Tracker, Google OAuth, Razorpay subscriptions and more." },
-  { version: "Terms & Conditions", date: "April 7, 2026", type: "Policy", typeColor: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300", summary: "Our Terms of Service are now live and accessible from within the app. Covers eligibility, subscription terms, AI disclaimer, data privacy, and prohibited use." },
-  { version: "Support System Live", date: "April 7, 2026", type: "Announcement", typeColor: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300", summary: "Our Telegram channel @NUTRILIFEDIET is active. DM us for any issues. Response time is within 24 hours, Monday to Saturday." },
+  { version: "v1.0 — Launch", date: "April 7, 2026", type: "Major Release", typeColor: "bg-primary/15 text-primary dark:bg-primary/15 dark:text-primary", summary: "NutriLife is officially live! AI Food Analyzer, Diet Planner, Health Assistant, Fasting Tracker, Water Tracker, Google OAuth, Razorpay subscriptions and more." },
+  { version: "Terms & Conditions", date: "April 7, 2026", type: "Policy", typeColor: "bg-[color:var(--info)]/15 text-[color:var(--info)] dark:bg-[color:var(--info)]/15 dark:text-[color:var(--info)]", summary: "Our Terms of Service are now live and accessible from within the app. Covers eligibility, subscription terms, AI disclaimer, data privacy, and prohibited use." },
+  { version: "Support System Live", date: "April 7, 2026", type: "Announcement", typeColor: "bg-[color:var(--warning)]/15 text-[color:var(--warning)] dark:bg-[color:var(--warning)]/15 dark:text-[color:var(--warning)]", summary: "Our Telegram channel @NUTRILIFEDIET is active. DM us for any issues. Response time is within 24 hours, Monday to Saturday." },
 ]
 
 function FAQItem({ faq }: { faq: FAQ }) {
@@ -218,7 +218,7 @@ export default function SupportTelegramPage() {
             <CardContent>
               <div className="bg-muted rounded-lg p-4 font-mono text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed mb-3">{REPORT_TEMPLATE}</div>
               <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleCopy}>
-                {copied ? <><CheckCircle className="w-4 h-4 text-green-500" />Copied!</> : <><Copy className="w-4 h-4" />Copy Template</>}
+                {copied ? <><CheckCircle className="w-4 h-4 text-primary" />Copied!</> : <><Copy className="w-4 h-4" />Copy Template</>}
               </Button>
             </CardContent>
           </Card>
@@ -259,10 +259,10 @@ export default function SupportTelegramPage() {
             <CardContent className="pt-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 {[
-                  { icon: Zap, title: "Feature Releases", desc: "Every new feature or major update", color: "text-amber-500" },
-                  { icon: Shield, title: "Security Patches", desc: "When a fix requires action from you", color: "text-red-500" },
-                  { icon: Bell, title: "Maintenance Windows", desc: "At least 24 hours before any downtime", color: "text-blue-500" },
-                  { icon: MessageCircle, title: "Policy Updates", desc: "When Terms or Privacy Policy are updated", color: "text-green-500" },
+                  { icon: Zap, title: "Feature Releases", desc: "Every new feature or major update", color: "text-[color:var(--warning)]" },
+                  { icon: Shield, title: "Security Patches", desc: "When a fix requires action from you", color: "text-destructive" },
+                  { icon: Bell, title: "Maintenance Windows", desc: "At least 24 hours before any downtime", color: "text-[color:var(--info)]" },
+                  { icon: MessageCircle, title: "Policy Updates", desc: "When Terms or Privacy Policy are updated", color: "text-primary" },
                 ].map((item) => {
                   const Icon = item.icon
                   return (
@@ -303,7 +303,7 @@ export default function SupportTelegramPage() {
               <p className="text-sm text-muted-foreground mb-3">When reporting a bug to <span className="font-mono text-foreground">@NUTRILIFEDIET</span>, copy and fill out this template:</p>
               <div className="bg-muted rounded-lg p-4 font-mono text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed mb-3">{REPORT_TEMPLATE}</div>
               <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleCopy}>
-                {copied ? <><CheckCircle className="w-4 h-4 text-green-500" />Copied!</> : <><Copy className="w-4 h-4" />Copy Template</>}
+                {copied ? <><CheckCircle className="w-4 h-4 text-primary" />Copied!</> : <><Copy className="w-4 h-4" />Copy Template</>}
               </Button>
             </CardContent>
           </Card>

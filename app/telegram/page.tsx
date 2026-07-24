@@ -55,7 +55,7 @@ const CHANNELS = [
     title: "Support Chat",
     description: "DM us for payment issues, account problems, AI feature bugs, or anything else.",
     badge: "Support",
-    badgeColor: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    badgeColor: "bg-primary/15 text-primary dark:bg-primary/15 dark:text-primary",
     posts: [
       { icon: CreditCard, label: "Payment issues" },
       { icon: KeyRound, label: "Account help" },
@@ -71,7 +71,7 @@ const LATEST_POSTS = [
     version: "v1.0 — Launch",
     date: "April 7, 2026",
     type: "Major Release",
-    typeColor: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    typeColor: "bg-primary/15 text-primary dark:bg-primary/15 dark:text-primary",
     summary:
       "NutriLife is officially live! Includes AI Food Analyzer, Diet Planner, Health Assistant, Fasting Tracker, Water Tracker, Google OAuth, Razorpay subscriptions, and more.",
   },
@@ -79,7 +79,7 @@ const LATEST_POSTS = [
     version: "Terms & Conditions",
     date: "April 7, 2026",
     type: "Policy",
-    typeColor: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    typeColor: "bg-[color:var(--info)]/15 text-[color:var(--info)] dark:bg-[color:var(--info)]/15 dark:text-[color:var(--info)]",
     summary:
       "Our Terms of Service are now live and accessible from within the app. Covers user eligibility, subscription terms, AI disclaimer, data privacy, and prohibited use.",
   },
@@ -87,7 +87,7 @@ const LATEST_POSTS = [
     version: "Support System Live",
     date: "April 7, 2026",
     type: "Announcement",
-    typeColor: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
+    typeColor: "bg-[color:var(--warning)]/15 text-[color:var(--warning)] dark:bg-[color:var(--warning)]/15 dark:text-[color:var(--warning)]",
     summary:
       "Our Telegram support channel is active. Use @NUTRILIFEDIET for any issues. Response time is within 24 hours, Monday to Saturday.",
   },
@@ -244,25 +244,25 @@ export default function TelegramPage() {
                 icon: Zap,
                 title: "Feature Releases",
                 desc: "Every time a new feature is added or a major update ships",
-                color: "text-amber-500",
+                color: "text-[color:var(--warning)]",
               },
               {
                 icon: Shield,
                 title: "Security Patches",
                 desc: "Whenever a security fix is deployed that may require action from you",
-                color: "text-red-500",
+                color: "text-destructive",
               },
               {
                 icon: Bell,
                 title: "Maintenance Windows",
                 desc: "At least 24 hours before any scheduled downtime",
-                color: "text-blue-500",
+                color: "text-[color:var(--info)]",
               },
               {
                 icon: MessageCircle,
                 title: "Policy Updates",
                 desc: "When Terms & Conditions or Privacy Policy are updated",
-                color: "text-green-500",
+                color: "text-primary",
               },
             ].map((item) => {
               const Icon = item.icon
@@ -300,7 +300,7 @@ export default function TelegramPage() {
             onClick={handleCopy}
           >
             {copied ? (
-              <><CheckCircle className="w-4 h-4 text-green-500" />Copied!</>
+              <><CheckCircle className="w-4 h-4 text-primary" />Copied!</>
             ) : (
               <><Copy className="w-4 h-4" />Copy Template</>
             )}

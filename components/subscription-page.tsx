@@ -319,7 +319,7 @@ export default function SubscriptionPage() {
                 isBestValue
                   ? "border-primary shadow-xl scale-105 z-10"
                   : isPopular
-                  ? "border-orange-500 shadow-lg"
+                  ? "border-[color:var(--warning)] shadow-lg"
                   : "hover:shadow-lg"
               }`}
             >
@@ -329,7 +329,7 @@ export default function SubscriptionPage() {
                   <Badge
                     variant={isBestValue ? "default" : "secondary"}
                     className={`px-3 py-1 ${
-                      isBestValue ? "bg-primary" : "bg-orange-500 text-white"
+                      isBestValue ? "bg-primary" : "bg-primary text-primary-foreground"
                     }`}
                   >
                     {plan.badge}
@@ -360,7 +360,7 @@ export default function SubscriptionPage() {
                         <span className="text-muted-foreground">total</span>
                       </div>
                       {plan.discount_amount > 0 && (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        <Badge variant="outline" className="bg-primary/15 text-primary border-primary">
                           Save {formatPrice(plan.discount_amount)}
                         </Badge>
                       )}
@@ -437,7 +437,7 @@ export default function SubscriptionPage() {
               </div>
               <div>
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Check className="w-5 h-5 text-green-500" />
+                  <Check className="w-5 h-5 text-primary" />
                   Always Free
                 </h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">

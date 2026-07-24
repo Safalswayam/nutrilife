@@ -2,908 +2,1956 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  ArrowRight, Star, Camera, BarChart3, Droplets, Timer, MessageCircle,
-  Flame, Target, Utensils, Check, X, Sparkles, Activity, UserPlus,
-  ClipboardList, ScanLine, Salad, Menu,
+  motion,
+  MotionConfig,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  useTransform,
+  type MotionValue,
+} from "framer-motion"
+import Lenis from "lenis"
+import {
+  ArrowDown,
+  BarChart3,
+  CalendarDays,
+  Check,
+  Flame,
+  Home,
+  Menu,
+  RefreshCw,
+  Settings,
+  Utensils,
+  X,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { getApiUrl } from "@/lib/api"
-import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState, useCallback } from "react"
-import confetti from "canvas-confetti"
-import {
-  motion, useScroll, useSpring, useTransform, useReducedMotion,
-} from "framer-motion"
+import { cn } from "@/lib/utils"
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   NutriLife landing — light, product-forward redesign.
-   References: "Optimize Me" (Behance), DietIQ, Wings Tech diet planner.
-   Cream/green sections, big headlines with one green word, squircle cards,
-   and ACCURATE phone miniatures of the real app screens.
-   framer-motion drives all motion: progress bar, hero parallax, reveals.
+   NutriLife landing — cinematic scroll narrative.
+
+   One repeating mechanism: tall scroll tracks with a sticky 100svh stage;
+   copy blocks cross-fade IN PLACE while the visual holds. A persistent fixed
+   backdrop ties every chapter into one continuous scene.
+
+   Motion model — the narrative ALWAYS plays. `prefers-reduced-motion` removes
+   vestibular motion (parallax, zoom, drift, 3D rotation, smooth-scroll
+   interception) but keeps sticky pinning and opacity cross-fades, which are
+   the recommended substitute for motion rather than a casualty of it.
+
+   Fluidity comes from spring-smoothing scroll progress once, at the source,
+   and driving everything from motion values — no React state in the scroll
+   path, so no re-renders while scrolling.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const CANVAS_GREEN = "#2e7d4f"
-const CANVAS_GREEN_LT = "#3fae6e"
-const CANVAS_AMBER = "#e0a531"
+const EASE = [0.3, 0.26, 0.38, 1] as const
+const HAIRLINE = "border-[rgba(244,245,237,0.16)]"
 
-/* Shown only if the live fetch fails — never on the initial render, so a
-   visitor doesn't briefly see prices that disagree with the database.
-   Values mirror the subscription_plans seed in api/database_schema.sql;
-   keep them in sync if that seed changes. */
-type Plan = {
-  id: number; name: string; duration_months: number
-  final_price: number; base_price: number
-  badge: string | null; features: string[]
+const NAV = [
+  { id: "log", label: "Log" },
+  { id: "analyze", label: "Analyze" },
+  { id: "plan", label: "Plan" },
+  { id: "progress", label: "Progress" },
+  { id: "plans", label: "Plans" },
+] as const
+
+/* Backdrop tints per chapter — stacked fixed layers cross-fade because
+   CSS cannot interpolate between two gradients. */
+const GLOW = "radial-gradient(45% 40% at 8% 32%, rgba(21,94,58,0.22) 0%, transparent 70%)"
+
+const TINTS: Record<string, string> = {
+  hero: `${GLOW}, radial-gradient(130% 100% at 72% 10%, #0d2b1d 0%, #07110d 58%, #050c09 100%)`,
+  log: `${GLOW}, radial-gradient(120% 100% at 25% 30%, #0d2b1d 0%, #07110d 72%)`,
+  analyze: `${GLOW}, radial-gradient(120% 100% at 70% 40%, #10402a 0%, #0d2b1d 45%, #07110d 100%)`,
+  plan: `${GLOW}, radial-gradient(130% 110% at 30% 65%, #0b2317 0%, #07110d 75%)`,
+  progress: "#f4f5ed",
+  plans: `${GLOW}, radial-gradient(120% 100% at 75% 30%, #0d2b1d 0%, #07110d 68%)`,
+  dashboard: `${GLOW}, radial-gradient(120% 100% at 50% 85%, #081810 0%, #040a07 70%)`,
 }
 
-const FALLBACK_PLANS: Plan[] = [
-  { id: 1, name: "3 Month Plan", duration_months: 3, final_price: 299, base_price: 299, badge: null, features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support"] },
-  { id: 2, name: "6 Month Plan", duration_months: 6, final_price: 549, base_price: 598, badge: "⭐ Popular", features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support", "Save ₹49"] },
-  { id: 3, name: "1 Year Plan", duration_months: 12, final_price: 849, base_price: 1196, badge: "🔥 Best Value", features: ["AI Food Analyzer", "Diet Planner", "Advanced Analytics", "Priority Support", "Save ₹347", "Best Value"] },
+/* ── scroll track: sticky stage + spring-smoothed progress ──────────────────
+   The spring is the single biggest contributor to how the page feels. Raw
+   scroll progress tracks the wheel 1:1 and reads mechanical; easing it once
+   here makes every downstream transform glide. */
+
+function useTrack() {
+  const ref = useRef<HTMLElement>(null)
+  const reduced = !!useReducedMotion()
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end end"],
+  })
+  const progress = useSpring(scrollYProgress, {
+    stiffness: 120,
+    damping: 30,
+    mass: 0.3,
+    restDelta: 0.0005,
+  })
+  return { ref, reduced, progress }
+}
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+
+/* ── Stage: chapters hand off through depth, never by sliding ──────────────
+   Two sticky sections inherently slide past each other, and fading something
+   in while it travels still reads as a slide. So the stage is translated
+   against its own travel: as the section rides in from below or out through
+   the top, an equal counter-offset holds it stationary in the viewport. The
+   vertical movement is fully cancelled, leaving depth as the only thing that
+   changes — the outgoing chapter swells toward the viewer and dissolves while
+   the incoming one materializes from the background in the same space.
+
+   For adjacent sections the outgoing `exit` and incoming `entry` track the
+   SAME scroll range, so the two windows below are written to overlap. Without
+   that overlap there is a stretch where neither chapter is visible, which is
+   what made this read as a slideshow with blank gaps between slides.
+
+   Under reduced motion the counter-translate is what matters most — it is
+   what removes movement — so it stays, and only the scale is dropped. */
+
+const FADE_OUT_START = 0.2
+const FADE_IN_START = 0.3
+const FADE_SPAN = 0.5
+
+function Stage({
+  track,
+  first = false,
+  last = false,
+  className,
+  children,
+}: {
+  track: { ref: React.RefObject<HTMLElement | null>; reduced: boolean }
+  first?: boolean
+  last?: boolean
+  className?: string
+  children: React.ReactNode
+}) {
+  const { ref, reduced } = track
+  /* entry: section top travels viewport bottom → top. exit: section bottom
+     travels viewport bottom → top (the ride-out). */
+  const { scrollYProgress: entry } = useScroll({
+    target: ref,
+    offset: ["start end", "start start"],
+  })
+  const { scrollYProgress: exit } = useScroll({
+    target: ref,
+    offset: ["end end", "end start"],
+  })
+
+  /* Cancel the travel. The stage box is exactly one viewport tall, so these
+     percentages are viewport heights: -100% pulls a section waiting one
+     viewport below up into place; +100% holds one that has ridden out. */
+  const y = useTransform([entry, exit] as MotionValue<number>[], ([e, x]: number[]) => {
+    const holdIn = first ? 0 : (e - 1) * 100
+    const holdOut = last ? 0 : x * 100
+    return `${holdIn + holdOut}%`
+  })
+
+  const fadeIn = useTransform([entry] as MotionValue<number>[], ([e]: number[]) =>
+    first ? 1 : clamp01((e - FADE_IN_START) / FADE_SPAN)
+  )
+  const fadeOut = useTransform([exit] as MotionValue<number>[], ([x]: number[]) =>
+    last ? 1 : 1 - clamp01((x - FADE_OUT_START) / FADE_SPAN)
+  )
+
+  const opacity = useTransform([fadeIn, fadeOut] as MotionValue<number>[], ([i, o]: number[]) =>
+    Math.min(i, o)
+  )
+  /* arrives from the background (0.78 → 1), departs past the viewer (1 → 1.2) */
+  const scale = useTransform([fadeIn, fadeOut] as MotionValue<number>[], ([i, o]: number[]) =>
+    (0.78 + 0.22 * i) * (1 + 0.2 * (1 - o))
+  )
+  const pointerEvents = useTransform(opacity, (v) => (v > 0.5 ? "auto" : "none"))
+
+  return (
+    <div className={cn("sticky top-0 h-[100svh]", className)}>
+      <motion.div
+        className="nl-stage-layer absolute inset-0 overflow-hidden"
+        style={reduced ? { y, opacity, pointerEvents } : { y, opacity, scale, pointerEvents }}
+      >
+        {children}
+      </motion.div>
+    </div>
+  )
+}
+
+/* ── CopyBlock: the signature move ─────────────────────────────────────────
+   Blocks stack in one grid cell and transition along Z: the outgoing block
+   pushes toward and past the viewer while the incoming one arrives from the
+   background — everything travels the same direction, so the sequence reads
+   as a camera pressing forward. Segments overlap at their boundaries so both
+   blocks occupy the same space mid-transition. Under reduced motion this
+   collapses to a pure opacity cross-fade. */
+
+const OVERLAP = 0.055
+
+function CopyBlock({
+  progress,
+  from,
+  to,
+  first = false,
+  last = false,
+  className,
+  children,
+}: {
+  progress: MotionValue<number>
+  from: number
+  to: number
+  first?: boolean
+  last?: boolean
+  className?: string
+  children: React.ReactNode | ((on: boolean) => React.ReactNode)
+}) {
+  const reduced = !!useReducedMotion()
+  const keys = [from - OVERLAP, from + OVERLAP, to - OVERLAP, to + OVERLAP]
+
+  const opacity = useTransform(progress, keys, [first ? 1 : 0, 1, 1, last ? 1 : 0])
+  /* depth: arrive from the background (0.82 → 1), depart past the viewer
+     (1 → 1.22) — no vertical movement */
+  const scale = useTransform(progress, keys, [first ? 1 : 0.82, 1, 1, last ? 1 : 1.22])
+  /* No depth-of-field blur here: `filter` is not compositor-accelerated, so it
+     repaints the block every frame. Scale plus the cross-fade already read as
+     depth, and dropping it buys frames during the transition. */
+
+  /* Derived from opacity, so they stay continuous and cause no re-render.
+     pointerEvents stays 'none' rather than 'auto': the parent Stage already
+     enables pointer events for the chapter that is actually on screen, and
+     setting 'auto' here re-enabled clicks inside a Stage that had switched
+     itself off mid-handoff, letting a barely-visible chapter swallow clicks. */
+  const visibility = useTransform(opacity, (v) => (v > 0.008 ? "visible" : "hidden"))
+
+  /* Only the boolean handed to children needs state, and it flips rarely —
+     React bails out of identical values, so this is not a per-frame cost. */
+  const [on, setOn] = useState(first)
+  useMotionValueEvent(opacity, "change", (v) => setOn(v > 0.5))
+
+  return (
+    <motion.div
+      style={reduced ? { opacity, visibility } : { opacity, scale, visibility }}
+      className={cn("[grid-area:1/1] self-center", className)}
+    >
+      {typeof children === "function" ? children(on) : children}
+    </motion.div>
+  )
+}
+
+/* ── Word-by-word headline reveal, driven by the chapter's own progress ─────
+   Chapter headlines assemble as the chapter arrives instead of appearing
+   whole. Applied to the first block only, which is already at full opacity. */
+
+function Word({
+  word,
+  progress,
+  start,
+  lime,
+}: {
+  word: string
+  progress: MotionValue<number>
+  start: number
+  lime?: boolean
+}) {
+  const reduced = !!useReducedMotion()
+  const opacity = useTransform(progress, [start, start + 0.045], [0, 1])
+  /* words arrive from depth, matching the CopyBlock grammar */
+  const scale = useTransform(progress, [start, start + 0.045], [0.82, 1])
+  return (
+    <motion.span
+      style={reduced ? undefined : { opacity, scale }}
+      className={cn("mr-[0.24em] inline-block last:mr-0", lime && "text-nl-lime")}
+    >
+      {word}
+    </motion.span>
+  )
+}
+
+function RevealHeadline({
+  text,
+  progress,
+  className,
+  start = 0.012,
+  step = 0.011,
+}: {
+  text: string
+  progress: MotionValue<number>
+  className?: string
+  start?: number
+  step?: number
+}) {
+  const words = text.split(" ")
+  return (
+    <h2
+      className={className}
+      style={{ perspective: 900, transformStyle: "preserve-3d" }}
+      aria-label={text}
+    >
+      <span aria-hidden="true">
+        {words.map((w, i) => (
+          <Word key={`${w}-${i}`} word={w} progress={progress} start={start + i * step} />
+        ))}
+      </span>
+    </h2>
+  )
+}
+
+/* Text-zone layouts: odd chapters inset left, even chapters centered. */
+const ZONE_LEFT =
+  "relative z-10 grid h-full content-center px-6 sm:px-10 md:pl-[200px] md:pr-[52%]"
+const ZONE_CENTER =
+  "relative z-10 grid h-full content-center place-items-center px-6 text-center sm:px-10 md:px-[14%]"
+
+function Eyebrow({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
+  return (
+    <p
+      className={cn(
+        "mb-5 text-[11px] font-medium uppercase tracking-[0.3em] sm:text-xs",
+        light ? "text-nl-forest" : "text-nl-sage"
+      )}
+    >
+      {children}
+    </p>
+  )
+}
+
+/* ═══ Intro overlay — under 1.3s, never blocks on images ═══════════════════ */
+
+function IntroOverlay({ onReveal, onDone }: { onReveal: () => void; onDone: () => void }) {
+  const reduced = !!useReducedMotion()
+  const [opening, setOpening] = useState(false)
+
+  useEffect(() => {
+    if (reduced) {
+      onReveal()
+      onDone()
+      return
+    }
+    const t1 = setTimeout(() => {
+      setOpening(true)
+      onReveal()
+    }, 900)
+    const t2 = setTimeout(onDone, 1300)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [reduced, onReveal, onDone])
+
+  if (reduced) return null
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "fixed inset-0 z-[100] flex flex-col items-center justify-center bg-nl-ink",
+        opening && "nl-intro-open"
+      )}
+    >
+      <div
+        className="size-2.5 rounded-full bg-nl-lime"
+        style={{ animation: "nl-seed 0.3s ease-out both" }}
+      />
+      <div
+        className="absolute size-44 rounded-full bg-nl-lime/60 blur-3xl"
+        style={{ animation: "nl-bloom 0.6s var(--nl-ease) 0.35s both" }}
+      />
+      <div
+        className="absolute h-px w-44 bg-gradient-to-r from-transparent via-nl-lime/70 to-transparent blur-[2px]"
+        style={{ animation: "nl-streak-l 0.55s var(--nl-ease) 0.38s both" }}
+      />
+      <div
+        className="absolute h-px w-44 bg-gradient-to-r from-transparent via-nl-lime/70 to-transparent blur-[2px]"
+        style={{ animation: "nl-streak-r 0.55s var(--nl-ease) 0.38s both" }}
+      />
+      <p className="mt-8 text-[10px] uppercase tracking-[0.34em] text-nl-warm/30">
+        Preparing your nutrition story
+      </p>
+    </div>
+  )
+}
+
+/* ═══ Persistent fixed backdrop ════════════════════════════════════════════ */
+
+/* Only two tint layers are ever mounted: the outgoing one underneath and the
+   incoming one fading over it. Mounting all seven cost ~9fps in reduced motion
+   and ~15fps in full motion, because every layer re-composited each frame.
+   The atmosphere glow is folded into the gradients rather than carried by
+   separate blur-3xl blobs, which cost another ~3-4fps for two huge blurred
+   surfaces that sit behind grain and imagery anyway. */
+function Backdrop({ active }: { active: string }) {
+  const [base, setBase] = useState(active)
+  useEffect(() => {
+    if (base === active) return
+    const t = setTimeout(() => setBase(active), 1300)
+    return () => clearTimeout(t)
+  }, [active, base])
+
+  return (
+    <>
+      <div aria-hidden="true" className="fixed inset-0 overflow-hidden">
+        <div className="absolute inset-0" style={{ background: TINTS[base] ?? TINTS.hero }} />
+        {base !== active && (
+          <motion.div
+            key={active}
+            className="absolute inset-0"
+            style={{ background: TINTS[active] ?? TINTS.hero }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2, ease: EASE }}
+          />
+        )}
+      </div>
+      {/* grain is its own isolated, never-changing layer */}
+      <div aria-hidden="true" className="nl-grain pointer-events-none fixed inset-0" />
+    </>
+  )
+}
+
+/* ═══ Header ═══════════════════════════════════════════════════════════════ */
+
+function SiteHeader({
+  active,
+  light,
+  onJump,
+  onOpenMenu,
+}: {
+  active: string
+  light: boolean
+  onJump: (id: string) => void
+  onOpenMenu: () => void
+}) {
+  const [scrolled, setScrolled] = useState(false)
+  const { scrollY } = useScroll()
+  useMotionValueEvent(scrollY, "change", (v) => setScrolled(v > 32))
+
+  return (
+    <header
+      className={cn(
+        "fixed inset-x-0 top-0 z-40 border-b transition-all duration-500",
+        scrolled
+          ? cn(light ? "bg-nl-warm/75" : "bg-nl-ink/70", "backdrop-blur-md", HAIRLINE)
+          : "border-transparent",
+        light ? "text-nl-ink" : "text-nl-warm"
+      )}
+    >
+      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-5 sm:px-8">
+        <Link
+          href="/"
+          className="text-sm font-semibold uppercase tracking-[0.32em] focus-visible:outline-2"
+        >
+          Nutrilife
+        </Link>
+
+        <nav aria-label="Chapters" className="hidden md:block">
+          <ul className="flex items-center gap-8">
+            {NAV.map((item) => (
+              <li key={item.id}>
+                <a
+                  href={`#${item.id}`}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onJump(item.id)
+                  }}
+                  aria-current={active === item.id ? "true" : undefined}
+                  className={cn(
+                    "relative text-[13px] font-medium tracking-wide transition-opacity duration-300 hover:opacity-100 focus-visible:opacity-100",
+                    active === item.id ? "opacity-100" : "opacity-60"
+                  )}
+                >
+                  {item.label}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute -bottom-1.5 left-1/2 size-1 -translate-x-1/2 rounded-full transition-all duration-300",
+                      light ? "bg-nl-forest" : "bg-nl-lime",
+                      active === item.id ? "scale-100 opacity-100" : "scale-0 opacity-0"
+                    )}
+                  />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/signup"
+            className="rounded-full bg-nl-lime px-4 py-2 text-[13px] font-semibold text-nl-ink transition-transform duration-300 hover:scale-[1.04] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Start free
+          </Link>
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            aria-label="Open menu"
+            className={cn(
+              "rounded-full border p-2 transition-colors md:hidden",
+              light ? "border-nl-ink/25" : HAIRLINE
+            )}
+          >
+            <Menu className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function MobileMenu({ onClose, onJump }: { onClose: () => void; onJump: (id: string) => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, ease: EASE }}
+      className="fixed inset-0 z-50 flex flex-col bg-nl-ink/[0.97] text-nl-warm backdrop-blur-sm"
+    >
+      <div className="flex h-16 items-center justify-between px-5">
+        <span className="text-sm font-semibold uppercase tracking-[0.32em]">Nutrilife</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close menu"
+          className={cn("rounded-full border p-2", HAIRLINE)}
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+      <nav aria-label="Chapters" className="flex flex-1 flex-col justify-center px-8">
+        <ul className="space-y-5">
+          {NAV.map((item, i) => (
+            <motion.li
+              key={item.id}
+              initial={{ opacity: 0, x: -18 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.45, delay: 0.06 + i * 0.05, ease: EASE }}
+            >
+              <a
+                href={`#${item.id}`}
+                onClick={(e) => {
+                  e.preventDefault()
+                  onClose()
+                  onJump(item.id)
+                }}
+                className="flex items-baseline gap-4 text-3xl font-semibold tracking-[-0.03em] transition-colors hover:text-nl-lime focus-visible:text-nl-lime"
+              >
+                <span className="text-xs text-nl-sage">0{i + 1}</span>
+                {item.label}
+              </a>
+            </motion.li>
+          ))}
+        </ul>
+        <div className="mt-12 flex items-center gap-6">
+          <Link
+            href="/signup"
+            className="rounded-full bg-nl-lime px-6 py-3 text-sm font-semibold text-nl-ink"
+          >
+            Start free
+          </Link>
+          <Link href="/login" className="text-sm text-nl-sage underline-offset-4 hover:underline">
+            Log in
+          </Link>
+        </div>
+      </nav>
+    </motion.div>
+  )
+}
+
+/* ═══ Scene rail ═══════════════════════════════════════════════════════════ */
+
+function SceneRail({
+  active,
+  light,
+  onJump,
+}: {
+  active: string
+  light: boolean
+  onJump: (id: string) => void
+}) {
+  return (
+    <nav
+      aria-label="Scene navigation"
+      className="fixed right-7 top-1/2 z-40 hidden -translate-y-1/2 md:block"
+    >
+      <ul className="flex flex-col gap-3">
+        {NAV.map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              onClick={() => onJump(item.id)}
+              data-active={active === item.id}
+              className={cn(
+                "nl-rail-dot group relative flex size-7 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2",
+                light ? "text-nl-ink" : "text-nl-warm"
+              )}
+            >
+              <span className="sr-only">Go to {item.label}</span>
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "absolute right-full mr-3 translate-x-1 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] tracking-wide opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100",
+                  light ? "border-nl-ink/20 bg-nl-warm/80" : cn(HAIRLINE, "bg-nl-ink/80")
+                )}
+              >
+                {item.label}
+              </span>
+              <svg
+                viewBox="0 0 32 32"
+                className="absolute inset-0 size-full -rotate-90"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="15"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  className="nl-rail-ring"
+                />
+              </svg>
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "rounded-full transition-all duration-300",
+                  active === item.id
+                    ? "size-[6px] bg-nl-lime"
+                    : "size-[5px] bg-current opacity-40"
+                )}
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+/* ═══ Hero ═════════════════════════════════════════════════════════════════ */
+
+const HERO_LINES: string[][] = [["Food", "clarity"], ["for", "every"], ["real-life"], ["day."]]
+
+const heroWord = {
+  hidden: { opacity: 0, y: "0.7em", rotateX: 38 },
+  show: {
+    opacity: 1,
+    y: "0em",
+    rotateX: 0,
+    transition: { duration: 0.72, ease: [0.22, 1, 0.36, 1] as const },
+  },
+}
+
+function Hero({ started, onCue }: { started: boolean; onCue: () => void }) {
+  const track = useTrack()
+  const { ref, reduced, progress } = track
+  /* Content lifts and dissolves; the image pushes in slightly deeper and
+     slower, so the two layers separate as the hero leaves. */
+  const contentOpacity = useTransform(progress, [0.35, 0.85], [1, 0])
+  const contentY = useTransform(progress, [0, 0.85], [0, -110])
+  const imgScale = useTransform(progress, [0, 1], [1, 1.14])
+  const imgY = useTransform(progress, [0, 1], ["0%", "6%"])
+  const veil = useTransform(progress, [0.3, 1], [0, 0.55])
+  const cueOpacity = useTransform(progress, [0, 0.18], [1, 0])
+  const show = reduced || started
+
+  return (
+    <section ref={ref} data-chapter="hero" className="nl-track relative" style={{ height: "250svh" }}>
+      <Stage track={track} first>
+        {/* visual */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={reduced ? undefined : { scale: imgScale, y: imgY }}
+        >
+          <Image
+            src="/nutrilife-landing/hero-nutrition-orbit.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center"
+          />
+          {/* both scrims in one element — two stacked full-viewport gradient
+              layers composite separately and measured ~10fps during a seam */}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage:
+                "linear-gradient(to top, rgba(7,17,13,0.8), transparent 50%, rgba(7,17,13,0.4)), linear-gradient(to right, rgba(7,17,13,0.95), rgba(7,17,13,0.6) 50%, rgba(13,43,29,0.25))",
+            }}
+          />
+        </motion.div>
+        {/* deepening veil as the hero recedes */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0 bg-nl-ink"
+          style={reduced ? { opacity: 0 } : { opacity: veil }}
+        />
+
+        {/* side captions */}
+        <motion.p
+          aria-hidden="true"
+          initial={{ opacity: 0 }}
+          animate={show ? { opacity: 1 } : undefined}
+          transition={{ duration: 0.9, delay: 0.75, ease: EASE }}
+          className="absolute left-4 top-24 z-10 text-[10px] uppercase tracking-[0.3em] text-nl-sage [writing-mode:vertical-rl] md:left-[114px] md:top-1/2 md:-translate-y-1/2"
+        >
+          Your health, in context.
+        </motion.p>
+        <motion.p
+          aria-hidden="true"
+          initial={{ opacity: 0 }}
+          animate={show ? { opacity: 1 } : undefined}
+          transition={{ duration: 0.9, delay: 0.82, ease: EASE }}
+          className="absolute right-4 top-24 z-10 text-[10px] uppercase tracking-[0.3em] text-nl-sage [writing-mode:vertical-rl] md:right-[114px] md:top-1/2 md:-translate-y-1/2"
+        >
+          Since every meal counts.
+        </motion.p>
+
+        {/* content */}
+        <motion.div
+          className="relative z-10 flex h-full flex-col justify-center px-8 sm:px-14 md:pl-[200px]"
+          style={reduced ? undefined : { opacity: contentOpacity, y: contentY }}
+        >
+          <motion.p
+            initial={{ opacity: 0, y: 14 }}
+            animate={show ? { opacity: 1, y: 0 } : undefined}
+            transition={{ duration: 0.6, delay: 0.08, ease: EASE }}
+            className="mb-6 text-[11px] font-medium uppercase tracking-[0.32em] text-nl-sage sm:text-xs"
+          >
+            Nutrition, made clear
+          </motion.p>
+
+          <motion.h1
+            aria-label="Food clarity for every real-life day."
+            initial="hidden"
+            animate={show ? "show" : "hidden"}
+            transition={{ staggerChildren: 0.07, delayChildren: 0.14 }}
+            style={{ perspective: 900, transformStyle: "preserve-3d" }}
+            className="max-w-[14ch] text-[3rem] font-semibold leading-[1.02] tracking-[-0.04em] text-nl-warm min-[430px]:text-[3.75rem] md:text-[5rem]"
+          >
+            {HERO_LINES.map((line, li) => (
+              <span key={li} aria-hidden="true" className="block">
+                {line.map((word) => (
+                  <motion.span
+                    key={word}
+                    variants={heroWord}
+                    className={cn(
+                      "nl-hero-word mr-[0.28em] last:mr-0",
+                      word === "clarity" && "text-nl-lime"
+                    )}
+                  >
+                    {word}
+                  </motion.span>
+                ))}
+              </span>
+            ))}
+          </motion.h1>
+
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={show ? { opacity: 1, y: 0 } : undefined}
+            transition={{ duration: 0.65, delay: 0.62, ease: EASE }}
+          >
+            <p className="mt-7 max-w-md text-[15px] leading-relaxed text-nl-warm/80">
+              Log what you eat, understand what it means, and follow a plan that fits your life.
+            </p>
+            <div className="mt-9 flex flex-wrap items-center gap-6">
+              <Link
+                href="/signup"
+                className="rounded-full bg-nl-lime px-7 py-3.5 text-sm font-semibold text-nl-ink transition-transform duration-300 hover:scale-[1.04] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Start your free plan
+              </Link>
+              <a
+                href="#log"
+                onClick={(e) => {
+                  e.preventDefault()
+                  onCue()
+                }}
+                className="text-sm text-nl-warm/70 underline-offset-4 transition-colors hover:text-nl-warm focus-visible:text-nl-warm"
+              >
+                See how it works ↓
+              </a>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* circular scroll cue */}
+        <motion.button
+          type="button"
+          onClick={onCue}
+          aria-label="Scroll to the first chapter"
+          style={reduced ? undefined : { opacity: cueOpacity }}
+          className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 text-nl-warm/80 transition-colors hover:text-nl-lime focus-visible:text-nl-lime md:bottom-16 md:left-auto md:right-[114px] md:translate-x-0"
+        >
+          <span className="relative flex size-[74px] items-center justify-center">
+            <svg
+              viewBox="0 0 74 74"
+              className="nl-scroll-cue-ring absolute inset-0 size-full"
+              aria-hidden="true"
+            >
+              <defs>
+                <path id="nl-cue-circle" d="M37,37 m-27,0 a27,27 0 1,1 54,0 a27,27 0 1,1 -54,0" />
+              </defs>
+              <text className="fill-current text-[8.5px] uppercase tracking-[2.6px]">
+                <textPath href="#nl-cue-circle">Scroll · discover · scroll ·</textPath>
+              </text>
+            </svg>
+            <ArrowDown className="size-4 nl-cue-arrow" aria-hidden="true" />
+          </span>
+        </motion.button>
+      </Stage>
+    </section>
+  )
+}
+
+/* ═══ Chapter visual: shared drift + settle for the pinned image ═══════════ */
+
+function ChapterVisual({
+  src,
+  progress,
+  className,
+  imgClassName,
+  from = 1.16,
+  to = 1.0,
+  drift = 4,
+}: {
+  src: string
+  progress: MotionValue<number>
+  className?: string
+  imgClassName?: string
+  from?: number
+  to?: number
+  drift?: number
+}) {
+  const reduced = !!useReducedMotion()
+  const scale = useTransform(progress, [0, 1], [from, to])
+  const y = useTransform(progress, [0, 1], [`${-drift / 2}%`, `${drift / 2}%`])
+  return (
+    <div aria-hidden="true" className={cn("absolute inset-0 overflow-hidden", className)}>
+      <motion.div
+        className="absolute -inset-y-[6%] inset-x-0"
+        style={reduced ? undefined : { scale, y }}
+      >
+        <Image src={src} alt="" fill sizes="100vw" className={cn("object-cover", imgClassName)} />
+      </motion.div>
+    </div>
+  )
+}
+
+/* ═══ Chapter 1 — Food logging (#log) ══════════════════════════════════════ */
+
+function FoodLogCard({ on }: { on: boolean }) {
+  const reduced = !!useReducedMotion()
+  const chips = ["420 kcal", "P 14 g", "C 58 g", "F 11 g"]
+  return (
+    <div
+      className={cn(
+        /* opaque rather than backdrop-blurred: a backdrop filter cannot be
+           cached while an ancestor stage fades, so it resampled every frame */
+        "relative w-full max-w-sm rounded-2xl border bg-nl-pine/90 p-5",
+        HAIRLINE
+      )}
+    >
+      <motion.span
+        className="absolute -right-2 -top-2 flex size-7 items-center justify-center rounded-full bg-nl-lime"
+        aria-hidden="true"
+        initial={{ scale: 0 }}
+        animate={reduced || on ? { scale: 1 } : { scale: 0 }}
+        transition={{ duration: 0.45, delay: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+      >
+        <Check className="size-4 text-nl-ink" strokeWidth={3} />
+      </motion.span>
+      <div className="flex items-center gap-4">
+        <span
+          aria-hidden="true"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-nl-forest to-nl-pine"
+        >
+          <Utensils className="size-5 text-nl-warm/90" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-nl-warm">Berry oat bowl</p>
+          <p className="text-xs text-nl-sage">Breakfast · 8:12 am</p>
+        </div>
+      </div>
+      <ul className="mt-4 flex flex-wrap gap-2 text-[11px] font-medium text-nl-warm/85">
+        {chips.map((chip, i) => (
+          <motion.li
+            key={chip}
+            className={cn("rounded-full border px-3 py-1", HAIRLINE)}
+            initial={{ opacity: 0, y: 8 }}
+            animate={reduced || on ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+            transition={{ duration: 0.4, delay: 0.18 + i * 0.06, ease: EASE }}
+          >
+            {chip}
+          </motion.li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function ChapterLog() {
+  const track = useTrack()
+  const { ref, progress } = track
+  return (
+    <section ref={ref} id="log" data-chapter="log" className="nl-track relative" style={{ height: "550svh" }}>
+      <Stage track={track}>
+        <ChapterVisual
+          src="/nutrilife-landing/food-logging.png"
+          progress={progress}
+          className="md:left-[46%]"
+          imgClassName="object-right"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-nl-ink via-nl-ink/70 to-nl-ink/30 md:from-nl-ink md:via-nl-ink/35 md:to-transparent"
+        />
+
+        <div className={ZONE_LEFT}>
+          <CopyBlock progress={progress} from={0} to={0.38} first>
+            <Eyebrow>01 / Food logging</Eyebrow>
+            <RevealHeadline
+              text="Log a meal before life moves on."
+              progress={progress}
+              className="text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
+            />
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.38} to={0.68}>
+            <p className="max-w-md text-lg leading-relaxed text-nl-warm/85">
+              Snap it, search it, or add it your way. NutriLife turns ordinary meals into a clear,
+              usable daily record.
+            </p>
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.68} to={1} last>
+            {(on) => (
+              <>
+                <p className="mb-5 text-sm uppercase tracking-[0.24em] text-nl-sage">
+                  Logged in seconds
+                </p>
+                <FoodLogCard on={on} />
+              </>
+            )}
+          </CopyBlock>
+        </div>
+      </Stage>
+    </section>
+  )
+}
+
+/* ═══ Chapter 2 — Food analyzer (#analyze) ═════════════════════════════════ */
+
+const MACROS = [
+  { label: "Protein", value: "32 g", pct: 72 },
+  { label: "Fibre", value: "9 g", pct: 58 },
+  { label: "Energy", value: "612 kcal", pct: 64 },
 ]
 
-/* ── motion presets ───────────────────────────────────────────────────────── */
-const EASE = [0.22, 1, 0.36, 1] as const
-
-/* Single source of truth for the two media queries used across this page,
-   so the gating rule lives in one place instead of being re-typed per call site. */
-function prefersReducedMotion() {
-  return typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-}
-
-function isCoarsePointer() {
-  return typeof window !== "undefined" &&
-    window.matchMedia("(pointer: coarse)").matches
-}
-
-function useRevealProps(delay = 0) {
-  const reduce = useReducedMotion()
-  if (reduce) return {}
-  return {
-    initial: { opacity: 0, y: 32 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, amount: 0.25 },
-    transition: { duration: 0.7, delay, ease: EASE },
-  }
-}
-
-function Reveal({ children, delay = 0, className }: {
-  children: React.ReactNode; delay?: number; className?: string
-}) {
-  const props = useRevealProps(delay)
-  return <motion.div className={className} {...props}>{children}</motion.div>
-}
-
-/* ── cursor trail (fine pointers, motion-safe) ────────────────────────────── */
-function CursorTrail() {
-  const dotRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (prefersReducedMotion() || isCoarsePointer()) return
-    const dot = dotRef.current
-    if (!dot) return
-    let raf = 0, tx = -100, ty = -100, x = -100, y = -100, seen = false
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return
-      tx = e.clientX; ty = e.clientY
-      if (!seen) { x = tx; y = ty; seen = true; dot.style.opacity = "0.4" }
-    }
-    const loop = () => {
-      x += (tx - x) * 0.15; y += (ty - y) * 0.15
-      dot.style.transform = `translate3d(${x - 6}px, ${y - 6}px, 0)`
-      raf = requestAnimationFrame(loop)
-    }
-    window.addEventListener("pointermove", onMove, { passive: true })
-    raf = requestAnimationFrame(loop)
-    return () => { window.removeEventListener("pointermove", onMove); cancelAnimationFrame(raf) }
-  }, [])
+function MacroModule({ on }: { on: boolean }) {
+  const reduced = !!useReducedMotion()
+  const C = 2 * Math.PI * 50
+  const target = C * (1 - 0.68)
   return (
-    <div ref={dotRef} aria-hidden="true"
-      className="fixed left-0 top-0 z-[90] pointer-events-none rounded-full"
-      style={{ width: 12, height: 12, opacity: 0, background: "var(--primary)", filter: "blur(8px)", transition: "opacity .4s ease" }}
-    />
+    <div
+      className={cn("w-full max-w-md rounded-2xl border bg-nl-ink/88 p-6", HAIRLINE)}
+    >
+      <div className="flex items-center gap-6">
+        <svg
+          viewBox="0 0 120 120"
+          className="size-28 shrink-0 -rotate-90"
+          role="img"
+          aria-label="Meal balance: 68 percent"
+        >
+          <circle cx="60" cy="60" r="50" fill="none" strokeWidth="9" className="stroke-nl-warm/10" />
+          <circle
+            cx="60"
+            cy="60"
+            r="50"
+            fill="none"
+            strokeWidth="9"
+            strokeLinecap="round"
+            className="stroke-nl-lime"
+            strokeDasharray={C}
+            style={{
+              strokeDashoffset: reduced || on ? target : C,
+              transition: reduced ? undefined : "stroke-dashoffset 1.3s var(--nl-ease) 0.15s",
+            }}
+          />
+        </svg>
+        <div className="text-left">
+          <p className="text-3xl font-semibold tracking-[-0.03em] text-nl-warm">68%</p>
+          <p className="text-sm text-nl-sage">balanced plate</p>
+        </div>
+      </div>
+      <ul className="mt-6 space-y-4">
+        {MACROS.map((m, i) => (
+          <li key={m.label}>
+            <div className="mb-1.5 flex items-baseline justify-between text-sm">
+              <span className="text-nl-warm/85">{m.label}</span>
+              <span className="font-medium text-nl-warm">{m.value}</span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-nl-warm/10">
+              <div
+                className="h-full rounded-full bg-nl-forest"
+                style={{
+                  width: `${m.pct}%`,
+                  transform: reduced || on ? "scaleX(1)" : "scaleX(0)",
+                  transformOrigin: "left",
+                  transition: reduced
+                    ? undefined
+                    : `transform 0.95s var(--nl-ease) ${0.3 + i * 0.13}s`,
+                }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
-/* ── animated counter ─────────────────────────────────────────────────────── */
-function Counter({ to, suffix = "", decimals = 0, className }: {
-  to: number; suffix?: string; decimals?: number; className?: string
+function ChapterAnalyze() {
+  const track = useTrack()
+  const { ref, reduced, progress } = track
+  const [scan, setScan] = useState(false)
+  useMotionValueEvent(progress, "change", (v) => {
+    if (v > 0.04) setScan(true)
+  })
+  /* within-chapter tint shift: pine → clearer emerald, insight arriving */
+  const emerald = useTransform(progress, [0.2, 0.8], [0, 1])
+  const imgOpacity = useTransform(progress, [0, 0.5], [0.3, 0.48])
+
+  return (
+    <section
+      ref={ref}
+      id="analyze"
+      data-chapter="analyze"
+      className="nl-track relative"
+      style={{ height: "550svh" }}
+    >
+      <Stage track={track}>
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={reduced ? { opacity: 0.45 } : { opacity: imgOpacity }}
+        >
+          <ChapterVisual
+            src="/nutrilife-landing/food-analyzer.png"
+            progress={progress}
+            imgClassName="object-right"
+            from={1.2}
+            to={1.02}
+          />
+        </motion.div>
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-b from-nl-ink/85 via-nl-pine/60 to-nl-ink/90"
+        />
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            opacity: reduced ? 0.5 : emerald,
+            background:
+              "radial-gradient(90% 70% at 50% 45%, rgba(21,94,58,0.4) 0%, transparent 70%)",
+          }}
+        />
+        <div aria-hidden="true" className="nl-scan" data-active={scan} />
+
+        <div className={ZONE_CENTER}>
+          <CopyBlock progress={progress} from={0} to={0.36} first>
+            <Eyebrow>02 / Food analyzer</Eyebrow>
+            <RevealHeadline
+              text="See what your plate is telling you."
+              progress={progress}
+              className="mx-auto max-w-[16ch] text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
+            />
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.36} to={0.64}>
+            <p className="mx-auto max-w-md text-lg leading-relaxed text-nl-warm/85">
+              A simple analysis turns the meal in front of you into practical nutrition—not a
+              lecture.
+            </p>
+          </CopyBlock>
+
+          <CopyBlock
+            progress={progress}
+            from={0.64}
+            to={1}
+            last
+            className="w-full max-w-md justify-self-center"
+          >
+            {(on) => <MacroModule on={on} />}
+          </CopyBlock>
+        </div>
+      </Stage>
+    </section>
+  )
+}
+
+/* ═══ Chapter 3 — Diet planner (#plan) ═════════════════════════════════════ */
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+const DINNERS = ["Lemon-herb salmon", "Chickpea curry bowl", "Grilled paneer + dal"]
+
+function WeeklyPlanCard({ on }: { on: boolean }) {
+  const reduced = !!useReducedMotion()
+  const [day, setDay] = useState(2)
+  const [dinner, setDinner] = useState(0)
+  const rows = [
+    ["Breakfast", "Berry oat bowl"],
+    ["Lunch", "Paneer grain bowl"],
+  ]
+  return (
+    <div
+      className={cn("w-full max-w-md rounded-2xl border bg-nl-pine/90 p-5", HAIRLINE)}
+    >
+      <div role="group" aria-label="Day of the week" className="flex flex-wrap gap-1.5">
+        {DAYS.map((d, i) => (
+          <motion.button
+            key={d}
+            type="button"
+            aria-pressed={day === i}
+            onClick={() => setDay(i)}
+            initial={{ opacity: 0, y: 6 }}
+            animate={reduced || on ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+            transition={{ duration: 0.35, delay: 0.1 + i * 0.04, ease: EASE }}
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+              day === i
+                ? "bg-nl-warm text-nl-ink"
+                : cn("border text-nl-sage hover:text-nl-warm", HAIRLINE)
+            )}
+          >
+            {d}
+          </motion.button>
+        ))}
+      </div>
+      <ul className="mt-5 space-y-3.5">
+        {rows.map(([k, v], i) => (
+          <motion.li
+            key={k}
+            className="flex items-baseline justify-between gap-3 text-sm"
+            initial={{ opacity: 0, x: -10 }}
+            animate={reduced || on ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+            transition={{ duration: 0.4, delay: 0.34 + i * 0.08, ease: EASE }}
+          >
+            <span className="shrink-0 text-nl-sage">{k}</span>
+            <span className="text-right font-medium text-nl-warm">{v}</span>
+          </motion.li>
+        ))}
+        <motion.li
+          className="flex items-center justify-between gap-3 text-sm"
+          initial={{ opacity: 0, x: -10 }}
+          animate={reduced || on ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+          transition={{ duration: 0.4, delay: 0.5, ease: EASE }}
+        >
+          <span className="shrink-0 text-nl-sage">Dinner</span>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span aria-live="polite" className="truncate font-medium text-nl-warm">
+              {DINNERS[dinner]}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDinner((d) => (d + 1) % DINNERS.length)}
+              aria-label={`Swap dinner. Current: ${DINNERS[dinner]}`}
+              className={cn(
+                "group flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] text-nl-warm/85 transition-colors hover:border-nl-lime/60 hover:text-nl-lime focus-visible:outline-2 focus-visible:outline-offset-2",
+                HAIRLINE
+              )}
+            >
+              <RefreshCw
+                className="size-3 transition-transform duration-500 group-hover:rotate-180"
+                aria-hidden="true"
+              />
+              Easy swap
+            </button>
+          </span>
+        </motion.li>
+      </ul>
+    </div>
+  )
+}
+
+function ChapterPlan() {
+  const track = useTrack()
+  const { ref, progress } = track
+  return (
+    <section ref={ref} id="plan" data-chapter="plan" className="nl-track relative" style={{ height: "600svh" }}>
+      <Stage track={track}>
+        {/* planner grid parallaxes within the spec's 4% ceiling */}
+        <ChapterVisual
+          src="/nutrilife-landing/diet-planner.png"
+          progress={progress}
+          className="md:left-[46%]"
+          imgClassName="object-[70%_65%]"
+          from={1.1}
+          to={1.0}
+          drift={4}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-nl-ink via-nl-ink/70 to-nl-ink/30 md:from-nl-ink md:via-nl-ink/35 md:to-transparent"
+        />
+
+        <div className={ZONE_LEFT}>
+          <CopyBlock progress={progress} from={0} to={0.32} first>
+            <Eyebrow>03 / Diet planner</Eyebrow>
+            <RevealHeadline
+              text="A plan with room for real life."
+              progress={progress}
+              className="text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
+            />
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.32} to={0.58}>
+            <p className="max-w-md text-lg leading-relaxed text-nl-warm/85">
+              Build meals around your goals, your schedule, and the foods you actually enjoy. Swap
+              without starting over.
+            </p>
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.58} to={1} last>
+            {(on) => (
+              <>
+                <p className="mb-5 text-sm uppercase tracking-[0.24em] text-nl-sage">This week</p>
+                <WeeklyPlanCard on={on} />
+              </>
+            )}
+          </CopyBlock>
+        </div>
+      </Stage>
+    </section>
+  )
+}
+
+/* ═══ Chapter 4 — Progress (#progress) — the light interlude ═══════════════ */
+
+const CHART_POINTS = [
+  [30, 205],
+  [140, 182],
+  [250, 192],
+  [360, 160],
+  [470, 168],
+  [580, 138],
+  [670, 120],
+]
+const CHART_LABELS = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Today"]
+const CHART_D =
+  "M30 205 C 70 196 105 184 140 182 S 215 194 250 192 S 325 166 360 160 S 435 170 470 168 S 545 142 580 138 S 645 124 670 120"
+
+function NourishmentChart({ on }: { on: boolean }) {
+  const reduced = !!useReducedMotion()
+  return (
+    <figure data-active={on} className="w-full max-w-3xl">
+      <svg
+        viewBox="0 0 700 285"
+        role="img"
+        aria-label="Seven-day nourishment trend: a gentle, imperfect rise toward today"
+        className="w-full"
+      >
+        <motion.path
+          d={`${CHART_D} L 670 250 L 30 250 Z`}
+          className="fill-nl-forest/[0.08]"
+          initial={{ opacity: 0 }}
+          animate={reduced || on ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 1, delay: 0.5, ease: EASE }}
+        />
+        <path
+          d={CHART_D}
+          fill="none"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          className="nl-chart-line stroke-nl-forest"
+        />
+        {CHART_POINTS.slice(0, -1).map(([x, y], i) => (
+          <motion.circle
+            key={x}
+            cx={x}
+            cy={y}
+            r="3.5"
+            className="fill-nl-sage"
+            initial={{ opacity: 0, scale: 0 }}
+            animate={reduced || on ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
+            transition={{ duration: 0.4, delay: 0.35 + i * 0.16, ease: EASE }}
+            style={{ transformOrigin: `${x}px ${y}px` }}
+          />
+        ))}
+        <motion.g
+          initial={{ opacity: 0, scale: 0 }}
+          animate={reduced || on ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
+          transition={{ duration: 0.55, delay: 1.35, ease: [0.34, 1.56, 0.64, 1] }}
+          style={{ transformOrigin: "670px 120px" }}
+        >
+          <circle cx="670" cy="120" r="10" className="fill-nl-lime/25" />
+          <circle cx="670" cy="120" r="5" className="fill-nl-lime stroke-nl-ink/20" />
+        </motion.g>
+        {CHART_LABELS.map((l, i) => (
+          <motion.text
+            key={l}
+            x={CHART_POINTS[i][0]}
+            y="274"
+            textAnchor="middle"
+            initial={{ opacity: 0 }}
+            animate={reduced || on ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.4, delay: 0.4 + i * 0.16, ease: EASE }}
+            className={cn(
+              "text-[13px]",
+              i === CHART_LABELS.length - 1 ? "fill-nl-ink font-semibold" : "fill-nl-ink/45"
+            )}
+          >
+            {l}
+          </motion.text>
+        ))}
+      </svg>
+    </figure>
+  )
+}
+
+function ChapterProgress() {
+  const track = useTrack()
+  const { ref, progress } = track
+  return (
+    <section
+      ref={ref}
+      id="progress"
+      data-chapter="progress"
+      className="nl-track relative"
+      style={{ height: "450svh" }}
+    >
+      <Stage track={track}>
+        <div className={ZONE_CENTER}>
+          <CopyBlock progress={progress} from={0} to={0.4} first>
+            <Eyebrow light>04 / Progress, not perfection</Eyebrow>
+            <RevealHeadline
+              text="Small choices become a pattern."
+              progress={progress}
+              step={0.014}
+              className="mx-auto max-w-[15ch] text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-ink sm:text-4xl md:text-[3.4rem]"
+            />
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.4} to={1} last className="w-full justify-self-center">
+            {(on) => (
+              <div className="flex w-full flex-col items-center">
+                <NourishmentChart on={on} />
+                <motion.p
+                  className="mt-8 max-w-md text-center text-base leading-relaxed text-nl-ink/70"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={on ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+                  transition={{ duration: 0.6, delay: 1.5, ease: EASE }}
+                >
+                  A clearer picture helps you notice what supports you—without chasing perfection.
+                </motion.p>
+              </div>
+            )}
+          </CopyBlock>
+        </div>
+      </Stage>
+    </section>
+  )
+}
+
+/* ═══ Chapter 5 — Plans (#plans) ═══════════════════════════════════════════ */
+
+const PLANS = [
+  {
+    name: "Free",
+    price: "₹0",
+    cadence: "forever",
+    features: ["Meal logging", "Basic daily insights", "One plan template"],
+    cta: "Start free",
+  },
+  {
+    name: "Plus",
+    price: "₹299",
+    cadence: "per month",
+    features: ["Photo food analysis", "Weekly diet planner", "AI health assistant"],
+    cta: "Choose Plus",
+  },
+  {
+    name: "Yearly",
+    price: "₹2,499",
+    cadence: "per year",
+    badge: "Best value",
+    features: ["Everything in Plus", "Two months free", "Early access features"],
+    cta: "Choose Yearly",
+  },
+]
+
+/* Each tier owns a progress sub-segment of the plans chapter, so the reveal is
+   scroll-driven: Free lands first, then Plus, then Yearly. Cards accumulate —
+   grid slots are reserved from the start, so nothing reflows as they appear. */
+const PLAN_SEGS: [number, number][] = [
+  [0.3, 0.4],
+  [0.46, 0.56],
+  [0.62, 0.72],
+]
+
+function RevealPlanCard({
+  plan,
+  seg,
+  progress,
+  isSel,
+  onSelect,
+}: {
+  plan: (typeof PLANS)[number]
+  seg: [number, number]
+  progress: MotionValue<number>
+  isSel: boolean
+  onSelect: () => void
 }) {
-  const [n, setN] = useState(0)
-  const ref = useRef<HTMLSpanElement>(null)
-  const started = useRef(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting || started.current) return
-      started.current = true
-      if (prefersReducedMotion()) { setN(to); return }
-      const t0 = performance.now()
-      const step = (t: number) => {
-        const p = Math.min((t - t0) / 1400, 1)
-        setN(to * (1 - Math.pow(1 - p, 3)))
-        if (p < 1) requestAnimationFrame(step)
+  const reduced = !!useReducedMotion()
+  const opacity = useTransform(progress, seg, [0, 1])
+  const scale = useTransform(progress, seg, [0.82, 1])
+  const visibility = useTransform(opacity, (v) => (v > 0.008 ? "visible" : "hidden"))
+  const pointerEvents = useTransform(opacity, (v) => (v > 0.6 ? "auto" : "none"))
+  return (
+    <motion.div
+      style={
+        reduced
+          ? { opacity, visibility, pointerEvents }
+          : { opacity, scale, visibility, pointerEvents }
       }
-      requestAnimationFrame(step)
-    }, { threshold: 0.5 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [to])
-  const shown = decimals ? n.toFixed(decimals) : Math.round(n).toLocaleString()
-  return <span ref={ref} className={className}>{shown}{suffix}</span>
+      className={cn(
+        "relative flex flex-col rounded-2xl border p-6 text-left transition-[border-color,box-shadow] duration-500",
+        isSel
+          ? "border-nl-lime/70 bg-nl-ink/90 shadow-[0_0_40px_rgba(201,255,74,0.08)]"
+          : cn(HAIRLINE, "bg-nl-ink/80")
+      )}
+    >
+            <button
+              type="button"
+              aria-pressed={isSel}
+              onClick={onSelect}
+              className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              <span className="sr-only">
+                Select the {plan.name} plan{isSel ? " (selected)" : ""}
+              </span>
+            </button>
+            {plan.badge && (
+              <span className="absolute -top-2.5 right-5 z-10 rounded-full bg-nl-lime px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-nl-ink">
+                {plan.badge}
+              </span>
+            )}
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-nl-sage">
+              {plan.name}
+            </p>
+            <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-nl-warm">
+              {plan.price}
+              <span className="ml-2 text-xs font-normal text-nl-sage">{plan.cadence}</span>
+            </p>
+            <ul className="mb-6 mt-5 space-y-2.5 text-sm text-nl-warm/80">
+              {plan.features.map((f) => (
+                <li key={f} className="flex items-center gap-2.5">
+                  <Check
+                    className={cn(
+                      "size-3.5 shrink-0 transition-colors duration-300",
+                      isSel ? "text-nl-lime" : "text-nl-sage"
+                    )}
+                    aria-hidden="true"
+                  />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/signup"
+              className={cn(
+                "relative z-10 mt-auto rounded-full px-5 py-2.5 text-center text-[13px] font-semibold transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2",
+                isSel
+                  ? "bg-nl-lime text-nl-ink"
+                  : cn("border text-nl-warm hover:border-nl-warm/50", HAIRLINE)
+              )}
+            >
+              {plan.cta}
+            </Link>
+    </motion.div>
+  )
 }
 
-/* ═══════════ ACCURATE APP MINIATURES ══════════════════════════════════════
-   Each mini reproduces the real screen's structure and copy:
-   dashboard/page.tsx, food-analysis/page.tsx, diet-planner/page.tsx,
-   onboarding/page.tsx, signup/page.tsx. ═══════════════════════════════════ */
-
-function Phone({ children, className, featured = false }: {
-  children: React.ReactNode; className?: string; featured?: boolean
-}) {
+function PlanCards({ progress }: { progress: MotionValue<number> }) {
+  const [selected, setSelected] = useState(2)
   return (
-    <div className={`relative rounded-[2rem] border bg-card shadow-2xl overflow-hidden ${featured ? "border-primary/40 shadow-primary/15" : "border-border shadow-foreground/5"} ${className ?? ""}`}>
-      <div className="absolute left-1/2 top-2 -translate-x-1/2 w-16 h-1.5 rounded-full bg-foreground/10" aria-hidden="true" />
-      <div className="pt-6 pb-3 px-3 h-full">{children}</div>
+    <div className="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {PLANS.map((plan, i) => (
+        <RevealPlanCard
+          key={plan.name}
+          plan={plan}
+          seg={PLAN_SEGS[i]}
+          progress={progress}
+          isSel={selected === i}
+          onSelect={() => setSelected(i)}
+        />
+      ))}
     </div>
   )
 }
 
-/* dashboard: Welcome back → 4 stat tiles → Momentum Matrix weekly bars */
-function DashboardMini() {
-  const bars = [42, 68, 55, 80, 62, 30, 74]
+function ChapterPlans() {
+  const track = useTrack()
+  const { ref, reduced, progress } = track
+  const bgOpacity = useTransform(progress, [0, 0.5], [0.12, 0.28])
   return (
-    <div className="text-left">
-      <p className="text-[9px] font-black uppercase tracking-wide text-foreground">Welcome back!</p>
-      <p className="text-[6.5px] text-muted-foreground mb-2">Track your health journey</p>
-      <div className="grid grid-cols-2 gap-1 mb-2">
-        <div className="rounded-lg bg-orange-500/10 p-1.5">
-          <Flame className="w-2.5 h-2.5 text-orange-500 mb-0.5" aria-hidden="true" />
-          <p className="text-[8px] font-black leading-none">1,847</p>
-          <p className="text-[5.5px] text-muted-foreground">Daily Fuel</p>
+    <section
+      ref={ref}
+      id="plans"
+      data-chapter="plans"
+      className="nl-track relative"
+      style={{ height: "750svh" }}
+    >
+      <Stage track={track}>
+        {/* atmospheric right-side backdrop only */}
+        <motion.div
+          aria-hidden="true"
+          className="absolute inset-y-0 right-0 hidden w-1/2 md:block"
+          style={reduced ? { opacity: 0.25 } : { opacity: bgOpacity }}
+        >
+          <ChapterVisual
+            src="/nutrilife-landing/subscription-plans.png"
+            progress={progress}
+            imgClassName="object-right"
+            from={1.12}
+            to={1.0}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-nl-ink to-nl-ink/40" />
+        </motion.div>
+
+        <div className={cn(ZONE_CENTER, "md:px-[10%] lg:px-[12%]")}>
+          <CopyBlock progress={progress} from={0} to={0.26} first>
+            <Eyebrow>05 / Choose your rhythm</Eyebrow>
+            <RevealHeadline
+              text="One clear plan. Your pace."
+              progress={progress}
+              step={0.016}
+              className="mx-auto max-w-[14ch] text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
+            />
+            <p className="mx-auto mt-5 max-w-sm text-base leading-relaxed text-nl-warm/80">
+              Start simply. Keep the tools that help you stay consistent.
+            </p>
+          </CopyBlock>
+
+          <CopyBlock progress={progress} from={0.26} to={1} last className="w-full justify-self-center">
+            <PlanCards progress={progress} />
+          </CopyBlock>
         </div>
-        <div className="rounded-lg bg-primary/10 p-1.5">
-          <Target className="w-2.5 h-2.5 text-primary mb-0.5" aria-hidden="true" />
-          <p className="text-[8px] font-black leading-none">86%</p>
-          <p className="text-[5.5px] text-muted-foreground">Objective Sync</p>
-        </div>
-        <div className="rounded-lg bg-primary/10 p-1.5">
-          <Droplets className="w-2.5 h-2.5 text-primary mb-0.5" aria-hidden="true" />
-          <p className="text-[8px] font-black leading-none">6/8</p>
-          <p className="text-[5.5px] text-muted-foreground">Fluid Intake</p>
-        </div>
-        <div className="rounded-lg bg-primary/10 p-1.5">
-          <Utensils className="w-2.5 h-2.5 text-primary mb-0.5" aria-hidden="true" />
-          <p className="text-[8px] font-black leading-none">4</p>
-          <p className="text-[5.5px] text-muted-foreground">Logged Vitals</p>
-        </div>
-      </div>
-      <div className="rounded-xl border border-border p-1.5">
-        <div className="flex items-center gap-1 mb-1">
-          <Activity className="w-2.5 h-2.5 text-orange-500" aria-hidden="true" />
-          <p className="text-[6.5px] font-black uppercase">Momentum Matrix</p>
-        </div>
-        <div className="flex items-end gap-[3px] h-10">
-          {bars.map((h, i) => (
-            <div key={i} className="flex-1 rounded-t-sm bg-orange-500" style={{ height: `${h}%`, opacity: i === 6 ? 1 : 0.4 }} />
-          ))}
-        </div>
-        <div className="flex justify-between mt-0.5">
-          {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-            <span key={i} className="text-[5px] text-muted-foreground flex-1 text-center">{d}</span>
-          ))}
-        </div>
-      </div>
-    </div>
+      </Stage>
+    </section>
   )
 }
 
-/* food analysis: photo upload → identified dish → macro rows */
-function ScannerMini() {
+/* ═══ Finale — dashboard reveal (#dashboard) ═══════════════════════════════ */
+
+const cardV = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE } },
+}
+
+function DashboardMock() {
+  const ringC = 2 * Math.PI * 62
   return (
-    <div className="text-left">
-      <p className="text-[9px] font-black uppercase tracking-wide text-foreground mb-1.5">AI Food Analysis</p>
-      <div className="relative rounded-xl overflow-hidden mb-1.5 border border-primary/30">
-        <Image src="/hero-food-plate.png" width={200} height={112} alt="" className="w-full h-[72px] object-cover" />
-        <div className="absolute inset-0 border-2 border-primary/60 rounded-xl" aria-hidden="true">
-          <div className="absolute left-0 right-0 top-1/2 h-px bg-primary/70" />
-        </div>
-        <span className="absolute bottom-1 left-1 text-[6px] font-bold bg-primary text-primary-foreground rounded-full px-1.5 py-0.5">
-          <Camera className="w-1.5 h-1.5 inline mr-0.5" aria-hidden="true" />Scanning…
+    <div
+      className={cn(
+        "mx-auto flex w-full max-w-4xl flex-col overflow-hidden rounded-2xl border bg-nl-ink/92 shadow-2xl md:flex-row",
+        HAIRLINE
+      )}
+    >
+      {/* rail */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-5 border-b px-4 py-3 md:w-16 md:flex-col md:border-b-0 md:border-r md:py-6",
+          HAIRLINE
+        )}
+      >
+        <span className="flex size-8 items-center justify-center rounded-lg bg-nl-lime text-sm font-bold text-nl-ink">
+          N
+        </span>
+        {[Home, Utensils, BarChart3, CalendarDays].map((Icon, i) => (
+          <span key={i} className={cn("text-nl-sage", i === 0 && "text-nl-warm")} aria-hidden="true">
+            <Icon className="size-[18px]" />
+          </span>
+        ))}
+        <span className="text-nl-sage md:mt-auto" aria-hidden="true">
+          <Settings className="size-[18px]" />
         </span>
       </div>
-      <p className="text-[8px] font-black">Mediterranean Salad</p>
-      <p className="text-[6px] text-muted-foreground mb-1">1 bowl · 420 kcal</p>
-      {[
-        ["Protein", "18g", 55], ["Carbs", "32g", 42], ["Fat", "24g", 66],
-      ].map(([label, val, w]) => (
-        <div key={label as string} className="flex items-center gap-1 mb-0.5">
-          <span className="text-[6px] text-muted-foreground w-7">{label}</span>
-          <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${w}%` }} />
+
+      {/* main */}
+      <div className="flex-1 p-5 sm:p-6">
+        <motion.div
+          variants={cardV}
+          className="mb-5 flex flex-wrap items-center justify-between gap-3"
+        >
+          <div>
+            <p className="text-lg font-semibold text-nl-warm">Good morning, Aanya</p>
+            <p className="text-xs text-nl-sage">Wednesday, 23 July</p>
           </div>
-          <span className="text-[6px] font-bold">{val}</span>
+          <span className="flex items-center gap-2 rounded-full bg-nl-lime px-4 py-2 text-[13px] font-semibold text-nl-ink">
+            <Utensils className="size-3.5" aria-hidden="true" />
+            Log a meal
+          </span>
+        </motion.div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <motion.div
+            variants={cardV}
+            className={cn("rounded-xl border bg-nl-pine/40 p-5 md:col-span-2", HAIRLINE)}
+          >
+            <p className="mb-4 text-xs uppercase tracking-[0.2em] text-nl-sage">Today</p>
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="relative">
+                <svg
+                  viewBox="0 0 140 140"
+                  className="size-32 -rotate-90"
+                  role="img"
+                  aria-label="Daily nutrition: 68 percent of goal"
+                >
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r="62"
+                    fill="none"
+                    strokeWidth="10"
+                    className="stroke-nl-warm/10"
+                  />
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r="62"
+                    fill="none"
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    className="stroke-nl-lime"
+                    strokeDasharray={ringC}
+                    strokeDashoffset={ringC * 0.32}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-xl font-semibold text-nl-warm">68%</span>
+                  <span className="text-[10px] text-nl-sage">of goal</span>
+                </span>
+              </div>
+              <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                {[
+                  ["Calories", "1,284 kcal"],
+                  ["Protein", "58 g"],
+                  ["Carbs", "142 g"],
+                  ["Fats", "38 g"],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-xs text-nl-sage">{k}</dt>
+                    <dd className="font-semibold text-nl-warm">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </motion.div>
+
+          <motion.div variants={cardV} className={cn("rounded-xl border bg-nl-pine/40 p-5", HAIRLINE)}>
+            <p className="mb-3 text-xs uppercase tracking-[0.2em] text-nl-sage">Next meal</p>
+            <p className="font-semibold text-nl-warm">Paneer grain bowl</p>
+            <p className="mt-1 text-xs text-nl-sage">Lunch · 1:00 pm</p>
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-nl-warm/75">
+              <Flame className="size-3.5 text-nl-lime" aria-hidden="true" />
+              520 kcal · balanced
+            </p>
+          </motion.div>
+
+          <motion.div
+            variants={cardV}
+            className={cn("rounded-xl border bg-nl-pine/40 p-5 md:col-span-2", HAIRLINE)}
+          >
+            <p className="mb-3 text-xs uppercase tracking-[0.2em] text-nl-sage">7-day trend</p>
+            <svg
+              viewBox="0 0 320 72"
+              className="h-16 w-full"
+              role="img"
+              aria-label="Seven-day energy trend, gently rising"
+            >
+              <polyline
+                points="8,56 60,46 112,50 164,38 216,42 268,26 312,20"
+                fill="none"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className="stroke-nl-sage"
+              />
+              <circle cx="312" cy="20" r="4" className="fill-nl-lime" />
+            </svg>
+          </motion.div>
+
+          <motion.div variants={cardV} className={cn("rounded-xl border bg-nl-pine/40 p-5", HAIRLINE)}>
+            <p className="mb-3 text-xs uppercase tracking-[0.2em] text-nl-sage">Your plan</p>
+            <p className="font-semibold text-nl-warm">Balanced · Week 3</p>
+            <p className="mt-1 text-xs text-nl-sage">3 easy swaps left this week</p>
+          </motion.div>
         </div>
-      ))}
+      </div>
     </div>
   )
 }
 
-/* diet planner: BMI/targets → macro chips → weekly rows */
-function PlanMini() {
+function Finale() {
+  const track = useTrack()
+  const { ref, reduced, progress } = track
+  /* The line must be fully gone BEFORE the dashboard rises. Previously the two
+     windows overlapped (text faded out to 0.44, dashboard revealed at 0.40), so
+     for that stretch the half-faded line sat behind the incoming panel and read
+     as text stuck in the background. Text is clear by 0.34; reveal starts 0.38. */
+  const textOpacity = useTransform(progress, [0.04, 0.16, 0.28, 0.34], [0, 1, 1, 0])
+  const textScale = useTransform(progress, [0.28, 0.34], [1, 0.94])
+  const textY = useTransform(progress, [0.28, 0.34], [0, -40])
+  const [revealed, setRevealed] = useState(false)
+  useMotionValueEvent(progress, "change", (v) => {
+    setRevealed(v > 0.38)
+  })
+
   return (
-    <div className="text-left">
-      <p className="text-[9px] font-black uppercase tracking-wide text-foreground mb-1.5">Your Diet Plan</p>
-      <div className="rounded-xl bg-primary/10 p-1.5 mb-1.5 flex justify-between">
-        <div><p className="text-[8px] font-black text-primary leading-none">22.9</p><p className="text-[5.5px] text-muted-foreground">BMI</p></div>
-        <div><p className="text-[8px] font-black leading-none">1,680</p><p className="text-[5.5px] text-muted-foreground">BMR</p></div>
-        <div><p className="text-[8px] font-black leading-none">2,200</p><p className="text-[5.5px] text-muted-foreground">Target kcal</p></div>
-      </div>
-      <div className="flex gap-1 mb-1.5">
-        <span className="text-[6px] font-bold rounded-full bg-primary/15 text-primary px-1.5 py-0.5">P 140g</span>
-        <span className="text-[6px] font-bold rounded-full bg-accent/20 text-accent-foreground px-1.5 py-0.5">C 250g</span>
-        <span className="text-[6px] font-bold rounded-full bg-muted px-1.5 py-0.5">F 60g</span>
-      </div>
-      {[
-        ["Mon", "Oats + Banana Bowl", "550"],
-        ["Tue", "Paneer Quinoa Bowl", "500"],
-        ["Wed", "Grilled Veg Wrap", "520"],
-      ].map(([d, dish, kcal]) => (
-        <div key={d as string} className="flex items-center justify-between rounded-lg border border-border px-1.5 py-1 mb-0.5">
-          <span className="text-[6px] font-black text-primary w-5">{d}</span>
-          <span className="text-[6.5px] flex-1 truncate">{dish}</span>
-          <span className="text-[6px] text-muted-foreground">{kcal} kcal</span>
+    <section
+      ref={ref}
+      id="dashboard"
+      data-chapter="dashboard"
+      className="nl-track relative"
+      style={{ height: "320svh" }}
+    >
+      <Stage track={track} last>
+        {/* hero image as low-opacity blurred texture only */}
+        <div aria-hidden="true" className="absolute inset-0 opacity-[0.07] blur-2xl">
+          <Image
+            src="/nutrilife-landing/hero-nutrition-orbit.png"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover"
+          />
         </div>
-      ))}
-    </div>
+
+        {/* lime flare — one brief pass as the reveal begins */}
+        {!reduced && (
+          <motion.div
+            aria-hidden="true"
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={revealed ? { opacity: [0, 0.32, 0] } : undefined}
+            transition={{ duration: 1, times: [0, 0.35, 1], ease: "easeOut" }}
+            style={{
+              background:
+                "radial-gradient(75% 60% at 50% 62%, rgba(201,255,74,0.5) 0%, transparent 65%)",
+            }}
+          />
+        )}
+
+        {/* Sits above the panel and is pointer-transparent, so it can never be
+            overlapped by the dashboard nor swallow a click once faded. */}
+        <motion.h2
+          style={reduced ? { opacity: textOpacity } : { opacity: textOpacity, scale: textScale, y: textY }}
+          className="pointer-events-none absolute inset-x-6 top-1/2 z-30 mx-auto max-w-[18ch] -translate-y-1/2 text-center text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
+        >
+          Everything you notice, in one place.
+        </motion.h2>
+
+        <motion.div
+          initial={{ opacity: 0, y: reduced ? 0 : "14%", scale: reduced ? 1 : 0.96 }}
+          animate={revealed ? { opacity: 1, y: "0%", scale: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.85, ease: EASE }}
+          className="relative z-20 flex h-full items-center px-5 sm:px-8"
+        >
+          <motion.div
+            initial="hidden"
+            animate={revealed ? "show" : "hidden"}
+            transition={{ staggerChildren: 0.04, delayChildren: 0.35 }}
+            className="w-full"
+          >
+            <DashboardMock />
+          </motion.div>
+        </motion.div>
+      </Stage>
+    </section>
   )
 }
 
-/* signup: logo → fields → CTA (Get started step) */
-function SignupMini() {
+/* ═══ Footer ═══════════════════════════════════════════════════════════════ */
+
+function SiteFooter({ onJump }: { onJump: (id: string) => void }) {
   return (
-    <div className="text-left">
-      <div className="flex items-center gap-1 mb-2">
-        <div className="w-3.5 h-3.5 rounded-md bg-primary" />
-        <p className="text-[8px] font-black">NutriLife</p>
-      </div>
-      <p className="text-[8px] font-black mb-1.5">Create your account</p>
-      {["Full name", "Email", "Password"].map((f) => (
-        <div key={f} className="rounded-lg border border-border px-1.5 py-1 mb-1">
-          <p className="text-[6px] text-muted-foreground">{f}</p>
+    <footer
+      className={cn("relative z-10 border-t bg-nl-ink/60 text-nl-warm backdrop-blur-sm", HAIRLINE)}
+    >
+      <div className="mx-auto grid max-w-[1400px] gap-10 px-6 py-14 sm:px-10 md:grid-cols-3">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.32em]">Nutrilife</p>
+          <p className="mt-3 text-sm text-nl-sage">Make every meal count.</p>
         </div>
-      ))}
-      <div className="rounded-lg bg-primary text-primary-foreground text-center py-1 text-[7px] font-bold">Sign up</div>
-    </div>
+        <nav aria-label="Footer chapters">
+          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-nl-sage">Chapters</p>
+          <ul className="space-y-2 text-sm">
+            {NAV.map((item) => (
+              <li key={item.id}>
+                <a
+                  href={`#${item.id}`}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onJump(item.id)
+                  }}
+                  className="text-nl-warm/75 transition-colors hover:text-nl-lime focus-visible:text-nl-lime"
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <nav aria-label="Legal and account">
+          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-nl-sage">More</p>
+          <ul className="space-y-2 text-sm">
+            <li>
+              <Link href="/terms" className="text-nl-warm/75 transition-colors hover:text-nl-lime">
+                Privacy
+              </Link>
+            </li>
+            <li>
+              <Link href="/terms" className="text-nl-warm/75 transition-colors hover:text-nl-lime">
+                Terms
+              </Link>
+            </li>
+            <li>
+              <Link href="/support" className="text-nl-warm/75 transition-colors hover:text-nl-lime">
+                Support
+              </Link>
+            </li>
+            <li>
+              <Link href="/login" className="text-nl-warm/75 transition-colors hover:text-nl-lime">
+                App login
+              </Link>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      <div className={cn("border-t px-6 py-5 text-center text-xs text-nl-sage", HAIRLINE)}>
+        © 2026 NutriLife
+      </div>
+    </footer>
   )
 }
 
-/* onboarding: step dots → age/height/weight fields (real placeholders) */
-function ProfileMini() {
-  return (
-    <div className="text-left">
-      <div className="flex gap-1 mb-2">
-        <div className="h-1 w-5 rounded-full bg-primary" />
-        <div className="h-1 w-2 rounded-full bg-primary/40" />
-        <div className="h-1 w-2 rounded-full bg-muted-foreground/20" />
-      </div>
-      <p className="text-[8px] font-black mb-1.5">Tell us about yourself</p>
-      {[["Age", "25"], ["Height (cm)", "175"], ["Weight (kg)", "70"]].map(([l, v]) => (
-        <div key={l as string} className="rounded-lg border border-border px-1.5 py-1 mb-1 flex justify-between">
-          <p className="text-[6px] text-muted-foreground">{l}</p>
-          <p className="text-[6px] font-bold">{v}</p>
-        </div>
-      ))}
-      <div className="rounded-lg bg-primary text-primary-foreground text-center py-1 text-[7px] font-bold">Continue</div>
-    </div>
-  )
-}
+/* ═══ Page ═════════════════════════════════════════════════════════════════ */
 
-/* ═════════════════════════════ PAGE ═══════════════════════════════════════ */
 export default function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
-  const [isRedirecting, setIsRedirecting] = useState(true)
-  const [toast, setToast] = useState(false)
-  const [chosen, setChosen] = useState(false)
-  const [plans, setPlans] = useState<Plan[] | null>(null)
-  const reduce = useReducedMotion()
+  const reduced = !!useReducedMotion()
 
-  const arenaRef = useRef<HTMLDivElement>(null)
-  const junkRef = useRef<HTMLButtonElement>(null)
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [intro, setIntro] = useState(true)
+  const [heroGo, setHeroGo] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [active, setActive] = useState("hero")
+  const lenisRef = useRef<Lenis | null>(null)
 
-  /* 2–3 dodges per round, reseeded after each round so the game still works
-     if the player comes back for another go in the same session */
-  const rollDodges = () => (Math.random() < 0.5 ? 2 : 3)
-  const dodgesLeft = useRef(rollDodges())
-
+  /* authenticated visitors go straight to the app */
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) router.push("/dashboard")
-      else setIsRedirecting(false)
-    }
+    if (!isLoading && isAuthenticated) router.push("/dashboard")
   }, [isAuthenticated, isLoading, router])
 
-  /* Live pricing from the API. `plans` stays null until it resolves so the
-     hardcoded fallback is never rendered as if it were real data — it only
-     appears if the request actually fails. */
+  /* Lenis smooth scroll — intercepting the wheel is itself motion the user
+     did not ask for, so it stays off under prefers-reduced-motion. */
   useEffect(() => {
-    if (isRedirecting) return
-    let cancelled = false
-    fetch(getApiUrl("/api/subscription/plans"))
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return
-        if (Array.isArray(data) && data.length >= 3) {
-          setPlans(data.slice(0, 3).map((p) => ({
-            id: p.id, name: p.name, duration_months: p.duration_months,
-            final_price: Math.round(Number(p.final_price)),
-            base_price: Math.round(Number(p.base_price)),
-            badge: p.badge, features: (p.features || []).slice(0, 6),
-          })))
-        } else {
-          setPlans(FALLBACK_PLANS)
+    if (reduced) return
+    const lenis = new Lenis({
+      duration: 1.25,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      wheelMultiplier: 0.92,
+      touchMultiplier: 1.6,
+    })
+    lenisRef.current = lenis
+    let raf: number
+    const loop = (time: number) => {
+      lenis.raf(time)
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => {
+      cancelAnimationFrame(raf)
+      lenis.destroy()
+      lenisRef.current = null
+    }
+  }, [reduced])
+
+  /* scroll lock during intro + mobile menu */
+  useEffect(() => {
+    const lock = intro || menuOpen
+    document.documentElement.style.overflow = lock ? "hidden" : ""
+    const l = lenisRef.current
+    if (l) {
+      if (lock) l.stop()
+      else l.start()
+    }
+    return () => {
+      document.documentElement.style.overflow = ""
+    }
+  }, [intro, menuOpen])
+
+  /* active chapter: the section crossing the viewport's center band */
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>("[data-chapter]")
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) setActive((e.target as HTMLElement).dataset.chapter ?? "hero")
         }
-      })
-      .catch(() => { if (!cancelled) setPlans(FALLBACK_PLANS) })
-    return () => { cancelled = true }
-  }, [isRedirecting])
-
-  /* scroll progress bar + nav solidify */
-  const { scrollYProgress } = useScroll()
-  const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 30, restDelta: 0.001 })
-  const [navSolid, setNavSolid] = useState(false)
-  /* nav collapses when a section link is picked; a floating button restores it */
-  const [navHidden, setNavHidden] = useState(false)
-  useEffect(() => {
-    let ticking = false
-    const onScroll = () => {
-      if (ticking) return
-      ticking = true
-      requestAnimationFrame(() => { setNavSolid(window.scrollY > 24); ticking = false })
-    }
-    onScroll()
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-
-  /* hero parallax: phones drift at different speeds */
-  const heroRef = useRef<HTMLDivElement>(null)
-  const { scrollYProgress: heroP } = useScroll({ target: heroRef, offset: ["start start", "end start"] })
-  const phoneL = useTransform(heroP, [0, 1], [0, reduce ? 0 : -40])
-  const phoneC = useTransform(heroP, [0, 1], [0, reduce ? 0 : -90])
-  const phoneR = useTransform(heroP, [0, 1], [0, reduce ? 0 : -55])
-  const blobY = useTransform(heroP, [0, 1], [0, reduce ? 0 : 60])
-
-  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
-
-  /* ── the choice game (unchanged logic, restyled) ─────────────────────────── */
-  const dodge = useCallback(() => {
-    const arena = arenaRef.current, btn = junkRef.current
-    if (!arena || !btn) return
-    const a = arena.getBoundingClientRect(), b = btn.getBoundingClientRect()
-    const maxX = Math.max(0, (a.width - b.width) / 2 - 8)
-    const maxY = Math.max(0, (a.height - b.height) / 2 - 8)
-    btn.style.setProperty("--dx", `${((Math.random() * 2 - 1) * maxX).toFixed(0)}px`)
-    btn.style.setProperty("--dy", `${((Math.random() * 2 - 1) * maxY).toFixed(0)}px`)
-    dodgesLeft.current -= 1
-  }, [])
-
-  /* one guard shared by hover and click so the exhaustion rule lives in one place */
-  const tryDodge = useCallback(() => {
-    if (dodgesLeft.current <= 0) return false
-    dodge()
-    return true
-  }, [dodge])
-
-  const onJunkHover = useCallback(() => {
-    if (!isCoarsePointer()) tryDodge()
-  }, [tryDodge])
-
-  const onJunkClick = useCallback(() => {
-    if (tryDodge()) return
-    setToast(true)
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(false), 3000)
-    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" })
-    // Reset for a replay: the burger dodges again next time the player tries.
-    dodgesLeft.current = rollDodges()
-    if (junkRef.current) {
-      junkRef.current.style.removeProperty("--dx")
-      junkRef.current.style.removeProperty("--dy")
-    }
-  }, [tryDodge])
-
-  const onHealthyClick = useCallback(() => {
-    if (chosen) return
-    setChosen(true)
-    const btn = document.getElementById("game-healthy")
-    let origin = { x: 0.5, y: 0.7 }
-    if (btn) {
-      const r = btn.getBoundingClientRect()
-      origin = { x: (r.left + r.width / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight }
-    }
-    if (!prefersReducedMotion()) {
-      confetti({ particleCount: 120, spread: 75, startVelocity: 38, origin, colors: [CANVAS_GREEN, CANVAS_GREEN_LT, CANVAS_AMBER] })
-      confetti({ particleCount: 60, spread: 120, startVelocity: 24, origin, colors: [CANVAS_GREEN_LT, CANVAS_AMBER] })
-    }
-    setTimeout(() => router.push("/login"), 1500)
-  }, [chosen, router])
-
-  if (isLoading || isRedirecting) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-      </div>
+      },
+      { rootMargin: "-45% 0px -45% 0px" }
     )
-  }
+    els.forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+
+  const jump = useCallback((id: string) => {
+    const lenis = lenisRef.current
+    if (lenis) lenis.scrollTo(`#${id}`, { duration: 1.4 })
+    else document.getElementById(id)?.scrollIntoView()
+  }, [])
+
+  const onReveal = useCallback(() => setHeroGo(true), [])
+  const onIntroDone = useCallback(() => setIntro(false), [])
+
+  const light = active === "progress"
 
   return (
-    <div className="bg-background text-foreground selection:bg-primary/20 overflow-x-clip">
-      <a href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:font-bold">
-        Skip to content
-      </a>
+    <MotionConfig reducedMotion="user">
+      <div className="relative min-h-svh overflow-x-clip bg-nl-ink font-sans text-nl-warm">
+        <Backdrop active={active} />
+        {intro && (
+          <p role="status" className="sr-only">
+            Preparing your nutrition story
+          </p>
+        )}
+        {intro && <IntroOverlay onReveal={onReveal} onDone={onIntroDone} />}
+        <SiteHeader active={active} light={light} onJump={jump} onOpenMenu={() => setMenuOpen(true)} />
+        {menuOpen && <MobileMenu onClose={() => setMenuOpen(false)} onJump={jump} />}
+        <SceneRail active={active} light={light} onJump={jump} />
 
-      {/* scroll progress */}
-      <motion.div aria-hidden="true" style={{ scaleX: progress }}
-        className="fixed top-0 left-0 z-[80] h-[3px] w-full origin-left bg-primary motion-reduce:hidden" />
+        <main className="relative">
+          <Hero started={heroGo} onCue={() => jump("log")} />
+          <ChapterLog />
+          <ChapterAnalyze />
+          <ChapterPlan />
+          <ChapterProgress />
+          <ChapterPlans />
+          <Finale />
+        </main>
 
-      <CursorTrail />
-
-      {/* ── nav — collapses when a section link is picked ──────────────────── */}
-      <nav aria-label="Main navigation" aria-hidden={navHidden}
-        className={`fixed top-0 w-full z-50 transition-all duration-300 ${navHidden ? "-translate-y-full pointer-events-none" : "translate-y-0"} ${navSolid ? "bg-background/85 backdrop-blur-xl border-b border-border shadow-sm" : "bg-transparent border-b border-transparent"}`}>
-        <div className="container mx-auto px-6 h-16 md:h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group" tabIndex={navHidden ? -1 : 0}>
-            <Image src="/nutrilife-icon.png" width={36} height={36} alt="NutriLife logo" className="rounded-xl shadow-sm" />
-            <span className="font-black text-xl md:text-2xl tracking-tighter">NutriLife</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-muted-foreground">
-            {[
-              ["#features", "Features"], ["#how", "How it works"],
-              ["#pricing", "Pricing"], ["#testimonials", "Reviews"],
-            ].map(([href, label]) => (
-              <Link key={href} href={href} onClick={() => setNavHidden(true)}
-                tabIndex={navHidden ? -1 : 0} className="hover:text-primary transition-colors">
-                {label}
-              </Link>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 md:gap-3">
-            <Link href="/login" tabIndex={navHidden ? -1 : 0}><Button variant="ghost" className="font-bold rounded-full" tabIndex={-1}>Log in</Button></Link>
-            <Link href="/signup" tabIndex={navHidden ? -1 : 0}><Button className="font-bold rounded-full px-5 md:px-6" tabIndex={-1}>Join now</Button></Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* floating restore button — brings the nav back */}
-      <button type="button" onClick={() => setNavHidden(false)}
-        aria-label="Show navigation" aria-hidden={!navHidden}
-        tabIndex={navHidden ? 0 : -1}
-        className={`fixed top-4 right-4 z-50 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center justify-center transition-all duration-300 hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring ${navHidden ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"}`}>
-        <Menu className="w-5 h-5" aria-hidden="true" />
-      </button>
-
-      <main id="main-content">
-
-        {/* ── hero ──────────────────────────────────────────────────────────── */}
-        <section ref={heroRef} className="relative overflow-hidden bg-secondary/60 dark:bg-secondary/30 pt-28 md:pt-36 pb-10 md:pb-16">
-          <div aria-hidden="true" className="dot-grid absolute inset-0 opacity-60" />
-          <motion.div aria-hidden="true" style={{ y: blobY }}
-            className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
-          <motion.div aria-hidden="true" style={{ y: blobY }}
-            className="absolute -bottom-32 -left-24 w-80 h-80 rounded-full bg-accent/10 blur-3xl" />
-
-          <div className="container mx-auto px-6 relative z-10 text-center">
-            <Reveal>
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-black text-xs uppercase tracking-widest border border-primary/20">
-                <Sparkles className="w-4 h-4" aria-hidden="true" /> AI-powered nutrition
-              </span>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <h1 className="mt-6 text-4xl md:text-6xl lg:text-7xl font-black tracking-tight leading-[1.02] text-balance max-w-4xl mx-auto">
-                Know what to eat, <span className="text-primary">every single day.</span>
-              </h1>
-            </Reveal>
-            <Reveal delay={0.16}>
-              <p className="mt-5 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                Scan any meal with AI, get a plan built for your body, and watch
-                your progress — no more guessing your food.
-              </p>
-            </Reveal>
-            <Reveal delay={0.24}>
-              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/signup">
-                  <Button size="lg" className="h-14 px-8 text-base md:text-lg font-bold rounded-full shadow-lg shadow-primary/25 group">
-                    Start free <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
-                  </Button>
-                </Link>
-                <Link href="#how">
-                  <Button size="lg" variant="outline" className="h-14 px-8 text-base md:text-lg font-bold rounded-full border-primary/40 text-primary hover:bg-primary/5">
-                    See how it works
-                  </Button>
-                </Link>
-              </div>
-            </Reveal>
-
-            {/* real app, in miniature */}
-            <div className="mt-14 md:mt-16 flex items-end justify-center gap-4 md:gap-8">
-              <motion.div style={{ y: phoneL }} className="hidden sm:block w-44 md:w-52">
-                <Reveal delay={0.15}><Phone className="h-[300px] md:h-[340px]"><DashboardMini /></Phone></Reveal>
-              </motion.div>
-              <motion.div style={{ y: phoneC }} className="w-52 md:w-60 relative z-10">
-                <Reveal delay={0.05}><Phone featured className="h-[340px] md:h-[380px]"><ScannerMini /></Phone></Reveal>
-              </motion.div>
-              <motion.div style={{ y: phoneR }} className="hidden sm:block w-44 md:w-52">
-                <Reveal delay={0.25}><Phone className="h-[300px] md:h-[340px]"><PlanMini /></Phone></Reveal>
-              </motion.div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── stats strip ───────────────────────────────────────────────────── */}
-        <section aria-label="NutriLife in numbers" className="border-b border-border bg-background">
-          <div className="container mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {[
-              { v: 2000, s: "+", d: 0, label: "users joined" },
-              { v: 4.9, s: "/5", d: 1, label: "average rating" },
-              { v: 50000, s: "+", d: 0, label: "meals analyzed" },
-              { v: 6, s: "", d: 0, label: "diet types supported" },
-            ].map((m) => (
-              <Reveal key={m.label}>
-                <p className="text-3xl md:text-4xl font-black text-primary tabular-nums tracking-tight">
-                  <Counter to={m.v} suffix={m.s} decimals={m.d} />
-                </p>
-                <p className="mt-1 text-xs font-bold uppercase tracking-widest text-muted-foreground">{m.label}</p>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        {/* ── problem → fix ─────────────────────────────────────────────────── */}
-        <section className="py-20 md:py-28">
-          <div className="container mx-auto px-6 max-w-5xl">
-            <Reveal className="text-center mb-12">
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight text-balance">
-                You track steps. You track sleep.<br />
-                <span className="text-primary">But you guess your food.</span>
-              </h2>
-            </Reveal>
-            <div className="grid md:grid-cols-2 gap-6">
-              <Reveal>
-                <div className="h-full rounded-[2rem] border border-border bg-card p-8">
-                  <p className="font-black text-lg mb-5 flex items-center gap-2 text-muted-foreground">
-                    <X className="w-5 h-5 text-destructive" aria-hidden="true" /> Guessing
-                  </p>
-                  <ul className="space-y-3 text-muted-foreground font-medium">
-                    <li>"That looked like ~400 calories."</li>
-                    <li>Generic diet plans that ignore your body.</li>
-                    <li>Progress you can't see or measure.</li>
-                  </ul>
-                </div>
-              </Reveal>
-              <Reveal delay={0.12}>
-                <div className="h-full rounded-[2rem] border-2 border-primary/40 bg-primary/5 p-8">
-                  <p className="font-black text-lg mb-5 flex items-center gap-2 text-primary">
-                    <Check className="w-5 h-5" aria-hidden="true" /> Knowing, with NutriLife
-                  </p>
-                  <ul className="space-y-3 font-medium">
-                    <li>AI reads calories and macros from a photo.</li>
-                    <li>Plans computed from your BMI, BMR and goal.</li>
-                    <li>Every meal, glass of water and fast — tracked.</li>
-                  </ul>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* ── how it works ──────────────────────────────────────────────────── */}
-        <section id="how" className="py-20 md:py-28 bg-secondary/50 dark:bg-secondary/20 relative overflow-hidden scroll-mt-20">
-          <div aria-hidden="true" className="dot-grid absolute inset-0 opacity-40" />
-          <div className="container mx-auto px-6 relative z-10">
-            <Reveal className="text-center mb-14">
-              <span className="inline-block px-4 py-2 rounded-full bg-accent/15 text-accent-foreground dark:text-accent font-bold text-xs uppercase tracking-widest border border-accent/25 mb-5">
-                Four steps
-              </span>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight">How it <span className="text-primary">works</span></h2>
-            </Reveal>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-              {[
-                { n: "01", icon: UserPlus, title: "Get started", desc: "Create your free account in seconds.", mini: <SignupMini /> },
-                { n: "02", icon: ClipboardList, title: "Your profile", desc: "Age, height, weight, goal — the basics.", mini: <ProfileMini /> },
-                { n: "03", icon: ScanLine, title: "AI scan", desc: "Photograph meals; AI reads the nutrition.", mini: <ScannerMini /> },
-                { n: "04", icon: Salad, title: "Your plan", desc: "A weekly plan tuned to your body.", mini: <PlanMini /> },
-              ].map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.1}>
-                  <div className="h-full rounded-[2rem] bg-card border border-border p-5 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                        <s.icon className="w-5 h-5" aria-hidden="true" />
-                      </span>
-                      <span className="text-2xl font-black text-primary/20">{s.n}</span>
-                    </div>
-                    <h3 className="font-black text-lg mb-1">{s.title}</h3>
-                    <p className="text-sm text-muted-foreground font-medium mb-4">{s.desc}</p>
-                    <div className="rounded-xl border border-border bg-background p-2.5">{s.mini}</div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── features bento ────────────────────────────────────────────────── */}
-        <section id="features" className="py-20 md:py-28 scroll-mt-20">
-          <div className="container mx-auto px-6 max-w-6xl">
-            <Reveal className="text-center mb-14">
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight">
-                Everything your diet <span className="text-primary">needs</span>
-              </h2>
-            </Reveal>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-              <Reveal className="col-span-2 row-span-2">
-                <div className="h-full rounded-[2rem] bg-primary text-primary-foreground p-8 md:p-10 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
-                  <div aria-hidden="true" className="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-primary-foreground/10 group-hover:scale-125 transition-transform duration-500" />
-                  <div>
-                    <Camera className="w-10 h-10 mb-5" aria-hidden="true" />
-                    <h3 className="text-2xl md:text-3xl font-black mb-3">AI Vision Scanner</h3>
-                    <p className="font-medium opacity-90 max-w-sm">
-                      Snap a photo — ingredients, portions, calories and macros
-                      identified instantly, then logged to your diary.
-                    </p>
-                  </div>
-                  <p className="text-sm font-bold opacity-75">photo → macros, in seconds</p>
-                </div>
-              </Reveal>
-              {[
-                { icon: BarChart3, title: "Deep Analytics", desc: "Weekly momentum, macros and trends." },
-                { icon: Droplets, title: "Water Tracker", desc: "Glasses, goals and history." },
-                { icon: Timer, title: "Fasting", desc: "16:8, 5:2 and more, with live status." },
-                { icon: MessageCircle, title: "Health Chat", desc: "Ask the AI anything nutrition." },
-              ].map((f, i) => (
-                <Reveal key={f.title} delay={i * 0.08}>
-                  <div className="h-full rounded-[2rem] bg-card border border-border p-6 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300">
-                    <span className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-                      <f.icon className="w-5 h-5" aria-hidden="true" />
-                    </span>
-                    <h3 className="font-black mb-1">{f.title}</h3>
-                    <p className="text-sm text-muted-foreground font-medium">{f.desc}</p>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── pricing ───────────────────────────────────────────────────────── */}
-        <section id="pricing" className="py-20 md:py-28 bg-secondary/50 dark:bg-secondary/20 scroll-mt-20">
-          <div className="container mx-auto px-6 max-w-5xl">
-            <Reveal className="text-center mb-14">
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight">
-                Simple <span className="text-primary">pricing</span>
-              </h2>
-              <p className="mt-4 text-muted-foreground text-lg font-medium">Free to start. Upgrade when you're ready.</p>
-            </Reveal>
-            <div className="grid md:grid-cols-3 gap-6 items-stretch">
-              {plans === null && [0, 1, 2].map((i) => (
-                <div key={i} aria-hidden="true"
-                  className={`h-full rounded-[2rem] p-8 bg-card animate-pulse ${i === 1 ? "border-2 border-primary/30" : "border border-border"}`}>
-                  <div className="h-4 w-24 rounded bg-muted mb-6" />
-                  <div className="h-8 w-32 rounded bg-muted mb-3" />
-                  <div className="h-3 w-40 rounded bg-muted mb-8" />
-                  <div className="space-y-3">
-                    {[0, 1, 2, 3].map((f) => <div key={f} className="h-3 w-full rounded bg-muted" />)}
-                  </div>
-                </div>
-              ))}
-              {plans === null && (
-                <p className="sr-only" role="status" aria-live="polite">Loading pricing plans</p>
-              )}
-              {plans?.map((p, i) => {
-                const popular = i === 1
-                return (
-                  <Reveal key={p.id} delay={i * 0.1}>
-                    <div className={`h-full rounded-[2rem] p-8 flex flex-col ${popular ? "bg-card border-2 border-primary shadow-xl shadow-primary/15" : "bg-card border border-border"}`}>
-                      {p.badge && (
-                        <span className={`self-start text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 ${popular ? "bg-primary text-primary-foreground" : "bg-accent/15 text-accent-foreground dark:text-accent"}`}>
-                          {p.badge}
-                        </span>
-                      )}
-                      <h3 className="font-black text-lg">{p.name}</h3>
-                      <p className="mt-3 mb-1">
-                        <span className="text-4xl font-black tracking-tight">₹{p.final_price}</span>
-                        {p.base_price > p.final_price && (
-                          <span className="ml-2 text-muted-foreground line-through font-bold">₹{p.base_price}</span>
-                        )}
-                      </p>
-                      <p className="text-sm text-muted-foreground font-medium mb-6">
-                        ₹{Math.round(p.final_price / p.duration_months)}/month · {p.duration_months} months
-                      </p>
-                      <ul className="space-y-2.5 mb-8 flex-1">
-                        {p.features.map((f: string) => (
-                          <li key={f} className="flex items-start gap-2 text-sm font-medium">
-                            <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" aria-hidden="true" /> {f}
-                          </li>
-                        ))}
-                      </ul>
-                      <Link href="/signup" className="mt-auto">
-                        <Button className="w-full rounded-full font-bold" variant={popular ? "default" : "outline"}>
-                          Get started
-                        </Button>
-                      </Link>
-                    </div>
-                  </Reveal>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* ── testimonials ──────────────────────────────────────────────────── */}
-        <section id="testimonials" className="py-20 md:py-28 scroll-mt-20">
-          <div className="container mx-auto px-6 max-w-5xl">
-            <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 mb-12">
-              <Reveal>
-                <h2 className="text-3xl md:text-5xl font-black tracking-tight">
-                  Loved by <span className="text-primary">enthusiasts</span>
-                </h2>
-              </Reveal>
-              <Reveal delay={0.1}>
-                <div className="flex items-center gap-2 bg-card px-5 py-3 rounded-2xl border border-border">
-                  <Star className="w-5 h-5 fill-accent text-accent" aria-hidden="true" />
-                  <span className="font-black text-xl">4.9/5</span>
-                  <span className="text-muted-foreground text-sm font-semibold">average rating</span>
-                </div>
-              </Reveal>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              {[
-                { name: "Sarah Mitchell", role: "Pro Athlete", initials: "SM", text: "The AI scanner is a game-changer for my prep. I no longer waste hours looking up obscure macros. It's fast, accurate, and essential." },
-                { name: "Rahul Kapoor", role: "Fitness Enthusiast", initials: "RK", text: "Finding a dietitian that understands Indian cuisine is hard. NutriLife's AI handles it perfectly, giving me customized high-protein plans." },
-              ].map((t, i) => (
-                <Reveal key={t.name} delay={i * 0.1}>
-                  <article className="h-full rounded-[2rem] bg-card border border-border p-8">
-                    <div className="flex gap-1 text-accent mb-5" aria-label="5 out of 5 stars">
-                      {[0, 1, 2, 3, 4].map((s) => <Star key={s} className="w-4 h-4 fill-current" aria-hidden="true" />)}
-                    </div>
-                    <p className="text-lg font-bold leading-relaxed mb-6 italic">"{t.text}"</p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center font-black text-primary">{t.initials}</div>
-                      <div>
-                        <p className="font-black">{t.name}</p>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{t.role}</p>
-                      </div>
-                    </div>
-                  </article>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── the choice game ───────────────────────────────────────────────── */}
-        <section aria-label="Make your choice" className="py-20 md:py-24 bg-secondary/50 dark:bg-secondary/20 relative overflow-hidden">
-          <div aria-hidden="true" className="dot-grid absolute inset-0 opacity-40" />
-          <div className="container mx-auto px-6 text-center relative z-10">
-            <Reveal>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-3">
-                One last choice. <span className="text-primary">What do you pick?</span>
-              </h2>
-              <p className="text-muted-foreground font-medium mb-12">(Choose wisely — one of them has other plans.)</p>
-            </Reveal>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              <Reveal>
-                <div ref={arenaRef} className="relative h-56 md:h-64 rounded-[2rem] border border-border bg-card overflow-hidden">
-                  <button ref={junkRef} type="button" onMouseEnter={onJunkHover} onClick={onJunkClick}
-                    aria-label="Pick the burger" className="game-junk absolute left-1/2 top-1/2 flex flex-col items-center gap-2 rounded-3xl p-6 focus-visible:outline-2 focus-visible:outline-ring">
-                    <span className="text-7xl md:text-8xl" aria-hidden="true">🍔</span>
-                    <span className="font-bold text-sm text-muted-foreground">Burger</span>
-                  </button>
-                </div>
-              </Reveal>
-              <Reveal delay={0.1}>
-                <div className="relative h-56 md:h-64 rounded-[2rem] border-2 border-primary/40 bg-primary/5 overflow-hidden">
-                  <button id="game-healthy" type="button" onClick={onHealthyClick} disabled={chosen}
-                    aria-label="Pick the salad"
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2 rounded-3xl p-6 transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-70">
-                    <span className="text-7xl md:text-8xl" aria-hidden="true">🥗</span>
-                    <span className="font-bold text-sm text-primary">{chosen ? "Great choice! 🌿" : "Salad"}</span>
-                  </button>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* ── CTA banner ────────────────────────────────────────────────────── */}
-        <section className="py-16 md:py-20">
-          <div className="container mx-auto px-6">
-            <Reveal>
-              <div className="bg-primary rounded-[2.5rem] p-10 md:p-16 text-center text-primary-foreground relative overflow-hidden">
-                <div aria-hidden="true" className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary-foreground/10" />
-                <div className="relative z-10 max-w-2xl mx-auto">
-                  <h2 className="text-3xl md:text-5xl font-black mb-4 tracking-tight text-balance">Ready to meet the new you?</h2>
-                  <p className="text-lg md:text-xl opacity-90 mb-8 font-medium">Free to start. No credit card required.</p>
-                  <Link href="/signup">
-                    <Button size="lg" variant="secondary"
-                      className="h-14 px-10 text-lg font-bold rounded-full bg-background text-primary hover:bg-background/90 hover:scale-105 transition-transform">
-                      Start your journey <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-      </main>
-
-      {/* ── footer (kept) ─────────────────────────────────────────────────── */}
-      <footer className="border-t border-border py-16 md:py-20 bg-background relative z-10">
-        <div className="container mx-auto px-6 grid md:grid-cols-4 gap-12 text-left mb-16">
-          <div className="col-span-2">
-            <div className="flex flex-row items-center gap-2 mb-6">
-              <Image src="/nutrilife-icon.png" width={32} height={32} alt="NutriLife logo" className="rounded-lg" />
-              <span className="font-bold text-xl">NutriLife</span>
-            </div>
-            <p className="text-muted-foreground max-w-sm leading-relaxed font-medium">
-              Empowering your health journey with advanced artificial intelligence and personalized nutrition.
-            </p>
-          </div>
-          <div>
-            <h4 className="font-black mb-6 uppercase tracking-widest text-xs">Product</h4>
-            <ul className="space-y-4 text-sm font-bold text-muted-foreground">
-              <li><Link href="#features" className="hover:text-primary transition-all">Features</Link></li>
-              <li><Link href="#pricing" className="hover:text-primary transition-all">Pricing</Link></li>
-              <li><Link href="/login" className="hover:text-primary transition-all">App Login</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-black mb-6 uppercase tracking-widest text-xs">Support</h4>
-            <ul className="space-y-4 text-sm font-bold text-muted-foreground">
-              <li><Link href="/support" className="hover:text-primary transition-all">Help Center</Link></li>
-              <li><Link href="/terms" className="hover:text-primary transition-all">Terms of Service</Link></li>
-              <li><Link href="/privacy" className="hover:text-primary transition-all">Privacy Policy</Link></li>
-            </ul>
-          </div>
-        </div>
-        <div className="container mx-auto px-6 pt-10 border-t border-border flex flex-col md:flex-row justify-between items-center gap-6 text-sm font-bold text-muted-foreground">
-          <p>© {new Date().getFullYear()} NutriLife AI. Built for excellence.</p>
-          <div className="flex items-center gap-8">
-            <Link href="#" className="hover:text-primary transition-all">Twitter</Link>
-            <Link href="#" className="hover:text-primary transition-all">Instagram</Link>
-            <Link href="#" className="hover:text-primary transition-all">LinkedIn</Link>
-          </div>
-        </div>
-      </footer>
-
-      {/* toast — junk food verdict */}
-      <div role="status" aria-live="polite"
-        className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[95] px-6 py-4 rounded-2xl bg-destructive text-destructive-foreground font-bold shadow-2xl transition-all duration-300 ${toast ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}>
-        For being healthy, you need to eat healthy 🌿
+        <SiteFooter onJump={jump} />
       </div>
-
-      <style jsx global>{`
-        .dot-grid {
-          background-image: radial-gradient(oklch(0.5 0.15 145 / 0.14) 1px, transparent 1px);
-          background-size: 22px 22px;
-        }
-        .dark .dot-grid {
-          background-image: radial-gradient(oklch(0.6 0.18 145 / 0.12) 1px, transparent 1px);
-        }
-        .game-junk {
-          transform: translate(-50%, -50%) translate(var(--dx, 0px), var(--dy, 0px));
-        }
-        @media (prefers-reduced-motion: no-preference) {
-          .game-junk { transition: transform .2s cubic-bezier(.34,1.3,.64,1); }
-        }
-      `}</style>
-    </div>
+    </MotionConfig>
   )
 }

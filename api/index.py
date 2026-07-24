@@ -3101,17 +3101,26 @@ def get_dashboard_stats(user=Depends(require_auth)):
         if filled:
             avg_weekly_calories = int(sum(filled) / len(filled))
         
+        # Pull a short series rather than just the latest two: the dashboard
+        # renders a weight trend chart from this, and shipping it here avoids a
+        # second round trip for data we are already touching.
         cur.execute("""
-            SELECT weight FROM daily_stats
+            SELECT stat_date, weight FROM daily_stats
             WHERE user_id = %s AND weight IS NOT NULL
             ORDER BY stat_date DESC
-            LIMIT 2
+            LIMIT 30
         """, (user["id"],))
         weight_records = cur.fetchall()
-        
+
         weight_change = None
         if len(weight_records) >= 2:
             weight_change = round(weight_records[0]['weight'] - weight_records[1]['weight'], 1)
+
+        # oldest → newest so the chart can plot straight through
+        weight_history = [
+            {"date": str(r["stat_date"]), "weight": float(r["weight"])}
+            for r in reversed(weight_records)
+        ]
         
         target_calories = 2000
         if user.get('weight') and user.get('height') and user.get('age'):
@@ -3160,6 +3169,7 @@ def get_dashboard_stats(user=Depends(require_auth)):
                 "water_glasses": int(water_data['total_glasses']),
                 "target_water": 8,
                 "weight_change": weight_change,
+                "weight_history": weight_history,
                 "avg_weekly_calories": avg_weekly_calories,
                 "weekly_activity": weekly_activity,
                 "macros": {

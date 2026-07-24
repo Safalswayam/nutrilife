@@ -270,7 +270,7 @@ export default function ProfilePage() {
     <div className="p-3 md:p-8">
       <div className="reveal-3d">
         <PageHeader
-          title="Digital Identity Nexus"
+          title="Your details"
           subtitle="Architecting your physical blueprint and systemic performance parameters."
         />
       </div>
@@ -357,7 +357,7 @@ export default function ProfilePage() {
 
                 {/* Feedback messages */}
                 {imageSaved && (
-                  <p className="text-xs text-green-600 flex items-center gap-1 mb-1">
+                  <p className="text-xs text-primary flex items-center gap-1 mb-1">
                     <CheckCircle className="w-3 h-3" /> Photo saved
                   </p>
                 )}
@@ -448,7 +448,7 @@ export default function ProfilePage() {
             <CardContent className="p-6">
               <Button
                 variant="destructive"
-                className="w-full h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-3xl shadow-red-500/20"
+                className="w-full h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-3xl shadow-destructive/20"
                 onClick={handleLogout}
                 disabled={loggingOut}
               >
@@ -463,13 +463,13 @@ export default function ProfilePage() {
         {/* ── Main Content ── */}
         <div className="lg:col-span-3 space-y-8">
           {saved && (
-            <Alert className="border-none glass-card bg-green-500/10 text-green-500 rounded-2xl reveal-3d">
+            <Alert className="border-none glass-card bg-primary/10 text-primary rounded-2xl reveal-3d">
               <CheckCircle className="w-4 h-4" />
               <AlertDescription className="font-black uppercase text-xs tracking-widest">Profile divergence synchronized successfully.</AlertDescription>
             </Alert>
           )}
           {error && (
-            <Alert variant="destructive" className="border-none glass-card bg-red-500/10 text-red-500 rounded-2xl reveal-3d">
+            <Alert variant="destructive" className="border-none glass-card bg-destructive/10 text-destructive rounded-2xl reveal-3d">
               <AlertDescription className="font-black uppercase text-xs tracking-widest">{error}</AlertDescription>
             </Alert>
           )}
@@ -586,25 +586,25 @@ export default function ProfilePage() {
                   <div className="space-y-4 text-sm font-medium">
                     {profile.goal === "lose" && (
                       <div className="space-y-1">
-                        <p className="text-lg font-black text-indigo-400">Balanced Mass Reduction</p>
+                        <p className="text-lg font-black text-[color:var(--info)]">Balanced Mass Reduction</p>
                         <p className="text-muted-foreground leading-relaxed">Targeting -0.5kg/week. Strategic deficit of 500 kcal optimized for sustainable fat oxidation while preserving lean tissue.</p>
                       </div>
                     )}
                     {profile.goal === "lose_fast" && (
                       <div className="space-y-1">
-                        <p className="text-lg font-black text-red-400">Aggressive Mass Reduction</p>
+                        <p className="text-lg font-black text-destructive">Aggressive Mass Reduction</p>
                         <p className="text-muted-foreground leading-relaxed">Targeting -0.75kg/week. Deficit of 750 kcal. Requires high metabolic awareness and micronutrient precision.</p>
                       </div>
                     )}
                     {profile.goal === "maintain" && (
                       <div className="space-y-1">
-                        <p className="text-lg font-black text-emerald-400">Systemic Homeostasis</p>
+                        <p className="text-lg font-black text-primary">Systemic Homeostasis</p>
                         <p className="text-muted-foreground leading-relaxed">Caloric equilibrium. Maintaining current structural mass with optimized nutrient timing and recovery protocols.</p>
                       </div>
                     )}
                     {profile.goal === "gain" && (
                       <div className="space-y-1">
-                        <p className="text-lg font-black text-amber-400">Controlled Mass Augmentation</p>
+                        <p className="text-lg font-black text-[color:var(--warning)]">Controlled Mass Augmentation</p>
                         <p className="text-muted-foreground leading-relaxed">Targeting +0.3kg/week. Surplus of 300 kcal to maximize mitochondrial density and systemic scale.</p>
                       </div>
                     )}

@@ -107,7 +107,7 @@ export function WhatToEatNext({
             <>
               <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">No active structural protocol</p>
               <Link href="/diet-planner">
-                <Button size="lg" className="rounded-2xl px-8 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-xs font-black uppercase tracking-widest border-none">
+                <Button size="lg" className="rounded-2xl px-8 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all text-xs font-black uppercase tracking-widest border-none">
                   Architect Protocol
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
@@ -153,7 +153,7 @@ export function WhatToEatNext({
       <div className="space-y-6">
         <div className="flex items-center justify-between p-6 rounded-3xl bg-card border shadow-inner relative overflow-hidden">
           {nextMeal.is_adaptive && (
-            <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-white text-[8px] font-black uppercase tracking-widest rounded-bl-xl shadow-lg flex items-center gap-1">
+            <div className="absolute top-0 right-0 px-3 py-1 bg-primary text-primary-foreground text-[8px] font-black uppercase tracking-widest rounded-bl-xl shadow-lg flex items-center gap-1">
               <Zap className="w-2.5 h-2.5 fill-white" /> Dynamic Sync
             </div>
           )}
@@ -196,10 +196,10 @@ export function WhatToEatNext({
         {/* Nutrition grid */}
         <div className="grid grid-cols-4 gap-4 pt-8 border-t border-border">
           {[
-            { label: "Kcal", value: `${nextMeal.calories}`, color: "text-orange-500" },
-            { label: "Prot", value: `${nextMeal.protein}g`, color: "text-blue-500" },
-            { label: "Carb", value: `${nextMeal.carbs}g`, color: "text-amber-500" },
-            { label: "Fat", value: `${nextMeal.fat}g`, color: "text-emerald-500" },
+            { label: "Kcal", value: `${nextMeal.calories}`, color: "text-[color:var(--warning)]" },
+            { label: "Prot", value: `${nextMeal.protein}g`, color: "text-[color:var(--info)]" },
+            { label: "Carb", value: `${nextMeal.carbs}g`, color: "text-[color:var(--warning)]" },
+            { label: "Fat", value: `${nextMeal.fat}g`, color: "text-primary" },
           ].map(({ label, value, color }) => (
             <div key={label} className="text-center space-y-1">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-40">{label}</p>

@@ -168,7 +168,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Droplets className={`w-5 h-5 ${isGoalReached ? "text-primary" : "text-blue-500"}`} />
+              <Droplets className={`w-5 h-5 ${isGoalReached ? "text-primary" : "text-[color:var(--info)]"}`} />
               Water Intake Today
             </CardTitle>
             <Button
@@ -188,19 +188,19 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
           <div className="flex items-center justify-center">
             <div className="relative w-32 h-48">
               {/* Glass Container */}
-              <div className="absolute inset-0 rounded-b-3xl border-4 border-blue-200 bg-gradient-to-b from-transparent to-blue-50/20 overflow-hidden">
+              <div className="absolute inset-0 rounded-b-3xl border-2 border-border bg-gradient-to-b from-transparent to-primary/10 overflow-hidden">
                 {/* Water Fill */}
                 <div
                   className={`absolute bottom-0 left-0 right-0 transition-all duration-500 ease-out ${isGoalReached
                       ? "bg-gradient-to-t from-primary to-primary/70"
-                      : "bg-gradient-to-t from-blue-400 to-blue-300"
+                      : "bg-gradient-to-t from-[color:var(--info)] to-[color:var(--info)]"
                     }`}
                   style={{ height: `${fillHeight}%` }}
                 >
                   {/* Water Wave Effect */}
                   <div className="absolute top-0 left-0 right-0 h-4 opacity-30">
                     <div
-                      className="absolute inset-0 bg-white rounded-full"
+                      className="absolute inset-0 bg-primary rounded-full"
                       style={{
                         animation: "wave 3s ease-in-out infinite"
                       }}
@@ -212,7 +212,7 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
               {/* Droplet Icon */}
               {fillHeight > 0 && (
                 <div className="absolute top-4 right-4 animate-bounce">
-                  <Droplets className="w-6 h-6 text-blue-400 drop-shadow-lg" />
+                  <Droplets className="w-6 h-6 text-[color:var(--info)] drop-shadow-lg" />
                 </div>
               )}
 
@@ -316,8 +316,8 @@ export function EnhancedWaterIntake({ onUpdate, current: initialCurrent, goal: i
 
           {/* Encouragement Messages */}
           {!isGoalReached && (
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+            <div className="text-center p-3 bg-secondary rounded-lg">
+              <p className="text-sm text-[color:var(--info)] dark:text-[color:var(--info)]">
                 {current === 0
                   ? "Start your hydration journey!"
                   : current < goal / 2

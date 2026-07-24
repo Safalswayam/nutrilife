@@ -57,10 +57,10 @@ interface DashboardStats {
 }
 
 function getGreeting(hour: number) {
-  if (hour >= 5  && hour < 12) return { text: "Good morning",  icon: Sunrise, color: "text-amber-500" }
-  if (hour >= 12 && hour < 17) return { text: "Good afternoon", icon: Sun, color: "text-orange-500" }
-  if (hour >= 17 && hour < 21) return { text: "Good evening",  icon: Sunset, color: "text-indigo-500" }
-  return                               { text: "Good night",   icon: Moon, color: "text-purple-500" }
+  if (hour >= 5  && hour < 12) return { text: "Good morning",  icon: Sunrise, color: "text-primary" }
+  if (hour >= 12 && hour < 17) return { text: "Good afternoon", icon: Sun, color: "text-primary" }
+  if (hour >= 17 && hour < 21) return { text: "Good evening",  icon: Sunset, color: "text-muted-foreground" }
+  return                               { text: "Good night",   icon: Moon, color: "text-muted-foreground" }
 }
 
 function getMealTypeByTime(hour: number): string {
@@ -139,20 +139,21 @@ export default function DashboardPage() {
     try {
       setLoading(true)
       setError(null)
-      const [resStats, resWeight] = await Promise.all([
-        fetch(getApiUrl("/api/dashboard/stats"), { headers: { "Authorization": `Bearer ${token}` } }),
-        fetch(getApiUrl("/api/weight/history"), { headers: { "Authorization": `Bearer ${token}` } })
-      ])
+      // Weight history ships inside the stats payload — there is no separate
+      // /api/weight/history route, and the old second fetch 404'd silently,
+      // leaving the trend chart permanently empty.
+      const resStats = await fetch(getApiUrl("/api/dashboard/stats"), {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
 
       if (!resStats.ok) throw new Error("Failed to fetch dashboard stats")
 
       const dataStats = await resStats.json()
-      const dataWeight = await resWeight.json()
 
       if (dataStats.success) {
         const fullStats = {
           ...dataStats.stats,
-          weight_history: dataWeight.history || []
+          weight_history: dataStats.stats.weight_history ?? []
         }
         setStats(fullStats)
         setWaterData({
@@ -166,7 +167,7 @@ export default function DashboardPage() {
               particleCount: 100,
               spread: 70,
               origin: { y: 0.6 },
-              colors: ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899']
+              colors: ['#c9ff4a', '#155e3a', '#91a895', '#f4f5ed']
             })
           })
         }
@@ -205,7 +206,7 @@ export default function DashboardPage() {
         <div className="reveal-3d">
           <PageHeader
             title="Welcome back!"
-            subtitle="Track your health journey and stay on top of your nutrition goals"
+            subtitle="Here is how today is going so far."
           />
         </div>
         <div className="text-center text-muted-foreground glass-card p-12 rounded-3xl reveal-3d">
@@ -227,15 +228,15 @@ export default function DashboardPage() {
               <div className={cn("p-4 rounded-3xl bg-card border shadow-xl shadow-primary/5", greeting.color)}>
                 <greeting.icon className="w-10 h-10" />
               </div>
-              <h1 className="text-4xl md:text-7xl font-black tracking-tight text-foreground uppercase leading-tight">
+              <h1 className="text-4xl md:text-6xl font-semibold tracking-[-0.04em] text-foreground leading-[1.05]">
                 {greeting.text}<br/><span className="text-primary">{user?.name ? user.name.split(" ")[0] : "Agent"}</span>
               </h1>
             </div>
-            <p className="text-muted-foreground text-sm font-black uppercase tracking-[0.2em] ml-1 opacity-60">
-              {mealNow === "breakfast" && "MORNING VITALS REQUIRED 🥑"}
-              {mealNow === "lunch"     && "MID-DAY METABOLIC SYNC 🍱"}
-              {mealNow === "dinner"    && "FINAL NUTRIENT LOAD 🥗"}
-              {mealNow === "snack"     && "SYSTEMIC METABOLIC PULSE 🍏"}
+            <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.24em] ml-1">
+              {mealNow === "breakfast" && "Time for breakfast"}
+              {mealNow === "lunch"     && "Time for lunch"}
+              {mealNow === "dinner"    && "Time for dinner"}
+              {mealNow === "snack"     && "Snack time"}
             </p>
           </div>
           <div className="text-right bg-card p-8 rounded-[2.5rem] border shadow-xl shadow-primary/5 min-w-[240px]">
@@ -248,28 +249,28 @@ export default function DashboardPage() {
       {/* ── Profile Completion Banner ── */}
       {profileCompletion.percent < 100 && (
         <div className="reveal-3d">
-          <Card className="border shadow-xl shadow-amber-500/5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent overflow-hidden rounded-[2.5rem]">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 blur-[100px] -z-10"></div>
+          <Card className="border shadow-xl shadow-primary/5 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent overflow-hidden rounded-[2.5rem]">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[100px] -z-10"></div>
             <CardContent className="py-8 px-8">
               <div className="flex flex-col md:flex-row md:items-center gap-8">
-                <div className="w-20 h-20 rounded-3xl bg-amber-500/20 flex items-center justify-center shrink-0 shadow-3xl shadow-amber-500/20">
-                  <Star className="w-10 h-10 text-amber-500 animate-pulse" />
+                <div className="w-20 h-20 rounded-3xl bg-primary/20 flex items-center justify-center shrink-0 shadow-3xl shadow-primary/20">
+                  <Star className="w-10 h-10 text-primary animate-pulse" />
                 </div>
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-2xl font-black uppercase text-foreground tracking-tight">Identity Optimization</p>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white px-4 py-1.5 rounded-full shadow-lg shadow-amber-500/20">
+                    <p className="text-xl font-semibold text-foreground tracking-[-0.02em]">Finish your profile</p>
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-primary text-primary-foreground px-4 py-1.5 rounded-full shadow-lg shadow-primary/20">
                       {profileCompletion.percent}% Synced
                     </span>
                   </div>
-                  <Progress value={profileCompletion.percent} className="h-2 rounded-full bg-amber-500/10" />
+                  <Progress value={profileCompletion.percent} className="h-2 rounded-full bg-primary/10" />
                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-loose">
-                    Required fields for architectural precision: <span className="text-amber-500">{profileCompletion.missing.slice(0, 3).join(" · ")}</span>
+                    Still needed: <span className="text-primary">{profileCompletion.missing.slice(0, 3).join(" · ")}</span>
                   </p>
                 </div>
                 <Link href="/profile" className="shrink-0">
-                  <Button size="lg" className="h-14 px-8 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black uppercase tracking-[0.2em] rounded-2xl shadow-3xl shadow-amber-500/30">
-                    Sync Profile <ArrowRight className="ml-3 w-5 h-5" />
+                  <Button size="lg" className="h-14 px-8 bg-primary hover:bg-primary text-primary-foreground text-xs font-black uppercase tracking-[0.2em] rounded-2xl shadow-3xl shadow-primary/30">
+                    Complete profile <ArrowRight className="ml-3 w-5 h-5" />
                   </Button>
                 </Link>
               </div>
@@ -306,10 +307,10 @@ export default function DashboardPage() {
                   <Link href={step.href} key={i} className="group">
                     <div className="flex items-center gap-4 p-4 rounded-2xl glass-card hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
                       <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner", 
-                        step.color === "orange" && "bg-orange-500/20 text-orange-500",
-                        step.color === "blue" && "bg-blue-500/20 text-blue-500",
-                        step.color === "green" && "bg-green-500/20 text-green-500",
-                        step.color === "purple" && "bg-purple-500/20 text-purple-500"
+                        step.color === "orange" && "bg-primary/20 text-primary",
+                        step.color === "blue" && "bg-muted/20 text-muted-foreground",
+                        step.color === "green" && "bg-primary/20 text-primary",
+                        step.color === "purple" && "bg-muted/20 text-muted-foreground"
                       )}>
                         <step.icon className="w-6 h-6" />
                       </div>
@@ -329,10 +330,10 @@ export default function DashboardPage() {
       {/* ── Streak / Motivation Banner ── */}
       {stats && stats.daily_goal_percentage >= 100 && (
         <div className="reveal-3d">
-          <div className="bg-card p-8 rounded-[2.5rem] bg-gradient-to-r from-yellow-500/10 to-transparent border shadow-xl shadow-yellow-500/5">
+          <div className="bg-card p-8 rounded-[2.5rem] bg-gradient-to-r from-primary/10 to-transparent border shadow-xl shadow-primary/5">
             <div className="flex items-center gap-8">
-              <div className="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/20 shadow-2xl animate-bounce-slow">
-                <Trophy className="w-10 h-10 text-yellow-500" />
+              <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border border-primary/20 shadow-2xl animate-bounce-slow">
+                <Trophy className="w-10 h-10 text-primary" />
               </div>
               <div className="space-y-1">
                 <h3 className="text-3xl font-black text-foreground">CRUSHING IT! 🔥</h3>
@@ -346,38 +347,38 @@ export default function DashboardPage() {
       {/* Hero Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 reveal-3d">
         <StatCard
-          title="Daily Fuel"
+          title="Energy"
           value={stats.today_calories.toLocaleString()}
           subtitle={`Total: ${stats.target_calories.toLocaleString()} kcal`}
           icon={Flame}
           variant="orange"
-          className="rounded-[2.5rem] shadow-xl shadow-orange-500/5 hover:-translate-y-2 transition-all duration-500"
+          className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
           trend={stats.calorie_trend !== 0 ? { 
             value: Math.abs(stats.calorie_trend), 
-            label: "vs prev", 
+            label: "vs last week", 
             positive: stats.calorie_trend < 0 
           } : undefined}
         />
         <StatCard
-          title="Objective Sync"
+          title="Goal progress"
           value={`${stats.daily_goal_percentage}%`}
-          subtitle={stats.daily_goal_percentage < 50 ? "Sync Progressing" : "Surgical Precision"}
+          subtitle={stats.daily_goal_percentage < 50 ? "Sync Progressing" : "of your daily goal"}
           icon={Target}
           variant="green"
           className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
         />
         <StatCard
-          title="Fluid Intake"
+          title="Water"
           value={`${stats.water_glasses}/${stats.target_water}`}
-          subtitle="Hydration Metrics"
+          subtitle="Today"
           icon={Droplets}
           variant="green"
           className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
         />
         <StatCard
-          title="Logged Vitals"
+          title="Meals logged"
           value={stats.recent_meals.length}
-          subtitle="System Entries"
+          subtitle="Today"
           icon={Utensils}
           variant="green"
           className="rounded-[2.5rem] shadow-xl shadow-primary/5 hover:-translate-y-2 transition-all duration-500"
@@ -395,12 +396,12 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-4 text-3xl font-black uppercase tracking-tight">
-                      <Activity className="w-8 h-8 text-orange-500" />
-                      Momentum Matrix
+                      <Activity className="w-8 h-8 text-primary" />
+                      This week
                     </CardTitle>
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 ml-12">Temporal Calorie Velocity</p>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 ml-12">Daily energy</p>
                   </div>
-                  <div className="bg-primary/10 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-primary border border-primary/20">Operational</div>
+                  <div className="bg-primary/10 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-primary border border-primary/20"></div>
                 </div>
               </CardHeader>
               <CardContent className="p-10 pt-6">
@@ -425,16 +426,16 @@ export default function DashboardPage() {
                           tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v}
                         />
                         <Tooltip
-                          cursor={{ fill: "currentColor", className: "text-orange-500/5", radius: 20 }}
+                          cursor={{ fill: "currentColor", className: "text-primary/5", radius: 20 }}
                           content={({ active, payload }) => {
                             if (!active || !payload?.length) return null
                             const d = payload[0].payload
                             return (
                               <div className="bg-card p-6 rounded-3xl shadow-4xl border border-border">
                                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 flex items-center justify-between gap-4">
-                                  {d.day} {d.is_today && <span className="bg-orange-500 text-white px-2 py-0.5 rounded-md">TODAY</span>}
+                                  {d.day} {d.is_today && <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-md">TODAY</span>}
                                 </p>
-                                <p className="text-3xl font-black text-orange-500 tracking-tighter">{d.calories.toLocaleString()} <span className="text-xs text-muted-foreground font-bold uppercase opacity-40">kcal</span></p>
+                                <p className="text-3xl font-black text-primary tracking-tighter">{d.calories.toLocaleString()} <span className="text-xs text-muted-foreground font-bold uppercase opacity-40">kcal</span></p>
                               </div>
                             )
                           }}
@@ -443,7 +444,7 @@ export default function DashboardPage() {
                           {stats.weekly_activity.map((entry, i) => (
                             <Cell
                               key={i}
-                              fill={entry.is_today ? "#f97316" : "#f97316"}
+                              fill={entry.is_today ? "#c9ff4a" : "#1f6b44"}
                               fillOpacity={entry.is_today ? 1 : 0.4}
                               className="transition-all duration-500"
                             />

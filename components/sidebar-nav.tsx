@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -21,8 +21,7 @@ import {
   X,
   Moon,
   Loader2,
-  LifeBuoy,
-  Sun,
+  LifeBuoy,
 } from "lucide-react"
 
 const navItems = [
@@ -61,21 +60,8 @@ export function SidebarNav() {
     }
   }
 
-  const [isDark, setIsDark] = useState(false)
-
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains("dark"))
-  }, [])
-
-  const toggleTheme = () => {
-    const next = !isDark
-    setIsDark(next)
-    document.documentElement.classList.toggle("dark", next)
-    localStorage.setItem("theme", next ? "dark" : "light")
-  }
-
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-sidebar text-sidebar-foreground min-h-screen fixed left-0 top-0">
+    <aside className="hidden md:flex flex-col w-64 bg-sidebar text-sidebar-foreground min-h-screen fixed left-0 top-0 border-r border-sidebar-border z-30">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
         <Image
@@ -87,8 +73,12 @@ export function SidebarNav() {
           className="rounded-xl shrink-0"
         />
         <div className="flex flex-col justify-center translate-y-[1px]">
-          <p className="text-lg font-bold text-sidebar-foreground leading-none mb-1">NutriLife</p>
-          <p className="text-[9px] text-sidebar-foreground/60 tracking-[0.2em] uppercase leading-none">Track Your Health</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sidebar-foreground leading-none mb-1.5">
+            Nutrilife
+          </p>
+          <p className="text-[9px] text-sidebar-foreground/50 tracking-[0.22em] uppercase leading-none">
+            Food clarity, daily
+          </p>
         </div>
       </div>
 
@@ -99,35 +89,38 @@ export function SidebarNav() {
             const isActive = pathname === item.href
             return (
               <li key={item.href}>
+                {/* Lime marks the active row rather than filling it — the
+                    accent stays scarce, as it does on the landing page. */}
                 <Link
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                    "group relative flex items-center gap-3 rounded-xl px-4 py-3 transition-colors duration-300",
                     isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.title}</span>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-300",
+                      isActive ? "opacity-100" : "scale-y-0 opacity-0"
+                    )}
+                  />
+                  <item.icon
+                    className={cn(
+                      "w-5 h-5 shrink-0 transition-colors duration-300",
+                      isActive ? "text-primary" : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground"
+                    )}
+                  />
+                  <span className="text-sm font-medium tracking-tight">{item.title}</span>
                 </Link>
               </li>
             )
           })}
         </ul>
       </nav>
-
-      {/* Theme toggle */}
-      <div className="px-4 py-2">
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
-        </button>
-      </div>
 
       {/* User section */}
       <div className="px-4 py-6 border-t border-sidebar-border">
@@ -150,7 +143,7 @@ export function SidebarNav() {
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
             >
               {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
               <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
@@ -276,7 +269,7 @@ export function MobileHeader() {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
               >
                 {isLoggingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
                 <span className="font-medium">{isLoggingOut ? "Logging out..." : "Log out"}</span>

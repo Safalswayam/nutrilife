@@ -30,10 +30,10 @@ export function StatCard({
     <div
       className={cn(
         "relative overflow-hidden rounded-2xl p-6 transition-all duration-300 hover:shadow-lg",
-        variant === "primary" && "bg-primary text-primary-foreground",
+        variant === "primary" && "bg-secondary text-secondary-foreground border border-border",
         variant === "green" && "bg-primary/20 text-primary border border-primary/20",
-        variant === "orange" && "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20",
-        variant === "accent" && "bg-accent text-accent-foreground",
+        variant === "orange" && "bg-secondary text-primary border border-border",
+        variant === "accent" && "bg-secondary text-secondary-foreground border border-border",
         variant === "default" && "bg-card text-card-foreground border border-border",
         className
       )}
@@ -42,10 +42,10 @@ export function StatCard({
       <div
         className={cn(
           "absolute -right-4 -top-4 w-24 h-24 rounded-full opacity-10",
-          variant === "primary" && "bg-primary-foreground",
+          variant === "primary" && "bg-primary",
           variant === "green" && "bg-primary",
-          variant === "orange" && "bg-orange-500",
-          variant === "accent" && "bg-accent-foreground",
+          variant === "orange" && "bg-primary",
+          variant === "accent" && "bg-primary",
           variant === "default" && "bg-primary"
         )}
       />
@@ -55,21 +55,18 @@ export function StatCard({
         <div
           className={cn(
             "inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4",
-            variant === "primary" && "bg-primary-foreground/20",
+            variant === "primary" && "bg-primary/15",
             variant === "green" && "bg-primary/20",
-            variant === "orange" && "bg-orange-500/20",
-            variant === "accent" && "bg-accent-foreground/20",
+            variant === "orange" && "bg-primary/15",
+            variant === "accent" && "bg-primary/15",
             variant === "default" && "bg-primary/10"
           )}
         >
           <Icon
             className={cn(
-              "w-6 h-6",
-              variant === "primary" && "text-primary-foreground",
-              variant === "green" && "text-primary",
-              variant === "orange" && "text-orange-600 dark:text-orange-400",
-              variant === "accent" && "text-accent-foreground",
-              variant === "default" && "text-primary"
+              // every variant now sits on a dark surface, so the icon is lime —
+              // `text-primary-foreground` here was ink-on-pine, ~1.3:1
+              "w-6 h-6 text-primary"
             )}
           />
         </div>
@@ -85,7 +82,7 @@ export function StatCard({
         </p>
         <p className={cn(
           "text-3xl font-bold mb-1",
-          variant === "orange" && "text-orange-600 dark:text-orange-400",
+          variant === "orange" && "text-primary",
           variant === "green" && "text-primary"
         )}>{value}</p>
         
@@ -107,8 +104,8 @@ export function StatCard({
               className={cn(
                 "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
                 trend.positive
-                  ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-destructive/15 text-destructive"
               )}
             >
               {trend.positive ? "+" : ""}

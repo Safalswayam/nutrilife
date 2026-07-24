@@ -72,7 +72,7 @@ export function HealthTips() {
     <div className="p-10 space-y-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Lightbulb className="w-6 h-6 text-amber-500" />
+          <Lightbulb className="w-6 h-6 text-[color:var(--warning)]" />
           <p className="text-xl font-black uppercase tracking-tight">System Insight</p>
         </div>
         <Button
@@ -86,7 +86,7 @@ export function HealthTips() {
       </div>
 
       <div className={`transition-all duration-300 ${isRotating ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"}`}>
-        <span className="inline-block px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full bg-amber-500/10 text-amber-500 mb-6 border border-amber-500/10">
+        <span className="inline-block px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full bg-[color:var(--warning)]/10 text-[color:var(--warning)] mb-6 border border-[color:var(--warning)]/10">
           {currentTip.category}
         </span>
         <p className="text-lg font-bold text-foreground mb-8 leading-relaxed italic">"{currentTip.tip}"</p>

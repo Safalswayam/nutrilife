@@ -104,9 +104,9 @@ export default function LoginPage() {
         
         {/* Background decorations */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-white/10" />
-          <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white/5" />
+          <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-nl-ink/[0.07]" />
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-nl-ink/[0.05]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-nl-ink/[0.05]" />
         </div>
 
         {/* Logo */}
@@ -120,40 +120,40 @@ export default function LoginPage() {
             className="rounded-3xl shadow-xl"
           />
           <div>
-            <p className="text-5xl font-black text-white tracking-tight">NutriLife</p>
-            <p className="text-sm text-white/70 tracking-[0.25em] uppercase mt-1">Track Your Health</p>
+            <p className="text-5xl font-black text-nl-ink tracking-tight">NutriLife</p>
+            <p className="text-sm text-nl-ink/70 tracking-[0.25em] uppercase mt-1">Track Your Health</p>
           </div>
         </div>
 
         {/* Main content */}
         <div className="relative z-10 space-y-10">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-4 text-balance">
-              Your Journey to Better Health Starts Here
+            <h1 className="text-4xl font-semibold tracking-[-0.04em] leading-[1.08] text-nl-ink mb-4 text-balance">
+              Food clarity for every real-life day.
             </h1>
-            <p className="text-lg text-white/80 text-pretty">
-              Track your nutrition, get personalized diet plans, and receive AI-powered health guidance.
+            <p className="text-lg text-nl-ink/75 text-pretty leading-relaxed">
+              Log what you eat, understand what it means, and follow a plan that fits your life.
             </p>
           </div>
 
           {/* Feature list */}
           <div className="space-y-4">
-            <div className="flex items-center gap-3 text-white/90">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-nl-ink/85">
+              <div className="w-10 h-10 rounded-lg bg-nl-ink/[0.12] flex items-center justify-center">
                 <Apple className="h-5 w-5" />
               </div>
               <span>AI-Powered Food Analysis</span>
             </div>
 
-            <div className="flex items-center gap-3 text-white/90">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-nl-ink/85">
+              <div className="w-10 h-10 rounded-lg bg-nl-ink/[0.12] flex items-center justify-center">
                 <Heart className="h-5 w-5" />
               </div>
               <span>Personalized Health Assistant</span>
             </div>
 
-            <div className="flex items-center gap-3 text-white/90">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-nl-ink/85">
+              <div className="w-10 h-10 rounded-lg bg-nl-ink/[0.12] flex items-center justify-center">
                 <Sparkles className="h-5 w-5" />
               </div>
               <span>Custom Diet Plans Based on BMI</span>
@@ -162,7 +162,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="relative z-10 flex items-center gap-2 text-white/60 text-sm">
+        <div className="relative z-10 flex items-center gap-2 text-nl-ink/60 text-sm">
           <Shield className="h-4 w-4" />
           <span>Your data is encrypted and secure</span>
         </div>

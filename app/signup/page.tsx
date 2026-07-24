@@ -176,8 +176,8 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between bg-primary p-12 text-primary-foreground relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-96 w-96 rounded-full bg-nl-ink/[0.07] blur-3xl" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-80 w-80 rounded-full bg-nl-ink/[0.07] blur-3xl" />
 
         <div className="relative z-10 flex items-center gap-3 mb-12">
           <Image
@@ -189,31 +189,31 @@ export default function SignupPage() {
             className="rounded-xl shadow-lg ring-2 ring-white/20"
           />
           <div>
-            <p className="text-2xl font-black tracking-tight text-white">NutriLife</p>
-            <p className="text-[10px] text-white/70 tracking-widest uppercase font-bold">Track Your Health</p>
+            <p className="text-2xl font-black tracking-tight text-nl-ink">NutriLife</p>
+            <p className="text-[10px] text-nl-ink/70 tracking-widest uppercase font-bold">Track Your Health</p>
           </div>
         </div>
 
         <div className="relative z-10 max-w-md my-auto space-y-12">
           <div className="space-y-4">
-            <h1 className="text-4xl lg:text-5xl font-black leading-tight text-white mb-6">
+            <h1 className="text-4xl lg:text-5xl font-black leading-tight text-nl-ink mb-6">
               Start your health journey today.
             </h1>
-            <p className="text-lg text-white/80 text-pretty">
+            <p className="text-lg text-nl-ink/80 text-pretty">
               Join thousands of users tracking their nutrition and achieving their goals with AI-powered guidance.
             </p>
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center gap-3 text-white/90">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-nl-ink/85">
+              <div className="w-10 h-10 rounded-lg bg-nl-ink/[0.12] flex items-center justify-center">
                 <Apple className="h-5 w-5" />
               </div>
               <span>AI-Powered Food Analysis</span>
             </div>
 
-            <div className="flex items-center gap-3 text-white/90">
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-nl-ink/85">
+              <div className="w-10 h-10 rounded-lg bg-nl-ink/[0.12] flex items-center justify-center">
                 <Heart className="h-5 w-5" />
               </div>
               <span>Personalized Health Goals</span>
@@ -221,7 +221,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-2 text-white/60 text-sm">
+        <div className="relative z-10 flex items-center gap-2 text-nl-ink/60 text-sm">
           <Shield className="h-4 w-4" />
           <span>Your data is completely private</span>
         </div>

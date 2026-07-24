@@ -275,8 +275,8 @@ export default function OnboardingPage() {
         {step === 4 && (
           <Card className="border-border shadow-xl text-center py-12 animate-in zoom-in-95 duration-500">
             <CardContent className="flex flex-col items-center space-y-6">
-              <div className="w-24 h-24 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-500" />
+              <div className="w-24 h-24 bg-primary dark:bg-primary/30 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-12 h-12 text-primary dark:text-primary" />
               </div>
               <div className="space-y-2">
                 <h2 className="text-3xl font-bold">You're All Set!</h2>

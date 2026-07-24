@@ -172,7 +172,7 @@ export function WaterIntakeWidget({
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div 
               className={`h-full transition-all duration-500 ${
-                isGoalReached ? 'bg-primary' : 'bg-blue-500'
+                isGoalReached ? 'bg-primary' : 'bg-[color:var(--info)]'
               }`}
               style={{ width: `${percentage}%` }}
             />

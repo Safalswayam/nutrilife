@@ -34,12 +34,12 @@ interface FastingStats {
 }
 
 const difficultyColor: Record<string, string> = {
-  None:        "bg-gray-100 text-gray-600",
-  Easy:        "bg-green-100 text-green-700",
-  Moderate:    "bg-yellow-100 text-yellow-700",
-  Hard:        "bg-orange-100 text-orange-700",
-  "Very Hard": "bg-red-100 text-red-700",
-  Extreme:     "bg-purple-100 text-purple-700",
+  None:        "bg-muted-foreground text-muted-foreground",
+  Easy:        "bg-primary/15 text-primary",
+  Moderate:    "bg-[color:var(--warning)]/15 text-[color:var(--warning)]",
+  Hard:        "bg-[color:var(--warning)]/15 text-[color:var(--warning)]",
+  "Very Hard": "bg-destructive/15 text-destructive",
+  Extreme:     "bg-[color:var(--info)]/15 text-[color:var(--info)]",
 }
 
 function pad(n: number) { return n.toString().padStart(2, "0") }
@@ -110,7 +110,7 @@ function RingTimer({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           {isActive ? (
             <div className="animate-pulse">
-               <Moon className="w-8 h-8 text-indigo-400" />
+               <Moon className="w-8 h-8 text-[color:var(--info)]" />
             </div>
           ) : (
              <Zap className="w-8 h-8 text-muted-foreground/30" />
@@ -139,7 +139,7 @@ function RingTimer({
           <div className={cn(
             "text-[10px] font-black uppercase tracking-widest py-1 px-3 rounded-full border transition-all duration-500",
             isActive
-              ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+              ? "bg-[color:var(--info)]/10 text-[color:var(--info)] border-[color:var(--info)]/20"
               : "bg-white/5 text-muted-foreground/40 border-white/5"
           )}>
             {Math.round(pct)}% Complete
@@ -257,19 +257,19 @@ export default function FastingTrackerPage() {
     <div className="p-3 md:p-8">
       <div className="reveal-3d">
         <PageHeader
-          title="Metabolic Phase Tracker"
-          subtitle="Synchronizing systemic homeostasis through intermittent fasting protocols."
+          title="Fasting"
+          subtitle="Keep track of your eating window without making it a whole thing."
         />
       </div>
 
       {error && (
-        <Alert variant="destructive" className="mb-6 border-none glass-card bg-red-500/10 text-red-500 rounded-2xl reveal-3d">
+        <Alert variant="destructive" className="mb-6 border-none glass-card bg-destructive/10 text-destructive rounded-2xl reveal-3d">
           <AlertTriangle className="w-4 h-4" />
           <AlertDescription className="font-bold">{error}</AlertDescription>
         </Alert>
       )}
       {success && (
-        <Alert className="mb-6 border-none glass-card bg-green-500/10 text-green-500 rounded-2xl reveal-3d">
+        <Alert className="mb-6 border-none glass-card bg-primary/10 text-primary rounded-2xl reveal-3d">
            <CheckCircle className="w-4 h-4" />
            <AlertDescription className="font-bold">{success}</AlertDescription>
         </Alert>
@@ -283,30 +283,30 @@ export default function FastingTrackerPage() {
           {/* Main timer card — always shown, switches state */}
           <Card className={cn(
             "border-none glass-card rounded-[2.5rem] overflow-hidden transition-all duration-500 reveal-3d",
-            activeSession && "bg-white/5 ring-1 ring-indigo-500/20 shadow-3xl shadow-indigo-500/10"
+            activeSession && "bg-white/5 ring-1 ring-[color:var(--info)]/20 shadow-3xl shadow-[color:var(--info)]/10"
           )}>
             <CardHeader className="p-8 pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className={cn(
                   "text-2xl font-black uppercase tracking-tighter flex items-center gap-3",
-                  activeSession ? "text-indigo-400" : ""
+                  activeSession ? "text-[color:var(--info)]" : ""
                 )}>
                   <Moon className="w-6 h-6" />
                   {activeSession ? "Phase Protocol: Active" : "Phase Initiation"}
                 </CardTitle>
 
                 {activeSession && (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[color:var(--info)]/10 border border-[color:var(--info)]/20 text-[10px] font-black uppercase tracking-widest text-[color:var(--info)]">
                     <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[color:var(--info)] opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[color:var(--info)]" />
                     </span>
                     Live Sync
                   </div>
                 )}
               </div>
 
-              <CardDescription className={cn("text-xs font-bold uppercase tracking-widest opacity-40", activeSession ? "text-indigo-300" : "")}>
+              <CardDescription className={cn("text-xs font-bold uppercase tracking-widest opacity-40", activeSession ? "text-[color:var(--info)]" : "")}>
                 {activeSession
                   ? `Protocol ${activeSession.plan.emoji} ${activeSession.plan.name}`
                   : savedPlan && savedPlan.id !== "none"
@@ -337,8 +337,8 @@ export default function FastingTrackerPage() {
                   <div className="flex flex-col text-right">
                     <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Status</span>
                     {remaining > 0
-                      ? <span className="text-sm font-bold text-indigo-400">{splitSecs(remaining).h}h {splitSecs(remaining).m}m Left</span>
-                      : <span className="text-sm font-black text-green-500 uppercase">Threshold Met</span>
+                      ? <span className="text-sm font-bold text-[color:var(--info)]">{splitSecs(remaining).h}h {splitSecs(remaining).m}m Left</span>
+                      : <span className="text-sm font-black text-primary uppercase">Threshold Met</span>
                     }
                   </div>
                 </div>
@@ -346,7 +346,7 @@ export default function FastingTrackerPage() {
 
               {/* Goal reached */}
               {goalReached && (
-                <Alert className="border-none glass-card bg-green-500/10 text-green-500 rounded-2xl animate-bounce">
+                <Alert className="border-none glass-card bg-primary/10 text-primary rounded-2xl animate-bounce">
                   <Trophy className="w-4 h-4" />
                   <AlertDescription className="font-black uppercase text-xs tracking-widest">
                     Metabolic Goal Achieved. Break fast authorized.
@@ -359,12 +359,12 @@ export default function FastingTrackerPage() {
                 <div className="grid grid-cols-2 gap-4 reveal-3d">
                   {savedPlan.fast_hours > 0 && (
                     <>
-                      <div className="glass-card bg-indigo-500/5 rounded-2xl p-6 border-white/5 text-center">
-                        <p className="text-3xl font-black text-indigo-500">{savedPlan.fast_hours}h</p>
+                      <div className="glass-card bg-[color:var(--info)]/5 rounded-2xl p-6 border-white/5 text-center">
+                        <p className="text-3xl font-black text-[color:var(--info)]">{savedPlan.fast_hours}h</p>
                         <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Fasting Period</p>
                       </div>
-                      <div className="glass-card bg-emerald-500/5 rounded-2xl p-6 border-white/5 text-center">
-                        <p className="text-3xl font-black text-emerald-500">{savedPlan.eat_hours}h</p>
+                      <div className="glass-card bg-primary/5 rounded-2xl p-6 border-white/5 text-center">
+                        <p className="text-3xl font-black text-primary">{savedPlan.eat_hours}h</p>
                         <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mt-1">Refeed Period</p>
                       </div>
                     </>
@@ -375,7 +375,7 @@ export default function FastingTrackerPage() {
               {/* CTA button */}
               <div className="reveal-3d">
                 {activeSession ? (
-                  <Button onClick={endFasting} disabled={ending} variant="destructive" className="w-full h-16 rounded-[1.5rem] text-lg font-black shadow-3xl shadow-red-500/20 transition-all active:scale-95" size="lg">
+                  <Button onClick={endFasting} disabled={ending} variant="destructive" className="w-full h-16 rounded-[1.5rem] text-lg font-black shadow-3xl shadow-destructive/20 transition-all active:scale-95" size="lg">
                     {ending ? <Loader2 className="w-6 h-6 animate-spin" />
                             : <><Square className="w-5 h-5 mr-3" /> Terminate Session</>}
                   </Button>
@@ -397,10 +397,10 @@ export default function FastingTrackerPage() {
           {stats && stats.total_sessions > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 reveal-3d">
               {[
-                { label: "Total Syncs",   value: stats.total_sessions,            Icon: Calendar,   color: "text-blue-400" },
-                { label: "Goals Met",    value: stats.completed_sessions,         Icon: Trophy,     color: "text-amber-400" },
-                { label: "Avg Duration", value: `${stats.avg_duration_hours}h`,   Icon: Clock,      color: "text-indigo-400" },
-                { label: "Success Rate", value: `${stats.success_rate_percent}%`, Icon: TrendingUp, color: "text-emerald-400" },
+                { label: "Total Syncs",   value: stats.total_sessions,            Icon: Calendar,   color: "text-[color:var(--info)]" },
+                { label: "Goals Met",    value: stats.completed_sessions,         Icon: Trophy,     color: "text-[color:var(--warning)]" },
+                { label: "Avg Duration", value: `${stats.avg_duration_hours}h`,   Icon: Clock,      color: "text-[color:var(--info)]" },
+                { label: "Success Rate", value: `${stats.success_rate_percent}%`, Icon: TrendingUp, color: "text-primary" },
               ].map(({ label, value, Icon, color }) => (
                 <Card key={label} className="border-none glass-card rounded-3xl overflow-hidden hover:scale-[1.05] transition-transform">
                   <CardContent className="p-6 text-center">
@@ -445,8 +445,8 @@ export default function FastingTrackerPage() {
                            <p className="text-[8px] font-black uppercase opacity-40">Duration</p>
                         </div>
                         {session.completed
-                          ? <div className="p-1 px-2 rounded-lg bg-green-500/10"><CheckCircle className="w-4 h-4 text-green-500" /></div>
-                          : <div className="p-1 px-2 rounded-lg bg-amber-500/10"><AlertTriangle className="w-4 h-4 text-amber-500" /></div>}
+                          ? <div className="p-1 px-2 rounded-lg bg-primary/10"><CheckCircle className="w-4 h-4 text-primary" /></div>
+                          : <div className="p-1 px-2 rounded-lg bg-[color:var(--warning)]/10"><AlertTriangle className="w-4 h-4 text-[color:var(--warning)]" /></div>}
                       </div>
                     </div>
                   ))}
@@ -461,7 +461,7 @@ export default function FastingTrackerPage() {
           <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden">
             <CardHeader className="p-8 pb-4">
               <CardTitle className="text-xl font-black uppercase tracking-widest flex items-center gap-3 opacity-60">
-                <Moon className="w-4 h-4 text-indigo-400" />
+                <Moon className="w-4 h-4 text-[color:var(--info)]" />
                 Protocols
               </CardTitle>
               <CardDescription className="text-[10px] font-black uppercase tracking-widest opacity-40">Select a systemic synchronization strategy.</CardDescription>
@@ -474,7 +474,7 @@ export default function FastingTrackerPage() {
                   className={cn(
                     "w-full text-left rounded-3xl border border-white/5 p-5 transition-all group reveal-3d",
                     savedPlanId === plan.id
-                      ? "bg-indigo-500/10 border-indigo-500/30"
+                      ? "bg-[color:var(--info)]/10 border-[color:var(--info)]/30"
                       : "bg-white/5 hover:bg-white/10"
                   )}
                 >
@@ -484,9 +484,9 @@ export default function FastingTrackerPage() {
                       <span className="uppercase tracking-tight">{plan.name}</span>
                     </span>
                     <Badge className={cn("text-[8px] font-black uppercase tracking-widest border-none px-2 py-0.5", 
-                      plan.difficulty === "Easy" ? "bg-green-500/20 text-green-400" :
-                      plan.difficulty === "Moderate" ? "bg-amber-500/20 text-amber-400" :
-                      "bg-red-500/20 text-red-400"
+                      plan.difficulty === "Easy" ? "bg-primary/20 text-primary" :
+                      plan.difficulty === "Moderate" ? "bg-[color:var(--warning)]/20 text-[color:var(--warning)]" :
+                      "bg-destructive/20 text-destructive"
                     )}>
                       {plan.difficulty}
                     </Badge>
@@ -495,11 +495,11 @@ export default function FastingTrackerPage() {
                   <p className="text-[10px] font-medium text-muted-foreground line-clamp-2 leading-relaxed mb-4">{plan.description}</p>
 
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[color:var(--info)]">
                        <Moon className="w-3 h-3" /> {plan.fast_hours}h
                     </div>
                     <div className="w-1 h-1 rounded-full bg-white/10" />
-                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
                        <Sun className="w-3 h-3" /> {plan.eat_hours}h
                     </div>
                   </div>

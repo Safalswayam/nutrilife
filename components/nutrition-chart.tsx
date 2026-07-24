@@ -137,9 +137,9 @@ export function MacroBreakdown({
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-40">{description}</p>
                     <div className="flex items-center gap-3">
                       <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-xs shadow-lg",
-                        key === "protein" && "bg-blue-500 shadow-blue-500/20",
-                        key === "carbs" && "bg-amber-500 shadow-amber-500/20",
-                        key === "fat" && "bg-emerald-500 shadow-emerald-500/20"
+                        key === "protein" && "bg-[color:var(--info)] shadow-[color:var(--info)]/20",
+                        key === "carbs" && "bg-[color:var(--warning)] shadow-[color:var(--warning)]/20",
+                        key === "fat" && "bg-primary shadow-primary/20"
                       )}>
                         {icon}
                       </div>
@@ -152,7 +152,7 @@ export function MacroBreakdown({
                     </p>
                     <span className={cn(
                       "text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
-                      over ? "bg-red-500/10 text-red-500 border border-red-500/10" : "bg-muted text-muted-foreground"
+                      over ? "bg-destructive/10 text-destructive border border-destructive/10" : "bg-muted text-muted-foreground"
                     )}>
                       {pct}% Synced
                     </span>

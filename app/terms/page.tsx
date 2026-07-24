@@ -94,7 +94,7 @@ const sections: Section[] = [
                 "Profile & health goal management",
               ].map((f) => (
                 <li key={f} className="flex items-start gap-2">
-                  <Check className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
+                  <Check className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                   <span>{f}</span>
                 </li>
               ))}
@@ -121,7 +121,7 @@ const sections: Section[] = [
           </div>
         </div>
         <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3 flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <AlertTriangle className="w-4 h-4 text-[color:var(--warning)] shrink-0 mt-0.5" />
           <span>Attempting to bypass or circumvent subscription access controls is a violation of these Terms and
           may result in account suspension.</span>
         </p>
@@ -222,8 +222,8 @@ const sections: Section[] = [
           </ul>
           <p className="mt-2">Each third party has its own privacy policy.</p>
         </div>
-        <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-3">
-          <p className="text-green-700 dark:text-green-400 font-medium flex items-center gap-2">
+        <div className="bg-primary dark:bg-primary/20 border border-primary dark:border-primary rounded-lg p-3">
+          <p className="text-primary dark:text-primary font-medium flex items-center gap-2">
             <Lock className="w-4 h-4 shrink-0" />
             We do not sell your personal data to anyone, ever.
           </p>
@@ -242,10 +242,10 @@ const sections: Section[] = [
     badge: "Read Carefully",
     content: (
       <div className="space-y-4">
-        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg p-4">
+        <div className="bg-[color:var(--warning)] dark:bg-[color:var(--warning)]/20 border border-[color:var(--warning)] dark:border-[color:var(--warning)] rounded-lg p-4">
           <div className="flex gap-2 items-start">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+            <AlertTriangle className="w-5 h-5 text-[color:var(--warning)] dark:text-[color:var(--warning)] shrink-0 mt-0.5" />
+            <p className="text-sm text-[color:var(--warning)] dark:text-[color:var(--warning)] font-medium">
               NutriLife's AI features are for informational purposes only and are NOT a substitute for
               professional medical advice.
             </p>

@@ -60,10 +60,10 @@ const QUICK_FOODS = [
 ]
 
 const MEAL_TYPES = [
-  { value: "breakfast", label: "Breakfast", icon: Sun, color: "text-amber-500", bg: "bg-amber-500/10" },
-  { value: "lunch", label: "Lunch", icon: Utensils, color: "text-green-500", bg: "bg-green-500/10" },
-  { value: "dinner", label: "Dinner", icon: Moon, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-  { value: "snack", label: "Snack", icon: Cookie, color: "text-orange-500", bg: "bg-orange-500/10" },
+  { value: "breakfast", label: "Breakfast", icon: Sun, color: "text-primary", bg: "bg-primary/10" },
+  { value: "lunch", label: "Lunch", icon: Utensils, color: "text-primary", bg: "bg-primary/10" },
+  { value: "dinner", label: "Dinner", icon: Moon, color: "text-muted-foreground", bg: "bg-muted" },
+  { value: "snack", label: "Snack", icon: Cookie, color: "text-primary", bg: "bg-primary/10" },
 ]
 
 interface MealEntry {
@@ -210,7 +210,7 @@ export default function FoodLogPage() {
               </div>
               <div className="text-right glass-card p-4 rounded-3xl min-w-[120px]">
                 <p className="text-xs font-black text-muted-foreground uppercase mb-1">Remaining</p>
-                <p className={cn("text-2xl font-black", remaining < 0 ? "text-red-500" : "text-primary")}>
+                <p className={cn("text-2xl font-black", remaining < 0 ? "text-destructive" : "text-primary")}>
                   {remaining < 0 ? "+" : ""}{Math.abs(remaining).toLocaleString()}
                 </p>
               </div>
@@ -218,9 +218,9 @@ export default function FoodLogPage() {
             <Progress value={progressPct} className="h-4 rounded-full bg-primary/10 shadow-inner" />
             <div className="grid grid-cols-3 gap-4 mt-8">
               {[
-                { label: "Protein", value: totalProtein, color: "text-red-500", bg: "bg-red-500/10", icon: Beef },
-                { label: "Carbs", value: totalCarbs, color: "text-amber-500", bg: "bg-amber-500/10", icon: Wheat },
-                { label: "Fat", value: totalFat, color: "text-blue-500", bg: "bg-blue-500/10", icon: Droplets },
+                { label: "Protein", value: totalProtein, color: "text-[color:var(--chart-1)]", bg: "bg-[color:var(--chart-1)]/10", icon: Beef },
+                { label: "Carbs", value: totalCarbs, color: "text-[color:var(--chart-2)]", bg: "bg-[color:var(--chart-2)]/10", icon: Wheat },
+                { label: "Fat", value: totalFat, color: "text-[color:var(--chart-4)]", bg: "bg-[color:var(--chart-4)]/10", icon: Droplets },
               ].map((macro, i) => (
                 <div key={i} className={cn("p-4 rounded-[2rem] glass-card flex flex-col items-center gap-1", macro.bg)}>
                   <macro.icon className={cn("w-5 h-5", macro.color)} />
@@ -320,9 +320,9 @@ export default function FoodLogPage() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 py-2">
-                  <Input type="number" placeholder="P (g)" value={protein} onChange={e => setProtein(e.target.value)} className="text-center bg-red-500/5 border-none rounded-xl" />
-                  <Input type="number" placeholder="C (g)" value={carbs} onChange={e => setCarbs(e.target.value)} className="text-center bg-amber-500/5 border-none rounded-xl" />
-                  <Input type="number" placeholder="F (g)" value={fat} onChange={e => setFat(e.target.value)} className="text-center bg-blue-500/5 border-none rounded-xl" />
+                  <Input type="number" placeholder="P (g)" value={protein} onChange={e => setProtein(e.target.value)} className="text-center bg-destructive/5 border-none rounded-xl" />
+                  <Input type="number" placeholder="C (g)" value={carbs} onChange={e => setCarbs(e.target.value)} className="text-center bg-secondary border-none rounded-xl" />
+                  <Input type="number" placeholder="F (g)" value={fat} onChange={e => setFat(e.target.value)} className="text-center bg-secondary border-none rounded-xl" />
                 </div>
 
                 <Button type="submit" size="lg" className="w-full h-14 rounded-[1.5rem] font-black text-lg gap-2 shadow-2xl shadow-primary/20" disabled={submitting}>
@@ -371,7 +371,7 @@ export default function FoodLogPage() {
                         <h4 className="text-xl font-black tracking-tight">{label}</h4>
                       </div>
                       <div className="glass-card px-4 py-1 rounded-full flex items-center gap-2">
-                        <Flame className="w-4 h-4 text-orange-500" />
+                        <Flame className="w-4 h-4 text-primary" />
                         <span className="text-sm font-black">{mealCals}</span>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase">kcal</span>
                       </div>
@@ -387,7 +387,7 @@ export default function FoodLogPage() {
                             <button
                               onClick={() => handleDelete(entry.id)}
                               disabled={deletingId === entry.id}
-                              className="p-2 rounded-xl text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                              className="p-2 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all opacity-0 group-hover:opacity-100"
                             >
                               {deletingId === entry.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </button>
@@ -395,15 +395,15 @@ export default function FoodLogPage() {
                           <div className="flex items-end justify-between">
                             <div className="flex gap-4">
                               <div className="space-y-0.5">
-                                <p className="text-[9px] font-black uppercase text-red-500">P</p>
+                                <p className="text-[9px] font-black uppercase text-[color:var(--chart-1)]">P</p>
                                 <p className="text-sm font-black">{entry.protein}g</p>
                               </div>
                               <div className="space-y-0.5">
-                                <p className="text-[9px] font-black uppercase text-amber-500">C</p>
+                                <p className="text-[9px] font-black uppercase text-[color:var(--warning)]">C</p>
                                 <p className="text-sm font-black">{entry.carbs}g</p>
                               </div>
                               <div className="space-y-0.5">
-                                <p className="text-[9px] font-black uppercase text-blue-500">F</p>
+                                <p className="text-[9px] font-black uppercase text-[color:var(--info)]">F</p>
                                 <p className="text-sm font-black">{entry.fat}g</p>
                               </div>
                             </div>

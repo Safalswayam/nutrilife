@@ -512,7 +512,7 @@ export default function HealthAssistantPage() {
     <div className="p-4 md:p-8 min-h-screen">
       <PageHeader
         title="Health Assistant"
-        subtitle="Your interactive wellness companion for symptoms, remedies, and health guidance"
+        subtitle="Ask anything about food, symptoms, or how to make a plan work."
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
@@ -795,7 +795,7 @@ export default function HealthAssistantPage() {
                     className="flex-shrink-0 glass-card border-white/10 rounded-xl"
                     onClick={() => setShowWellnessCheck(true)}
                   >
-                    <Heart className="w-4 h-4 mr-2 text-red-500" />
+                    <Heart className="w-4 h-4 mr-2 text-destructive" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Wellness Check</span>
                   </Button>
                   <Button
@@ -804,7 +804,7 @@ export default function HealthAssistantPage() {
                     className="flex-shrink-0 glass-card border-white/10 rounded-xl"
                     onClick={() => sendMessage("What are some healthy habits I should follow?")}
                   >
-                    <Dumbbell className="w-4 h-4 mr-2 text-blue-500" />
+                    <Dumbbell className="w-4 h-4 mr-2 text-[color:var(--info)]" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Habit Protocols</span>
                   </Button>
                 </div>
@@ -899,11 +899,11 @@ export default function HealthAssistantPage() {
               </Card>
 
               {/* Disclaimer */}
-              <Card className="border-none glass-card rounded-[1.5rem] bg-amber-500/5">
+              <Card className="border-none glass-card rounded-[1.5rem] bg-[color:var(--warning)]/5">
                 <CardContent className="p-6">
                   <div className="flex items-start gap-3">
-                    <Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-[10px] font-medium text-amber-500/80 leading-relaxed uppercase tracking-widest">
+                    <Info className="w-4 h-4 text-[color:var(--warning)] mt-0.5 flex-shrink-0" />
+                    <p className="text-[10px] font-medium text-[color:var(--warning)]/80 leading-relaxed uppercase tracking-widest">
                       Protocol: AI Diagnostics are for architectural reference only. Not a medical substitute.
                     </p>
                   </div>
@@ -918,7 +918,7 @@ export default function HealthAssistantPage() {
             <Card className="border-none glass-card rounded-[2.5rem] overflow-hidden">
               <CardHeader className="p-8 pb-4">
                 <CardTitle className="text-xl font-black flex items-center gap-3">
-                  <Heart className="w-5 h-5 text-red-500" />
+                  <Heart className="w-5 h-5 text-destructive" />
                   Vitality Matrix
                 </CardTitle>
               </CardHeader>
@@ -1026,9 +1026,9 @@ export default function HealthAssistantPage() {
                           <span
                             className={cn(
                               "text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full",
-                              getSeverityColor(entry.severity).includes("red") ? "bg-red-500/10 text-red-500" :
-                                getSeverityColor(entry.severity).includes("yellow") ? "bg-amber-500/10 text-amber-500" :
-                                  "bg-green-500/10 text-green-500"
+                              getSeverityColor(entry.severity).includes("red") ? "bg-destructive/10 text-destructive" :
+                                getSeverityColor(entry.severity).includes("yellow") ? "bg-[color:var(--warning)]/10 text-[color:var(--warning)]" :
+                                  "bg-primary/10 text-primary"
                             )}
                           >
                             {entry.severity} Severity

@@ -27,6 +27,29 @@ interface SubscriptionPlan {
   monthly_equivalent: number
 }
 
+/* Mirrors the defaults in api/index.py's /api/subscription/plans handler, so a
+   backend hiccup degrades to the same offer rather than an empty page. */
+const FALLBACK_PLANS: SubscriptionPlan[] = [
+  {
+    id: 1, name: "3-Month Premium", duration_months: 3,
+    base_price: 299, final_price: 299, discount_amount: 0, badge: null,
+    features: ["AI Food Analyzer", "Diet Planner", "Advanced Nutrition Analytics", "Meal Tracking History"],
+    savings_percentage: 0, monthly_equivalent: Math.round(299 / 3),
+  },
+  {
+    id: 2, name: "6-Month Premium", duration_months: 6,
+    base_price: 598, final_price: 549, discount_amount: 49, badge: "Most Popular",
+    features: ["AI Food Analyzer", "Diet Planner", "Advanced Nutrition Analytics", "Meal Tracking History", "Priority Support"],
+    savings_percentage: Math.round((49 / 598) * 100), monthly_equivalent: Math.round(549 / 6),
+  },
+  {
+    id: 3, name: "1-Year Premium", duration_months: 12,
+    base_price: 1196, final_price: 849, discount_amount: 347, badge: "Best Value",
+    features: ["AI Food Analyzer", "Diet Planner", "Advanced Nutrition Analytics", "Meal Tracking History", "Priority Support", "Exclusive Updates"],
+    savings_percentage: Math.round((347 / 1196) * 100), monthly_equivalent: Math.round(849 / 12),
+  },
+]
+
 function loadRazorpayScript(): Promise<boolean> {
   return new Promise((resolve) => {
     if ((window as any).Razorpay) { resolve(true); return }
@@ -54,6 +77,7 @@ export default function SubscriptionPage() {
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null)
   const [processing, setProcessing] = useState(false)
   const [showMonthly, setShowMonthly] = useState(false)
+  const [usingFallback, setUsingFallback] = useState(false)
   const [currentSubscription, setCurrentSubscription] = useState<any>(null)
 
   useEffect(() => {
@@ -80,6 +104,7 @@ export default function SubscriptionPage() {
       const res = await fetch(getApiUrl("/api/subscription/plans"))
       if (!res.ok) throw new Error("Failed")
       const data = await res.json()
+      if (!Array.isArray(data) || data.length === 0) throw new Error("Empty")
       setPlans(data.map((p: any) => ({
         ...p,
         features: Array.isArray(p.features) ? p.features
@@ -88,7 +113,12 @@ export default function SubscriptionPage() {
         savings_percentage: p.savings_percentage ?? 0,
       })))
     } catch {
-      toast.error("Failed to load plans. Please refresh.")
+      // Never leave the page with nothing to choose from. Previously a failed
+      // request left `plans` empty and the whole pricing grid rendered blank,
+      // so there was no way to subscribe at all. These mirror the API's own
+      // defaults; checkout still validates the real price server-side.
+      setPlans(FALLBACK_PLANS)
+      setUsingFallback(true)
     } finally {
       setLoading(false)
     }
@@ -194,7 +224,7 @@ export default function SubscriptionPage() {
 
   const getPlanIcon = (m: number) =>
     m === 3 ? <Sparkles className="w-5 h-5 text-primary" />
-    : m === 6 ? <Zap className="w-5 h-5 text-orange-500" />
+    : m === 6 ? <Zap className="w-5 h-5 text-[color:var(--warning)]" />
     : <Crown className="w-5 h-5 text-primary" />
 
   const fmt = (p: number) => `₹${Math.round(p)}`
@@ -212,13 +242,13 @@ export default function SubscriptionPage() {
       <div className="text-center reveal-3d space-y-6">
         <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full glass-card border-none bg-primary/10 text-primary mb-4">
            <Crown className="w-4 h-4" />
-           <span className="text-[10px] font-black uppercase tracking-[0.2em]">Ascension Protocol</span>
+           <span className="text-[10px] font-semibold uppercase tracking-[0.28em]">Choose your rhythm</span>
         </div>
-        <h1 className="text-4xl md:text-7xl font-black tracking-tight text-foreground uppercase leading-none">
-          Elevate Your <br/><span className="text-primary">Metabolic State</span>
+        <h1 className="text-4xl md:text-6xl font-semibold tracking-[-0.04em] text-foreground leading-[1.05]">
+          One clear plan.<br /><span className="text-primary">Your pace.</span>
         </h1>
-        <p className="text-lg text-muted-foreground font-medium max-w-2xl mx-auto opacity-70">
-          Unshackle the full potential of your physiological data with AI-Powered Vitals and Systems Optimization.
+        <p className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+          Start simply. Keep the tools that help you stay consistent.
         </p>
         <div className="flex items-center justify-center gap-6 pt-4">
            {[
@@ -261,10 +291,28 @@ export default function SubscriptionPage() {
 
       {/* Price toggle */}
       <div className="flex items-center justify-center gap-3 reveal-3d">
-        <Label className={cn("text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all", !showMonthly ? "bg-white/10 text-foreground" : "text-muted-foreground opacity-40")}>Total Magnitude</Label>
+        <Label className={cn("text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all", !showMonthly ? "bg-white/10 text-foreground" : "text-muted-foreground opacity-40")}>Pay yearly</Label>
         <Switch checked={showMonthly} onCheckedChange={setShowMonthly} className="data-[state=checked]:bg-primary" />
-        <Label className={cn("text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all", showMonthly ? "bg-white/10 text-foreground" : "text-muted-foreground opacity-40")}>Monthly Cycle</Label>
+        <Label className={cn("text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-all", showMonthly ? "bg-white/10 text-foreground" : "text-muted-foreground opacity-40")}>Pay monthly</Label>
       </div>
+
+      {/* Live prices are confirmed at checkout, so say so when these are local defaults */}
+      {usingFallback && (
+        <div className="max-w-2xl mx-auto flex items-center justify-center gap-3 rounded-2xl border border-border bg-secondary/60 px-5 py-3">
+          <RefreshCw className="w-4 h-4 text-muted-foreground shrink-0" />
+          <p className="text-xs text-muted-foreground text-center">
+            We couldn&apos;t reach the pricing service, so these are our standard plans. The exact
+            amount is confirmed at checkout.{" "}
+            <button
+              type="button"
+              onClick={() => { setUsingFallback(false); setLoading(true); fetchPlans() }}
+              className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:underline"
+            >
+              Try again
+            </button>
+          </p>
+        </div>
+      )}
 
       {/* Pricing cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -303,7 +351,7 @@ export default function SubscriptionPage() {
                         </div>
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mt-2">{plan.duration_months} Month Access</p>
                         {plan.discount_amount > 0 && (
-                          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-500 text-[9px] font-black uppercase tracking-widest">
+                          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest">
                             Save {fmt(plan.discount_amount)} ({plan.savings_percentage}%)
                           </div>
                         )}
@@ -341,7 +389,7 @@ export default function SubscriptionPage() {
                     disabled={processing || !!currentSubscription}
                   >
                     {isProcessing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Syncing…</>
-                      : currentSubscription ? "Tier Verified" : "Initiate Protocol"}
+                      : currentSubscription ? "Current plan" : "Choose this plan"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -359,13 +407,13 @@ export default function SubscriptionPage() {
 
       {/* What's included */}
       <div className="max-w-4xl mx-auto reveal-3d">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-center mb-12 opacity-40">System Architecture Breakdown</h2>
+        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-center mb-12 opacity-40">What each plan includes</h2>
         <div className="glass-card rounded-[3rem] p-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div className="space-y-6">
-              <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3"><Crown className="w-6 h-6 text-primary" /> Premium Protocols</h3>
+              <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3"><Crown className="w-6 h-6 text-primary" /> In Premium</h3>
               <div className="space-y-4">
-                {["AI-Powered Vision Analysis","Advanced Metabolic Analytics","Deep History Temporal View","Synchronized Priority Support"].map(f => (
+                {["Photo food analysis","Detailed nutrition insights","Full history","Priority support"].map(f => (
                   <div key={f} className="flex items-center gap-3">
                      <div className="w-2 h-2 rounded-full bg-primary" />
                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">{f}</span>
@@ -374,11 +422,11 @@ export default function SubscriptionPage() {
               </div>
             </div>
             <div className="space-y-6 md:border-l md:border-white/5 md:pl-12">
-              <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3 opacity-60"><Check className="w-6 h-6 text-green-500" /> Fundamental Vitals</h3>
+              <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-3 opacity-60"><Check className="w-6 h-6 text-primary" /> In Free</h3>
               <div className="space-y-4">
-                {["Systemic Diet Planner","Fluid Intake Temporal Track","Core Dashboard Matrix","Biological Profile Logic","Manual Data Entry"].map(f => (
+                {["Diet planner","Water tracking","Dashboard","Your profile","Manual meal logging"].map(f => (
                   <div key={f} className="flex items-center gap-3">
-                     <div className="w-2 h-2 rounded-full bg-green-500" />
+                     <div className="w-2 h-2 rounded-full bg-primary" />
                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50">{f}</span>
                   </div>
                 ))}
@@ -390,7 +438,7 @@ export default function SubscriptionPage() {
 
       <div className="text-center reveal-3d space-y-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-40">Direct System Inquiries</p>
-        <Link href="/support" className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl glass-card text-xs font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white transition-all">
+        <Link href="/support" className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl glass-card text-xs font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground transition-all">
           Internal Communication Network →
         </Link>
       </div>

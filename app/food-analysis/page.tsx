@@ -39,6 +39,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { SequenceLoader, SequenceLabel, ANALYZER_PHASES } from "@/components/nl-loader"
 import { Label } from "recharts"
 
 interface FoodResult {
@@ -341,18 +342,18 @@ export default function FoodAnalysisPage() {
          <div className="p-3 md:p-8 space-y-8 max-w-7xl mx-auto">
             <div className="reveal-3d">
                <PageHeader
-                  title="AI Vision Analysis"
-                  subtitle="Harness artificial intelligence to identify nutrition vitals from your food photos."
+                  title="Food analyser"
+                  subtitle="Photograph a meal and see what it actually means for your day."
                />
             </div>
 
             {/* Global Banner */}
             <div className="reveal-3d">
-               <div className="glass-card p-4 rounded-3xl bg-blue-500/10 border-blue-500/20 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center shrink-0">
-                     <Zap className="w-5 h-5 text-blue-500" />
+               <div className="glass-card p-4 rounded-3xl bg-[color:var(--info)]/10 border-[color:var(--info)]/20 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-[color:var(--info)]/20 flex items-center justify-center shrink-0">
+                     <Zap className="w-5 h-5 text-[color:var(--info)]" />
                   </div>
-                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  <p className="text-sm font-medium text-[color:var(--info)] dark:text-[color:var(--info)]">
                      <span className="font-black">Pro Tip:</span> Analysis only calculates macros. Click <span className="font-bold underline">Log to Diary</span> below to save the results to your dailies.
                   </p>
                </div>
@@ -370,7 +371,7 @@ export default function FoodAnalysisPage() {
                      <CardContent className="p-8 pt-2 space-y-8">
                         {/* Visual Interface */}
                         <div className="relative group">
-                           <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-[2.2rem] blur opacity-60 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                           <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-[color:var(--info)]/20 rounded-[2.2rem] blur opacity-60 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
                            <div className="relative">
                               {showWebcam ? (
                                  <div className="relative rounded-[2rem] overflow-hidden bg-black aspect-video shadow-2xl">
@@ -436,7 +437,7 @@ export default function FoodAnalysisPage() {
                         {/* Analysis Trigger */}
                         <div className="pt-4">
                            {error && (
-                              <Alert variant="destructive" className="mb-4 rounded-2xl border-none bg-red-500/10 text-red-500">
+                              <Alert variant="destructive" className="mb-4 rounded-2xl border-none bg-destructive/10 text-destructive">
                                  <AlertTriangle className="w-4 h-4" />
                                  <AlertDescription className="font-bold">{error}</AlertDescription>
                               </Alert>
@@ -446,12 +447,14 @@ export default function FoodAnalysisPage() {
                               disabled={isAnalyzing || (!image && !description.trim())}
                               className="w-full h-16 rounded-[1.5rem] text-xl font-black group shadow-3xl shadow-primary/20"
                            >
-                              {isAnalyzing ? (
-                                 <Loader2 className="animate-spin mr-3" />
-                              ) : (
-                                 <Sparkles className="w-6 h-6 mr-3 text-white group-hover:rotate-12 transition-transform" />
+                              {!isAnalyzing && (
+                                 <Sparkles className="w-6 h-6 mr-3 group-hover:rotate-12 transition-transform" />
                               )}
-                              {isAnalyzing ? "Processing Visuals..." : "Analyze Vitals"}
+                              {isAnalyzing ? (
+                                 <SequenceLabel phases={ANALYZER_PHASES} />
+                              ) : (
+                                 "Analyse this meal"
+                              )}
                            </Button>
                         </div>
 
@@ -480,7 +483,7 @@ export default function FoodAnalysisPage() {
                                     </Button>
                                  </div>
                               </div>
-                              {logError && <p className="text-[10px] text-red-500 font-bold ml-1">Error: {logError}</p>}
+                              {logError && <p className="text-[10px] text-destructive font-bold ml-1">Error: {logError}</p>}
                            </div>
                         )}
 
@@ -512,10 +515,10 @@ export default function FoodAnalysisPage() {
                               <div className="grid grid-cols-5 gap-2">
                                  {[
                                     { label: "kcal", value: result.totalNutrition.calories, icon: Flame, color: "text-primary" },
-                                    { label: "Prot", value: result.totalNutrition.protein, icon: Apple, color: "text-red-500" },
-                                    { label: "Carb", value: result.totalNutrition.carbs, icon: Target, color: "text-amber-500" },
-                                    { label: "Fat", value: result.totalNutrition.fat, icon: Info, color: "text-blue-500" },
-                                    { label: "Fib", value: result.totalNutrition.fiber, icon: Sparkles, color: "text-green-500" },
+                                    { label: "Prot", value: result.totalNutrition.protein, icon: Apple, color: "text-destructive" },
+                                    { label: "Carb", value: result.totalNutrition.carbs, icon: Target, color: "text-[color:var(--warning)]" },
+                                    { label: "Fat", value: result.totalNutrition.fat, icon: Info, color: "text-[color:var(--info)]" },
+                                    { label: "Fib", value: result.totalNutrition.fiber, icon: Sparkles, color: "text-primary" },
                                  ].map((stat, i) => (
                                     <div key={i} className="glass-card p-3 rounded-2xl flex flex-col items-center gap-1">
                                        <stat.icon className={cn("w-4 h-4", stat.color)} />
@@ -538,7 +541,7 @@ export default function FoodAnalysisPage() {
                                  </div>
                                  <div className="flex gap-4">
                                     <UIBadge variant="outline" className="border-primary/20 text-primary rounded-xl font-bold px-3 py-1">{food.servingSize}</UIBadge>
-                                    <UIBadge variant="outline" className="border-blue-500/20 text-blue-500 rounded-xl font-bold px-3 py-1">{food.calories} kcal</UIBadge>
+                                    <UIBadge variant="outline" className="border-[color:var(--info)]/20 text-[color:var(--info)] rounded-xl font-bold px-3 py-1">{food.calories} kcal</UIBadge>
                                  </div>
                                  <div className="flex gap-6 pt-2 border-t border-white/5">
                                     <div className="flex-1 space-y-1">
@@ -546,15 +549,15 @@ export default function FoodAnalysisPage() {
                                           <span>Macros share</span>
                                        </div>
                                        <div className="h-1.5 flex rounded-full overflow-hidden bg-white/5">
-                                          <div className="bg-red-500 h-full" style={{ width: `${(food.protein / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
-                                          <div className="bg-amber-500 h-full" style={{ width: `${(food.carbs / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
-                                          <div className="bg-blue-500 h-full" style={{ width: `${(food.fat / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
+                                          <div className="bg-destructive h-full" style={{ width: `${(food.protein / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
+                                          <div className="bg-[color:var(--warning)] h-full" style={{ width: `${(food.carbs / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
+                                          <div className="bg-[color:var(--info)] h-full" style={{ width: `${(food.fat / (food.protein + food.carbs + food.fat + 0.1)) * 100}%` }}></div>
                                        </div>
                                     </div>
                                     <div className="flex gap-4 text-[11px] font-black">
-                                       <span className="text-red-500">P: {food.protein}g</span>
-                                       <span className="text-amber-500">C: {food.carbs}g</span>
-                                       <span className="text-blue-500">F: {food.fat}g</span>
+                                       <span className="text-destructive">P: {food.protein}g</span>
+                                       <span className="text-[color:var(--warning)]">C: {food.carbs}g</span>
+                                       <span className="text-[color:var(--info)]">F: {food.fat}g</span>
                                     </div>
                                  </div>
                               </div>
@@ -564,14 +567,14 @@ export default function FoodAnalysisPage() {
                         {/* Recommendations and Warnings */}
                         <div className="grid md:grid-cols-2 gap-6 reveal-3d">
                            {result.healthBenefits.length > 0 && (
-                              <div className="glass-card p-6 rounded-[2rem] border-green-500/10">
-                                 <h5 className="font-black text-green-500 flex items-center gap-2 mb-4">
+                              <div className="glass-card p-6 rounded-[2rem] border-primary/10">
+                                 <h5 className="font-black text-primary flex items-center gap-2 mb-4">
                                     <CheckCircle className="w-5 h-5" /> Benefits
                                  </h5>
                                  <ul className="space-y-3">
                                     {result.healthBenefits.slice(0, 3).map((b, i) => (
                                        <li key={i} className="text-xs font-medium text-muted-foreground flex items-center gap-2 leading-tight">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div>
+                                          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"></div>
                                           {b}
                                        </li>
                                     ))}
@@ -579,14 +582,14 @@ export default function FoodAnalysisPage() {
                               </div>
                            )}
                            {result.warnings.length > 0 && (
-                              <div className="glass-card p-6 rounded-[2rem] border-amber-500/10">
-                                 <h5 className="font-black text-amber-500 flex items-center gap-2 mb-4">
+                              <div className="glass-card p-6 rounded-[2rem] border-[color:var(--warning)]/10">
+                                 <h5 className="font-black text-[color:var(--warning)] flex items-center gap-2 mb-4">
                                     <AlertTriangle className="w-5 h-5" /> Insights
                                  </h5>
                                  <ul className="space-y-3">
                                     {result.warnings.slice(0, 3).map((w, i) => (
                                        <li key={i} className="text-xs font-medium text-muted-foreground flex items-center gap-2 leading-tight">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></div>
+                                          <div className="w-1.5 h-1.5 rounded-full bg-[color:var(--warning)] shrink-0"></div>
                                           {w}
                                        </li>
                                     ))}
@@ -595,18 +598,26 @@ export default function FoodAnalysisPage() {
                            )}
                         </div>
 
-                        <div className="glass-card p-6 rounded-[2rem] bg-gradient-to-r from-blue-500/10 to-transparent border-blue-500/10">
-                           <p className="text-sm font-black text-blue-500 uppercase tracking-widest mb-2">Scientific Recommendation</p>
-                           <p className="text-base font-bold italic leading-relaxed text-blue-700/80 dark:text-blue-300/80">"{result.recommendation}"</p>
+                        <div className="glass-card p-6 rounded-[2rem] bg-gradient-to-r from-[color:var(--info)]/10 to-transparent border-[color:var(--info)]/10">
+                           <p className="text-sm font-black text-[color:var(--info)] uppercase tracking-widest mb-2">Scientific Recommendation</p>
+                           <p className="text-base font-bold italic leading-relaxed text-[color:var(--info)]/80 dark:text-[color:var(--info)]/80">"{result.recommendation}"</p>
                         </div>
                      </div>
+                  ) : isAnalyzing ? (
+                     <SequenceLoader
+                        phases={ANALYZER_PHASES}
+                        label="Analysing your meal"
+                        className="min-h-[500px] content-center"
+                     />
                   ) : (
-                     <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center p-12 glass-card rounded-[3rem] border-dashed border-2 border-white/5 opacity-50">
-                        <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-8">
-                           <Camera className="w-12 h-12 text-muted-foreground opacity-30" />
+                     <div className="h-full min-h-[500px] flex flex-col items-center justify-center text-center p-12 glass-card rounded-[3rem]">
+                        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-7">
+                           <Camera className="w-9 h-9 text-primary" />
                         </div>
-                        <h3 className="text-2xl font-black mb-2 opacity-60">Ready for Analysis</h3>
-                        <p className="text-muted-foreground font-medium max-w-[280px]">Detailed nutrition vitals will appear here after visual processing.</p>
+                        <h3 className="text-2xl font-semibold tracking-[-0.03em] mb-2">Show us the plate</h3>
+                        <p className="text-muted-foreground max-w-[300px] leading-relaxed">
+                           Add a photo or describe the meal, and the full nutrition breakdown appears here.
+                        </p>
                      </div>
                   )}
                </div>
