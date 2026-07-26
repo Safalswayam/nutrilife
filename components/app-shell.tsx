@@ -18,7 +18,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isLandingPage = pathname === "/"
   const skipNav = isAuthPage || isLandingPage
 
-  if (isLoading && !isAuthPage) {
+  // The landing page is excluded: it has its own cinematic intro, and showing
+  // this generic spinner first meant visitors saw TWO loading screens in a row
+  // (icon + "Loading NutriLife…", then the seed/bloom reveal). The intro now
+  // covers the auth check on its own.
+  if (isLoading && !isAuthPage && !isLandingPage) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">

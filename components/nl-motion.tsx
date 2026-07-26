@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion, useInView, useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +12,20 @@ import { cn } from "@/lib/utils"
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const EASE = [0.3, 0.26, 0.38, 1] as const
+
+/* `useReducedMotion` returns false during SSR and true on a reduced-motion
+   client, so using it directly changes which style keys get rendered — the
+   server emitted `transform`, the client didn't, and React threw a hydration
+   mismatch that regenerated the whole tree.
+   This defers the flip until after mount, so the first client render matches
+   the server exactly. Costs one frame of un-reduced styling, which nothing
+   animates during anyway. */
+export function useReducedStable() {
+  const raw = !!useReducedMotion()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  return mounted && raw
+}
 
 /** Reveals its children once, when scrolled into view. */
 export function Reveal({
@@ -29,14 +43,14 @@ export function Reveal({
      lie for as="section"/"li" that the motion cast happily hid. */
   const ref = useRef<HTMLElement>(null)
   const inView = useInView(ref, { once: true, margin: "-12% 0px -12% 0px" })
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const M = motion[Tag]
 
   return (
     <M
       ref={ref as React.Ref<never>}
       className={className}
-      initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.965 }}
+      initial={{ opacity: 0, scale: 0.965 }}
       animate={
         inView
           ? reduced
@@ -83,7 +97,7 @@ export function RevealItem({
   children: React.ReactNode
   className?: string
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   return (
     <motion.div
       className={className}
@@ -107,7 +121,7 @@ export function PageTitle({
   children: string
   className?: string
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const words = children.split(" ")
   return (
     <h1
@@ -122,7 +136,7 @@ export function PageTitle({
           <motion.span
             key={`${w}-${i}`}
             className="mr-[0.24em] inline-block last:mr-0"
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.82 }}
+            initial={{ opacity: 0, scale: 0.82 }}
             animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
             transition={{ duration: 0.55, delay: 0.04 + i * 0.05, ease: EASE }}
           >

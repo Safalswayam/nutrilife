@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { motion, useReducedMotion } from "framer-motion"
-import { EASE } from "@/components/nl-motion"
+import { EASE, useReducedStable } from "@/components/nl-motion"
 
 interface PageHeaderProps {
   title: string
@@ -14,7 +14,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
   const [showSearch, setShowSearch] = useState(false)
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
 
   return (
     <header className="flex flex-col gap-4 mb-9">
@@ -31,7 +31,7 @@ export function PageHeader({ title, subtitle }: PageHeaderProps) {
                 <motion.span
                   key={`${w}-${i}`}
                   className="mr-[0.24em] inline-block last:mr-0"
-                  initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.84 }}
+                  initial={{ opacity: 0, scale: 0.84 }}
                   animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.03 + i * 0.05, ease: EASE }}
                 >

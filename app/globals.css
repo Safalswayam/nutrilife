@@ -423,12 +423,9 @@ input[type='range']::-moz-range-thumb {
   contain: strict;
 }
 
-/* Chapter tracks have explicit heights, so skipping their rendering while
-   off-screen is safe and keeps scroll geometry intact. Measured +8fps across a
-   transition, because only the two chapters actually on screen do any work. */
-.nl-track {
-  content-visibility: auto;
-}
+/* `content-visibility` was removed from the chapter tracks: their stages are
+   now `position: fixed`, and containment can suppress a fixed layer that is
+   still mid-fade. Hidden stages cost nothing via `visibility: hidden` instead. */
 
 /* Containment keeps a fading stage's repaint inside its own box. Note that
    will-change on its own measured WORSE (44fps vs 49.5) — it only pays off
@@ -492,6 +489,15 @@ input[type='range']::-moz-range-thumb {
 
 .nl-intro-open {
   animation: nl-iris 0.4s var(--nl-ease) forwards;
+}
+
+/* Under reduced motion the intro is removed by CSS rather than by returning
+   different markup from the component — that branch was a hydration mismatch,
+   since useReducedMotion is false on the server and true on the client. */
+@media (prefers-reduced-motion: reduce) {
+  .nl-intro {
+    display: none !important;
+  }
 }
 
 @keyframes nl-iris {

@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
+import { useReducedStable } from "@/components/nl-motion"
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NutriLife landing — cinematic scroll narrative.
@@ -80,42 +81,50 @@ const TINTS: Record<string, string> = {
 
 function useTrack() {
   const ref = useRef<HTMLElement>(null)
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end end"],
   })
+  /* Stiff and light on purpose. Lenis already lerps the scroll position, so a
+     soft spring here would be a SECOND easing layer — that stacked lag is what
+     made fast scrolls look like they skipped chapters. This is fast enough to
+     track scroll almost 1:1, and only exists to smooth the discrete ~100px
+     steps of a mouse wheel when Lenis is off (reduced motion). */
   const progress = useSpring(scrollYProgress, {
-    stiffness: 120,
-    damping: 30,
-    mass: 0.3,
+    stiffness: 400,
+    damping: 45,
+    mass: 0.12,
     restDelta: 0.0005,
   })
   return { ref, reduced, progress }
 }
 
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+/* ── Stage: chapters cross-fade in place, and never move ───────────────────
+   The stage is `position: fixed`, so it does not travel with the scroll at
+   ALL. Only opacity and scale change.
 
-/* ── Stage: chapters hand off through depth, never by sliding ──────────────
-   Two sticky sections inherently slide past each other, and fading something
-   in while it travels still reads as a slide. So the stage is translated
-   against its own travel: as the section rides in from below or out through
-   the top, an equal counter-offset holds it stationary in the viewport. The
-   vertical movement is fully cancelled, leaving depth as the only thing that
-   changes — the outgoing chapter swells toward the viewer and dissolves while
-   the incoming one materializes from the background in the same space.
+   This replaces a sticky stage that was translated against its own scroll
+   travel to hold it still. That approach could not work: `sticky` is resolved
+   by the compositor every frame, while the counter-transform was computed in
+   JS from a scroll value read one frame earlier. Each frame the element moved
+   by Δ and was pulled back by the PREVIOUS Δ, and that permanent one-frame
+   mismatch was the jitter — visible at any scroll speed, and impossible to
+   tune away. A fixed element has nothing to cancel.
 
-   For adjacent sections the outgoing `exit` and incoming `entry` track the
-   SAME scroll range, so the two windows below are written to overlap. Without
-   that overlap there is a stretch where neither chapter is visible, which is
-   what made this read as a slideshow with blank gaps between slides.
+   Adjacent sections share their handoff window exactly: section A's `exit`
+   (A's bottom edge crossing the viewport) and section B's `entry` (B's top
+   edge crossing it) span the identical 1-viewport scroll range. So A fading
+   out over that range while B fades in over the same range is a true
+   cross-dissolve, with both pinned in the same place. */
 
-   Under reduced motion the counter-translate is what matters most — it is
-   what removes movement — so it stays, and only the scale is dropped. */
-
-const FADE_OUT_START = 0.2
-const FADE_IN_START = 0.3
-const FADE_SPAN = 0.5
+/* Curves deliberately overlap rather than mirror. A symmetric linear
+   cross-fade has both layers at ~0.2 in the middle, so the scene visibly dips
+   (measured: total opacity fell to 0.39 at the midpoint). Here the incoming
+   chapter ramps to full while the outgoing still holds, so coverage never
+   drops below 1 and the handoff reads as a dissolve, not a dip. */
+const FADE_IN = [0.3, 0.75] as const
+const FADE_OUT = [0.55, 0.95] as const
 
 function Stage({
   track,
@@ -131,8 +140,6 @@ function Stage({
   children: React.ReactNode
 }) {
   const { ref, reduced } = track
-  /* entry: section top travels viewport bottom → top. exit: section bottom
-     travels viewport bottom → top (the ride-out). */
   const { scrollYProgress: entry } = useScroll({
     target: ref,
     offset: ["start end", "start start"],
@@ -142,40 +149,34 @@ function Stage({
     offset: ["end end", "end start"],
   })
 
-  /* Cancel the travel. The stage box is exactly one viewport tall, so these
-     percentages are viewport heights: -100% pulls a section waiting one
-     viewport below up into place; +100% holds one that has ridden out. */
-  const y = useTransform([entry, exit] as MotionValue<number>[], ([e, x]: number[]) => {
-    const holdIn = first ? 0 : (e - 1) * 100
-    const holdOut = last ? 0 : x * 100
-    return `${holdIn + holdOut}%`
-  })
-
-  const fadeIn = useTransform([entry] as MotionValue<number>[], ([e]: number[]) =>
-    first ? 1 : clamp01((e - FADE_IN_START) / FADE_SPAN)
-  )
-  const fadeOut = useTransform([exit] as MotionValue<number>[], ([x]: number[]) =>
-    last ? 1 : 1 - clamp01((x - FADE_OUT_START) / FADE_SPAN)
-  )
+  /* Raw progress, deliberately unsprung: an opacity fade that lags the scroll
+     is what makes a fast flick look like it skipped a chapter. */
+  const fadeIn = useTransform(entry, [FADE_IN[0], FADE_IN[1]], [0, 1], { clamp: true })
+  const fadeOut = useTransform(exit, [FADE_OUT[0], FADE_OUT[1]], [1, 0], { clamp: true })
 
   const opacity = useTransform([fadeIn, fadeOut] as MotionValue<number>[], ([i, o]: number[]) =>
-    Math.min(i, o)
+    Math.min(first ? 1 : i, last ? 1 : o)
   )
-  /* arrives from the background (0.78 → 1), departs past the viewer (1 → 1.2) */
+  /* arrives from the background, departs past the viewer */
   const scale = useTransform([fadeIn, fadeOut] as MotionValue<number>[], ([i, o]: number[]) =>
-    (0.78 + 0.22 * i) * (1 + 0.2 * (1 - o))
+    (first ? 1 : 0.86 + 0.14 * i) * (last ? 1 : 1 + 0.14 * (1 - o))
   )
+  /* Hidden stages must cost nothing and must not swallow clicks — seven
+     full-viewport fixed layers are stacked at all times. */
+  const visibility = useTransform(opacity, (v) => (v > 0.004 ? "visible" : "hidden"))
   const pointerEvents = useTransform(opacity, (v) => (v > 0.5 ? "auto" : "none"))
 
   return (
-    <div className={cn("sticky top-0 h-[100svh]", className)}>
-      <motion.div
-        className="nl-stage-layer absolute inset-0 overflow-hidden"
-        style={reduced ? { y, opacity, pointerEvents } : { y, opacity, scale, pointerEvents }}
-      >
-        {children}
-      </motion.div>
-    </div>
+    <motion.div
+      className={cn("nl-stage-layer fixed inset-0 h-[100svh] overflow-hidden", className)}
+      style={
+        reduced
+          ? { opacity, visibility, pointerEvents }
+          : { opacity, scale, visibility, pointerEvents }
+      }
+    >
+      {children}
+    </motion.div>
   )
 }
 
@@ -206,7 +207,7 @@ function CopyBlock({
   className?: string
   children: React.ReactNode | ((on: boolean) => React.ReactNode)
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const keys = [from - OVERLAP, from + OVERLAP, to - OVERLAP, to + OVERLAP]
 
   const opacity = useTransform(progress, keys, [first ? 1 : 0, 1, 1, last ? 1 : 0])
@@ -254,7 +255,7 @@ function Word({
   start: number
   lime?: boolean
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const opacity = useTransform(progress, [start, start + 0.045], [0, 1])
   /* words arrive from depth, matching the CopyBlock grammar */
   const scale = useTransform(progress, [start, start + 0.045], [0.82, 1])
@@ -319,7 +320,7 @@ function Eyebrow({ children, light = false }: { children: React.ReactNode; light
 /* ═══ Intro overlay — under 1.3s, never blocks on images ═══════════════════ */
 
 function IntroOverlay({ onReveal, onDone }: { onReveal: () => void; onDone: () => void }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const [opening, setOpening] = useState(false)
 
   useEffect(() => {
@@ -339,12 +340,15 @@ function IntroOverlay({ onReveal, onDone }: { onReveal: () => void; onDone: () =
     }
   }, [reduced, onReveal, onDone])
 
-  if (reduced) return null
+  /* No `if (reduced) return null` here. useReducedMotion is false during SSR
+     and true on the client, so branching the DOM on it threw a hydration
+     mismatch. The markup is now identical on both sides and CSS hides the
+     overlay outright under reduced motion — no flash, no mismatch. */
   return (
     <div
       aria-hidden="true"
       className={cn(
-        "fixed inset-0 z-[100] flex flex-col items-center justify-center bg-nl-ink",
+        "nl-intro fixed inset-0 z-[100] flex flex-col items-center justify-center bg-nl-ink",
         opening && "nl-intro-open"
       )}
     >
@@ -661,7 +665,7 @@ function Hero({ started, onCue }: { started: boolean; onCue: () => void }) {
   const show = reduced || started
 
   return (
-    <section ref={ref} data-chapter="hero" className="nl-track relative" style={{ height: "250svh" }}>
+    <section ref={ref} data-chapter="hero" className="relative" style={{ height: "200svh" }}>
       <Stage track={track} first>
         {/* visual */}
         <motion.div
@@ -831,7 +835,7 @@ function ChapterVisual({
   to?: number
   drift?: number
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const scale = useTransform(progress, [0, 1], [from, to])
   const y = useTransform(progress, [0, 1], [`${-drift / 2}%`, `${drift / 2}%`])
   return (
@@ -849,7 +853,7 @@ function ChapterVisual({
 /* ═══ Chapter 1 — Food logging (#log) ══════════════════════════════════════ */
 
 function FoodLogCard({ on }: { on: boolean }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const chips = ["420 kcal", "P 14 g", "C 58 g", "F 11 g"]
   return (
     <div
@@ -902,7 +906,7 @@ function ChapterLog() {
   const track = useTrack()
   const { ref, progress } = track
   return (
-    <section ref={ref} id="log" data-chapter="log" className="nl-track relative" style={{ height: "550svh" }}>
+    <section ref={ref} id="log" data-chapter="log" className="relative" style={{ height: "420svh" }}>
       <Stage track={track}>
         <ChapterVisual
           src="/nutrilife-landing/food-logging.png"
@@ -957,7 +961,7 @@ const MACROS = [
 ]
 
 function MacroModule({ on }: { on: boolean }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const C = 2 * Math.PI * 50
   const target = C * (1 - 0.68)
   return (
@@ -1035,8 +1039,8 @@ function ChapterAnalyze() {
       ref={ref}
       id="analyze"
       data-chapter="analyze"
-      className="nl-track relative"
-      style={{ height: "550svh" }}
+      className="relative"
+      style={{ height: "420svh" }}
     >
       <Stage track={track}>
         <motion.div
@@ -1105,7 +1109,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const DINNERS = ["Lemon-herb salmon", "Chickpea curry bowl", "Grilled paneer + dal"]
 
 function WeeklyPlanCard({ on }: { on: boolean }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const [day, setDay] = useState(2)
   const [dinner, setDinner] = useState(0)
   const rows = [
@@ -1187,7 +1191,7 @@ function ChapterPlan() {
   const track = useTrack()
   const { ref, progress } = track
   return (
-    <section ref={ref} id="plan" data-chapter="plan" className="nl-track relative" style={{ height: "600svh" }}>
+    <section ref={ref} id="plan" data-chapter="plan" className="relative" style={{ height: "440svh" }}>
       <Stage track={track}>
         {/* planner grid parallaxes within the spec's 4% ceiling */}
         <ChapterVisual
@@ -1251,7 +1255,7 @@ const CHART_D =
   "M30 205 C 70 196 105 184 140 182 S 215 194 250 192 S 325 166 360 160 S 435 170 470 168 S 545 142 580 138 S 645 124 670 120"
 
 function NourishmentChart({ on }: { on: boolean }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   return (
     <figure data-active={on} className="w-full max-w-3xl">
       <svg
@@ -1326,8 +1330,8 @@ function ChapterProgress() {
       ref={ref}
       id="progress"
       data-chapter="progress"
-      className="nl-track relative"
-      style={{ height: "450svh" }}
+      className="relative"
+      style={{ height: "360svh" }}
     >
       <Stage track={track}>
         <div className={ZONE_CENTER}>
@@ -1411,7 +1415,7 @@ function RevealPlanCard({
   isSel: boolean
   onSelect: () => void
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const opacity = useTransform(progress, seg, [0, 1])
   const scale = useTransform(progress, seg, [0.82, 1])
   const visibility = useTransform(opacity, (v) => (v > 0.008 ? "visible" : "hidden"))
@@ -1508,8 +1512,8 @@ function ChapterPlans() {
       ref={ref}
       id="plans"
       data-chapter="plans"
-      className="nl-track relative"
-      style={{ height: "750svh" }}
+      className="relative"
+      style={{ height: "580svh" }}
     >
       <Stage track={track}>
         {/* atmospheric right-side backdrop only */}
@@ -1721,8 +1725,8 @@ function Finale() {
       ref={ref}
       id="dashboard"
       data-chapter="dashboard"
-      className="nl-track relative"
-      style={{ height: "320svh" }}
+      className="relative"
+      style={{ height: "300svh" }}
     >
       <Stage track={track} last>
         {/* hero image as low-opacity blurred texture only */}
@@ -1761,7 +1765,7 @@ function Finale() {
         </motion.h2>
 
         <motion.div
-          initial={{ opacity: 0, y: reduced ? 0 : "14%", scale: reduced ? 1 : 0.96 }}
+          initial={{ opacity: 0, y: "14%", scale: 0.96 }}
           animate={revealed ? { opacity: 1, y: "0%", scale: 1 } : { opacity: 0 }}
           transition={{ duration: 0.85, ease: EASE }}
           className="relative z-20 flex h-full items-center px-5 sm:px-8"
@@ -1785,7 +1789,7 @@ function Finale() {
 function SiteFooter({ onJump }: { onJump: (id: string) => void }) {
   return (
     <footer
-      className={cn("relative z-10 border-t bg-nl-ink/60 text-nl-warm backdrop-blur-sm", HAIRLINE)}
+      className={cn("relative z-20 border-t bg-nl-ink text-nl-warm", HAIRLINE)}
     >
       <div className="mx-auto grid max-w-[1400px] gap-10 px-6 py-14 sm:px-10 md:grid-cols-3">
         <div>
@@ -1849,7 +1853,7 @@ function SiteFooter({ onJump }: { onJump: (id: string) => void }) {
 export default function LandingPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
 
   const [intro, setIntro] = useState(true)
   const [heroGo, setHeroGo] = useState(false)

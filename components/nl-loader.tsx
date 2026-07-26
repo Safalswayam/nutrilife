@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { useReducedStable } from "@/components/nl-motion"
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SequenceLoader — a typographic wait, not a spinner.
@@ -47,7 +48,7 @@ function Word({
   return (
     <motion.span
       className="mr-[0.24em] inline-block last:mr-0"
-      initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.82 }}
+      initial={{ opacity: 0, scale: 0.82 }}
       animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, delay: index * 0.055, ease: EASE }}
     >
@@ -68,7 +69,7 @@ export function SequenceLoader({
   className?: string
   label?: string
 }) {
-  const reduced = !!useReducedMotion()
+  const reduced = useReducedStable()
   const [i, setI] = useState(0)
 
   useEffect(() => {
