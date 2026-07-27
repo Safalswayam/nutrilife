@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import {
   motion,
   MotionConfig,
@@ -230,38 +230,97 @@ function CopyBlock({
   const [on, setOn] = useState(first)
   useMotionValueEvent(opacity, "change", (v) => setOn(v > 0.5))
 
+  /* Coarse proximity gate for the word animations. Flips twice per pass, and
+     React bails out on an unchanged value, so this is not a per-frame cost. */
+  const [near, setNear] = useState(first)
+  useMotionValueEvent(progress, "change", (v) => setNear(v > from - 0.12 && v < to + 0.12))
+
+  /* Published so any <Waterfall> inside can map its words onto this block's
+     own slice of the chapter, without every call site repeating the bounds. */
+  const seg = useMemo<Seg>(
+    () => ({ progress, from, to, first, last, near }),
+    [progress, from, to, first, last, near]
+  )
+
   return (
-    <motion.div
-      style={reduced ? { opacity, visibility } : { opacity, scale, visibility }}
-      className={cn("[grid-area:1/1] self-center", className)}
-    >
-      {typeof children === "function" ? children(on) : children}
-    </motion.div>
+    <SegCtx.Provider value={seg}>
+      <motion.div
+        style={reduced ? { opacity, visibility } : { opacity, scale, visibility }}
+        className={cn("[grid-area:1/1] self-center", className)}
+      >
+        {typeof children === "function" ? children(on) : children}
+      </motion.div>
+    </SegCtx.Provider>
   )
 }
 
-/* ── Word-by-word headline reveal, driven by the chapter's own progress ─────
-   Chapter headlines assemble as the chapter arrives instead of appearing
-   whole. Applied to the first block only, which is already at full opacity. */
+/* ── Waterfall text: words cascade IN and OUT, one after another ────────────
+   Every line of chapter copy is set word by word rather than as a block. Words
+   fall in from above in sequence as the block arrives, hold, then continue
+   falling away in the same direction as it leaves — so the whole page reads as
+   one downward flow instead of things appearing and vanishing wholesale.
 
-function Word({
+   It is driven by the chapter's own scroll progress, not a timer, so it scrubs
+   with the wheel and reverses when you scroll back up. Each word owns a slice
+   of the block's entry and exit zones; the slices overlap so the cascade is
+   continuous rather than a staccato pop per word. */
+
+const ENTRY_ZONE = 0.3 // fraction of the block's segment spent cascading in
+const EXIT_ZONE = 0.24 // ...and cascading out
+const WORD_RAMP = 0.45 // each word's own ramp, as a fraction of its zone
+
+type Seg = {
+  progress: MotionValue<number>
+  from: number
+  to: number
+  first: boolean
+  last: boolean
+  /* Whether this block is close enough to its window to be worth animating.
+     Without this every word in every chapter keeps a live subscription and
+     writes a style each frame — ~200 words cost roughly 12fps. */
+  near: boolean
+}
+const SegCtx = createContext<Seg | null>(null)
+
+function WaterfallWord({
   word,
-  progress,
-  start,
+  i,
+  n,
+  seg,
   lime,
 }: {
   word: string
-  progress: MotionValue<number>
-  start: number
+  i: number
+  n: number
+  seg: Seg
   lime?: boolean
 }) {
   const reduced = useReducedStable()
-  const opacity = useTransform(progress, [start, start + 0.045], [0, 1])
-  /* words arrive from depth, matching the CopyBlock grammar */
-  const scale = useTransform(progress, [start, start + 0.045], [0.82, 1])
+  const { progress, from, to, last } = seg
+  const L = Math.max(to - from, 0.001)
+  const span = n > 1 ? i / (n - 1) : 0
+
+  /* One keyframe track per property, read straight off the chapter's progress.
+     Chaining intermediate motion values instead cost about 10fps across a
+     transition, because every word re-derived through four subscriptions. */
+  const inLen = L * ENTRY_ZONE
+  const inS = from + span * inLen * (1 - WORD_RAMP)
+  const inE = inS + inLen * WORD_RAMP
+
+  const outLen = L * EXIT_ZONE
+  const outS = last ? 1e4 : to - outLen + span * outLen * (1 - WORD_RAMP)
+  const outE = last ? 1e4 + 1 : outS + outLen * WORD_RAMP
+
+  const stops = [inS, inE, outS, outE]
+  const opacity = useTransform(progress, stops, [0, 1, 1, 0], { clamp: true })
+  /* Falls in from above, then keeps falling on the way out — same direction
+     throughout, which is what makes it read as a waterfall rather than a
+     bounce. `em` so the travel scales with the type size. */
+  const y = useTransform(progress, stops, ["-0.42em", "0em", "0em", "0.38em"], { clamp: true })
+
   return (
     <motion.span
-      style={reduced ? undefined : { opacity, scale }}
+      style={reduced ? { opacity } : { opacity, y }}
       className={cn("mr-[0.24em] inline-block last:mr-0", lime && "text-nl-lime")}
     >
       {word}
@@ -269,33 +328,54 @@ function Word({
   )
 }
 
-function RevealHeadline({
+/** Sets `text` word by word inside the enclosing CopyBlock's segment. */
+function Waterfall({
   text,
-  progress,
+  as: Tag = "p",
   className,
-  start = 0.012,
-  step = 0.011,
+  limeWord,
 }: {
   text: string
-  progress: MotionValue<number>
+  as?: "h2" | "p" | "span"
   className?: string
-  start?: number
-  step?: number
+  limeWord?: string
 }) {
+  const seg = useContext(SegCtx)
   const words = text.split(" ")
+  if (!seg) return <Tag className={className}>{text}</Tag>
+
+  /* Far from its window the block is hidden anyway, so drop the motion values
+     entirely rather than paying to animate something nobody can see. */
+  if (!seg.near) {
+    return (
+      <Tag className={className} aria-label={text}>
+        <span aria-hidden="true" style={{ opacity: 0 }}>
+          {text}
+        </span>
+      </Tag>
+    )
+  }
+
   return (
-    <h2
-      className={className}
-      style={{ perspective: 900, transformStyle: "preserve-3d" }}
-      aria-label={text}
-    >
+    <Tag className={className} aria-label={text}>
       <span aria-hidden="true">
         {words.map((w, i) => (
-          <Word key={`${w}-${i}`} word={w} progress={progress} start={start + i * step} />
+          <WaterfallWord
+            key={`${w}-${i}`}
+            word={w}
+            i={i}
+            n={words.length}
+            seg={seg}
+            lime={!!limeWord && w.replace(/[^\w-]/g, "") === limeWord}
+          />
         ))}
       </span>
-    </h2>
+    </Tag>
   )
+}
+
+function RevealHeadline({ text, className }: { text: string; className?: string }) {
+  return <Waterfall text={text} as="h2" className={className} />
 }
 
 /* Text-zone layouts: odd chapters inset left, even chapters centered. */
@@ -304,16 +384,15 @@ const ZONE_LEFT =
 const ZONE_CENTER =
   "relative z-10 grid h-full content-center place-items-center px-6 text-center sm:px-10 md:px-[14%]"
 
-function Eyebrow({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
+function Eyebrow({ children, light = false }: { children: string; light?: boolean }) {
   return (
-    <p
+    <Waterfall
+      text={children}
       className={cn(
         "mb-5 text-[11px] font-medium uppercase tracking-[0.3em] sm:text-xs",
         light ? "text-nl-forest" : "text-nl-sage"
       )}
-    >
-      {children}
-    </p>
+    />
   )
 }
 
@@ -924,16 +1003,15 @@ function ChapterLog() {
             <Eyebrow>01 / Food logging</Eyebrow>
             <RevealHeadline
               text="Log a meal before life moves on."
-              progress={progress}
               className="text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
             />
           </CopyBlock>
 
           <CopyBlock progress={progress} from={0.38} to={0.68}>
-            <p className="max-w-md text-lg leading-relaxed text-nl-warm/85">
-              Snap it, search it, or add it your way. NutriLife turns ordinary meals into a clear,
-              usable daily record.
-            </p>
+            <Waterfall
+              text="Snap it, search it, or add it your way. NutriLife turns ordinary meals into a clear, usable daily record."
+              className="max-w-md text-lg leading-relaxed text-nl-warm/85"
+            />
           </CopyBlock>
 
           <CopyBlock progress={progress} from={0.68} to={1} last>
@@ -1076,16 +1154,15 @@ function ChapterAnalyze() {
             <Eyebrow>02 / Food analyzer</Eyebrow>
             <RevealHeadline
               text="See what your plate is telling you."
-              progress={progress}
               className="mx-auto max-w-[16ch] text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
             />
           </CopyBlock>
 
           <CopyBlock progress={progress} from={0.36} to={0.64}>
-            <p className="mx-auto max-w-md text-lg leading-relaxed text-nl-warm/85">
-              A simple analysis turns the meal in front of you into practical nutrition—not a
-              lecture.
-            </p>
+            <Waterfall
+              text="A simple analysis turns the meal in front of you into practical nutrition—not a lecture."
+              className="mx-auto max-w-md text-lg leading-relaxed text-nl-warm/85"
+            />
           </CopyBlock>
 
           <CopyBlock
@@ -1213,16 +1290,15 @@ function ChapterPlan() {
             <Eyebrow>03 / Diet planner</Eyebrow>
             <RevealHeadline
               text="A plan with room for real life."
-              progress={progress}
               className="text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
             />
           </CopyBlock>
 
           <CopyBlock progress={progress} from={0.32} to={0.58}>
-            <p className="max-w-md text-lg leading-relaxed text-nl-warm/85">
-              Build meals around your goals, your schedule, and the foods you actually enjoy. Swap
-              without starting over.
-            </p>
+            <Waterfall
+              text="Build meals around your goals, your schedule, and the foods you actually enjoy. Swap without starting over."
+              className="max-w-md text-lg leading-relaxed text-nl-warm/85"
+            />
           </CopyBlock>
 
           <CopyBlock progress={progress} from={0.58} to={1} last>
@@ -1339,8 +1415,6 @@ function ChapterProgress() {
             <Eyebrow light>04 / Progress, not perfection</Eyebrow>
             <RevealHeadline
               text="Small choices become a pattern."
-              progress={progress}
-              step={0.014}
               className="mx-auto max-w-[15ch] text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-ink sm:text-4xl md:text-[3.4rem]"
             />
           </CopyBlock>
@@ -1537,13 +1611,12 @@ function ChapterPlans() {
             <Eyebrow>05 / Choose your rhythm</Eyebrow>
             <RevealHeadline
               text="One clear plan. Your pace."
-              progress={progress}
-              step={0.016}
               className="mx-auto max-w-[14ch] text-3xl font-semibold leading-[1.05] tracking-[-0.04em] text-nl-warm sm:text-4xl md:text-5xl"
             />
-            <p className="mx-auto mt-5 max-w-sm text-base leading-relaxed text-nl-warm/80">
-              Start simply. Keep the tools that help you stay consistent.
-            </p>
+            <Waterfall
+              text="Start simply. Keep the tools that help you stay consistent."
+              className="mx-auto mt-5 max-w-sm text-base leading-relaxed text-nl-warm/80"
+            />
           </CopyBlock>
 
           <CopyBlock progress={progress} from={0.26} to={1} last className="w-full justify-self-center">
