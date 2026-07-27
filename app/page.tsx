@@ -8,7 +8,6 @@ import {
   motion,
   MotionConfig,
   useMotionValueEvent,
-  useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
@@ -122,9 +121,15 @@ function useTrack() {
    cross-fade has both layers at ~0.2 in the middle, so the scene visibly dips
    (measured: total opacity fell to 0.39 at the midpoint). Here the incoming
    chapter ramps to full while the outgoing still holds, so coverage never
-   drops below 1 and the handoff reads as a dissolve, not a dip. */
-const FADE_IN = [0.3, 0.75] as const
-const FADE_OUT = [0.55, 0.95] as const
+   drops below 1 and the handoff reads as a dissolve, not a dip.
+
+   Both windows END at 1.0 on purpose. entry=1.0 is exactly the point where a
+   section's own progress starts ticking, and the waterfall drives every word
+   off that progress. Finishing the fade earlier (it used to complete at 0.75)
+   left a quarter-viewport where the chapter was fully opaque but every word
+   was still at opacity 0 — a visibly empty chapter. */
+const FADE_IN = [0.45, 1.0] as const
+const FADE_OUT = [0.6, 1.0] as const
 
 function Stage({
   track,
@@ -287,13 +292,11 @@ function WaterfallWord({
   i,
   n,
   seg,
-  lime,
 }: {
   word: string
   i: number
   n: number
   seg: Seg
-  lime?: boolean
 }) {
   const reduced = useReducedStable()
   const { progress, from, to, last } = seg
@@ -321,7 +324,7 @@ function WaterfallWord({
   return (
     <motion.span
       style={reduced ? { opacity } : { opacity, y }}
-      className={cn("mr-[0.24em] inline-block last:mr-0", lime && "text-nl-lime")}
+      className="mr-[0.24em] inline-block last:mr-0"
     >
       {word}
     </motion.span>
@@ -333,22 +336,28 @@ function Waterfall({
   text,
   as: Tag = "p",
   className,
-  limeWord,
 }: {
   text: string
   as?: "h2" | "p" | "span"
   className?: string
-  limeWord?: string
 }) {
   const seg = useContext(SegCtx)
   const words = text.split(" ")
   if (!seg) return <Tag className={className}>{text}</Tag>
 
+  /* The name is carried by a real sr-only text node, not by aria-label on the
+     host. `as` defaults to <p> (role=paragraph), and ARIA prohibits naming on
+     that role — Chromium computes it anyway, but screen readers that honour
+     the prohibition would hear nothing at all, since the visible words are
+     aria-hidden. Same pattern nl-loader.tsx uses. */
+  const label = <span className="sr-only">{text}</span>
+
   /* Far from its window the block is hidden anyway, so drop the motion values
      entirely rather than paying to animate something nobody can see. */
   if (!seg.near) {
     return (
-      <Tag className={className} aria-label={text}>
+      <Tag className={className}>
+        {label}
         <span aria-hidden="true" style={{ opacity: 0 }}>
           {text}
         </span>
@@ -357,17 +366,11 @@ function Waterfall({
   }
 
   return (
-    <Tag className={className} aria-label={text}>
+    <Tag className={className}>
+      {label}
       <span aria-hidden="true">
         {words.map((w, i) => (
-          <WaterfallWord
-            key={`${w}-${i}`}
-            word={w}
-            i={i}
-            n={words.length}
-            seg={seg}
-            lime={!!limeWord && w.replace(/[^\w-]/g, "") === limeWord}
-          />
+          <WaterfallWord key={`${w}-${i}`} word={w} i={i} n={words.length} seg={seg} />
         ))}
       </span>
     </Tag>
